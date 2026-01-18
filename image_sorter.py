@@ -4,13 +4,139 @@ Main ImageSorter application class.
 
 import os
 import shutil
+import tempfile
+import atexit
 from PySide6.QtWidgets import (QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
                                QLineEdit, QMessageBox, QProgressBar, QStatusBar,
                                QFileSystemModel, QToolButton, QMenu, QApplication,
-                               QListWidgetItem, QPushButton, QFileDialog)
+                               QListWidgetItem, QPushButton, QFileDialog, QDialog,
+                               QTextBrowser, QLabel, QDialogButtonBox, QScrollArea)
 from PySide6.QtCore import Qt, QSize, QDir, QTimer
 from PySide6.QtGui import QAction, QIcon, QActionGroup
 from PIL import Image
+
+
+class DeleteUndoManager:
+    """Manages undo functionality for file deletions.
+
+    Stores deleted files in a temporary directory for potential restoration.
+    Only keeps track of the last deleted file(s) - single depth undo.
+    """
+
+    def __init__(self):
+        # Create a temp directory for storing deleted files
+        self.temp_dir = tempfile.mkdtemp(prefix="img_sort_undo_")
+        # Store info about the last deletion: list of (original_path, temp_path) tuples
+        self.last_deletion = []
+        # Register cleanup on exit
+        atexit.register(self.cleanup)
+
+    def store_for_undo(self, file_path):
+        """Move a file to temp storage for potential undo.
+
+        Args:
+            file_path: Path to the file to be "deleted"
+
+        Returns:
+            True if file was successfully stored, False otherwise
+        """
+        if not os.path.exists(file_path):
+            return False
+
+        try:
+            # Generate a unique temp filename preserving extension
+            basename = os.path.basename(file_path)
+            temp_path = os.path.join(self.temp_dir, basename)
+
+            # Handle naming conflicts in temp dir
+            counter = 1
+            name, ext = os.path.splitext(temp_path)
+            while os.path.exists(temp_path):
+                temp_path = f"{name}_{counter}{ext}"
+                counter += 1
+
+            # Move file to temp location
+            shutil.move(file_path, temp_path)
+
+            # Store the mapping
+            self.last_deletion.append((file_path, temp_path))
+            return True
+
+        except Exception as e:
+            print(f"Error storing file for undo: {e}")
+            return False
+
+    def start_new_deletion(self):
+        """Clear previous deletion info before starting a new deletion batch.
+
+        Call this before a new delete operation to ensure only the latest
+        deletion can be undone.
+        """
+        # Clean up old temp files from previous deletion
+        for original_path, temp_path in self.last_deletion:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception as e:
+                print(f"Error cleaning up temp file {temp_path}: {e}")
+
+        self.last_deletion = []
+
+    def permanent_delete(self, file_path):
+        """Permanently delete a file without undo capability.
+
+        Args:
+            file_path: Path to the file to delete permanently
+
+        Returns:
+            True if file was successfully deleted, False otherwise
+        """
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return True
+        except Exception as e:
+            print(f"Error permanently deleting file: {e}")
+            return False
+
+    def undo(self):
+        """Restore the last deleted file(s).
+
+        Returns:
+            List of restored file paths, or empty list if nothing to undo
+        """
+        if not self.last_deletion:
+            return []
+
+        restored_paths = []
+        for original_path, temp_path in self.last_deletion:
+            try:
+                if os.path.exists(temp_path):
+                    # Ensure the original directory still exists
+                    original_dir = os.path.dirname(original_path)
+                    if not os.path.exists(original_dir):
+                        os.makedirs(original_dir)
+
+                    # Move file back to original location
+                    shutil.move(temp_path, original_path)
+                    restored_paths.append(original_path)
+            except Exception as e:
+                print(f"Error restoring file {original_path}: {e}")
+
+        self.last_deletion = []
+        return restored_paths
+
+    def can_undo(self):
+        """Check if there's a deletion that can be undone."""
+        return len(self.last_deletion) > 0
+
+    def cleanup(self):
+        """Clean up the temp directory and all its contents."""
+        try:
+            if os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+        except Exception as e:
+            print(f"Error cleaning up temp directory: {e}")
 
 from thumbnail_list import ThumbnailList
 from folder_tree import FolderTree
@@ -61,8 +187,15 @@ class ImageSorter(QMainWindow):
         # Undo state for move/copy operations
         self.last_operation = None  # {"type": "move"|"copy", "files": [(src, dest), ...]}
 
-        # Deduplication mode
+        # Delete undo manager (for restoring deleted files)
+        self.delete_undo_manager = DeleteUndoManager()
+
+        # Deduplication mode for thumbnail pane
         self.dedup_mode = "exact"  # "exact", "visual_largest", "visual_smallest"
+
+        # Folder deduplication settings
+        self.folder_dedup_mode = "exact"  # "exact", "visual_largest", "visual_smallest", "visual_deepest", "visual_shallow"
+        self.folder_dedup_recursive = False  # Whether to process subdirectories
 
         # Settings manager
         self.settings_manager = SettingsManager(self)
@@ -115,6 +248,20 @@ class ImageSorter(QMainWindow):
         face_detect_settings_act.triggered.connect(self.show_face_detection_settings)
         options_menu.addAction(face_detect_settings_act)
 
+        # Help Menu
+        help_menu = menu_bar.addMenu('&Help')
+
+        manual_act = QAction('&Manual', self)
+        manual_act.setShortcut('F1')
+        manual_act.triggered.connect(self.show_manual)
+        help_menu.addAction(manual_act)
+
+        help_menu.addSeparator()
+
+        about_act = QAction('&About', self)
+        about_act.triggered.connect(self.show_about)
+        help_menu.addAction(about_act)
+
         # --- Status Bar and Progress Bar Setup ---
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -131,7 +278,7 @@ class ImageSorter(QMainWindow):
         self.src_layout = QVBoxLayout(self.src_widget)
         self.src_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Source path row with text entry and browse button
+        # Source path row with text entry, browse button, and dedup button
         self.src_path_row = QHBoxLayout()
         self.src_path_display = QLineEdit(os.path.expanduser("~"))
         self.src_path_display.setPlaceholderText("Source folder path...")
@@ -140,8 +287,15 @@ class ImageSorter(QMainWindow):
         self.src_browse_btn.setMaximumWidth(30)
         self.src_browse_btn.setToolTip("Browse for source folder")
         self.src_browse_btn.clicked.connect(self.browse_source_folder)
+        self.src_dedup_btn = QPushButton("🗑️")
+        self.src_dedup_btn.setMaximumWidth(30)
+        self.src_dedup_btn.setToolTip("Remove duplicates in selected folders (right-click for options)")
+        self.src_dedup_btn.clicked.connect(lambda: self.remove_folder_duplicates(self.src_tree))
+        self.src_dedup_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.src_dedup_btn.customContextMenuRequested.connect(self.show_folder_dedup_menu)
         self.src_path_row.addWidget(self.src_path_display)
         self.src_path_row.addWidget(self.src_browse_btn)
+        self.src_path_row.addWidget(self.src_dedup_btn)
 
         self.src_model = QFileSystemModel()
         self.src_model.setRootPath(QDir.rootPath())
@@ -215,7 +369,7 @@ class ImageSorter(QMainWindow):
         self.dest_layout = QVBoxLayout(self.dest_widget)
         self.dest_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Destination path row with text entry and browse button
+        # Destination path row with text entry, browse button, and dedup button
         self.dest_path_row = QHBoxLayout()
         self.dest_path_display = QLineEdit(os.path.expanduser("~"))
         self.dest_path_display.setPlaceholderText("Destination folder path...")
@@ -224,8 +378,15 @@ class ImageSorter(QMainWindow):
         self.dest_browse_btn.setMaximumWidth(30)
         self.dest_browse_btn.setToolTip("Browse for destination folder")
         self.dest_browse_btn.clicked.connect(self.browse_dest_folder)
+        self.dest_dedup_btn = QPushButton("🗑️")
+        self.dest_dedup_btn.setMaximumWidth(30)
+        self.dest_dedup_btn.setToolTip("Remove duplicates in selected folders (right-click for options)")
+        self.dest_dedup_btn.clicked.connect(lambda: self.remove_folder_duplicates(self.dest_tree))
+        self.dest_dedup_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.dest_dedup_btn.customContextMenuRequested.connect(self.show_folder_dedup_menu)
         self.dest_path_row.addWidget(self.dest_path_display)
         self.dest_path_row.addWidget(self.dest_browse_btn)
+        self.dest_path_row.addWidget(self.dest_dedup_btn)
 
         self.dest_model = QFileSystemModel()
         self.dest_model.setRootPath(QDir.rootPath())
@@ -431,6 +592,77 @@ class ImageSorter(QMainWindow):
     def show_dedup_menu(self, pos):
         """Show the deduplication menu on right-click."""
         self.dedup_menu.exec(self.dedup_btn.mapToGlobal(pos))
+
+    def setup_folder_dedup_menu(self):
+        """Create the folder deduplication menu with extended options."""
+        self.folder_dedup_menu = QMenu(self)
+
+        # Create action group for mutual exclusivity of modes
+        folder_dedup_group = QActionGroup(self)
+        folder_dedup_group.setExclusive(True)
+
+        exact_act = QAction("Exact (MD5 checksum)", self, checkable=True)
+        exact_act.triggered.connect(lambda: self.set_folder_dedup_mode("exact"))
+        folder_dedup_group.addAction(exact_act)
+        self.folder_dedup_menu.addAction(exact_act)
+
+        visual_largest_act = QAction("Visual - Retain Largest", self, checkable=True)
+        visual_largest_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_largest"))
+        folder_dedup_group.addAction(visual_largest_act)
+        self.folder_dedup_menu.addAction(visual_largest_act)
+
+        visual_smallest_act = QAction("Visual - Retain Smallest", self, checkable=True)
+        visual_smallest_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_smallest"))
+        folder_dedup_group.addAction(visual_smallest_act)
+        self.folder_dedup_menu.addAction(visual_smallest_act)
+
+        visual_deepest_act = QAction("Visual - Retain Deepest", self, checkable=True)
+        visual_deepest_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_deepest"))
+        folder_dedup_group.addAction(visual_deepest_act)
+        self.folder_dedup_menu.addAction(visual_deepest_act)
+
+        visual_shallow_act = QAction("Visual - Retain Shallow", self, checkable=True)
+        visual_shallow_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_shallow"))
+        folder_dedup_group.addAction(visual_shallow_act)
+        self.folder_dedup_menu.addAction(visual_shallow_act)
+
+        # Separator before recursive option
+        self.folder_dedup_menu.addSeparator()
+
+        # Recursive toggle (independent, not mutually exclusive)
+        self.folder_recursive_act = QAction("Recursive (include subdirectories)", self, checkable=True)
+        self.folder_recursive_act.triggered.connect(self.toggle_folder_dedup_recursive)
+        self.folder_dedup_menu.addAction(self.folder_recursive_act)
+
+        # Set default checked
+        exact_act.setChecked(True)
+
+        self.folder_dedup_actions = {
+            "exact": exact_act,
+            "visual_largest": visual_largest_act,
+            "visual_smallest": visual_smallest_act,
+            "visual_deepest": visual_deepest_act,
+            "visual_shallow": visual_shallow_act,
+        }
+
+    def set_folder_dedup_mode(self, mode):
+        """Set the folder deduplication mode."""
+        self.folder_dedup_mode = mode
+        self.folder_dedup_actions[mode].setChecked(True)
+
+    def toggle_folder_dedup_recursive(self):
+        """Toggle recursive folder deduplication."""
+        self.folder_dedup_recursive = self.folder_recursive_act.isChecked()
+
+    def show_folder_dedup_menu(self, pos):
+        """Show the folder deduplication menu on right-click."""
+        # Ensure menu is set up
+        if not hasattr(self, 'folder_dedup_menu'):
+            self.setup_folder_dedup_menu()
+        # Get the sender button
+        sender = self.sender()
+        if sender:
+            self.folder_dedup_menu.exec(sender.mapToGlobal(pos))
 
     def show_filter_menu(self, pos):
         """Show the filter menu on right-click."""
@@ -850,23 +1082,48 @@ class ImageSorter(QMainWindow):
         """Open dialog to browse for source folder."""
         current_path = self.src_path_display.text() or os.path.expanduser("~")
         folder = QFileDialog.getExistingDirectory(
-            self, "Select Source Folder", current_path,
-            QFileDialog.Option.ShowDirsOnly
+            self, "Select Source Folder", current_path
         )
-        if folder:
+        if folder and os.path.isdir(folder):
+            folder = os.path.abspath(folder)
             self.src_path_display.setText(folder)
-            self.on_source_path_change()
+
+            # Directly update the tree instead of calling on_source_path_change
+            self.src_tree.blockSignals(True)
+            self.src_root_path = folder
+            self.src_tree.setRootIndex(self.src_model.index(folder))
+            index = self.src_model.index(folder)
+            if index.isValid():
+                self.src_tree.setCurrentIndex(index)
+                self.src_tree.scrollTo(index)
+            self.src_tree.blockSignals(False)
+            self.refresh_thumbnails()
+
+            if self._settings_loaded:
+                self.write_settings()
 
     def browse_dest_folder(self):
         """Open dialog to browse for destination folder."""
         current_path = self.dest_path_display.text() or os.path.expanduser("~")
         folder = QFileDialog.getExistingDirectory(
-            self, "Select Destination Folder", current_path,
-            QFileDialog.Option.ShowDirsOnly
+            self, "Select Destination Folder", current_path
         )
-        if folder:
+        if folder and os.path.isdir(folder):
+            folder = os.path.abspath(folder)
             self.dest_path_display.setText(folder)
-            self.on_dest_path_change()
+
+            # Directly update the tree instead of calling on_dest_path_change
+            self.dest_tree.blockSignals(True)
+            self.dest_root_path = folder
+            self.dest_tree.setRootIndex(self.dest_model.index(folder))
+            index = self.dest_model.index(folder)
+            if index.isValid():
+                self.dest_tree.setCurrentIndex(index)
+                self.dest_tree.scrollTo(index)
+            self.dest_tree.blockSignals(False)
+
+            if self._settings_loaded:
+                self.write_settings()
 
     def on_splitter_moved(self, pos, index):
         """Called when the splitter is moved - triggers thumbnail redraw."""
@@ -1183,12 +1440,26 @@ class ImageSorter(QMainWindow):
         """Removes specific items from the thumb_list without a full reload."""
         paths_to_remove = {os.path.normpath(p) for p in paths_to_remove}
 
+        # Find the lowest index of items being removed to select next item
+        first_removed_index = None
         for i in range(self.thumb_list.count() - 1, -1, -1):
             item = self.thumb_list.item(i)
             item_path = os.path.normpath(item.data(Qt.ItemDataRole.UserRole))
 
             if item_path in paths_to_remove:
+                if first_removed_index is None or i < first_removed_index:
+                    first_removed_index = i
                 self.thumb_list.takeItem(i)
+
+        # Select the next thumbnail after the removed items
+        if first_removed_index is not None and self.thumb_list.count() > 0:
+            # Select the item at the same index (which is now the next item)
+            # or the last item if we removed from the end
+            next_index = min(first_removed_index, self.thumb_list.count() - 1)
+            next_item = self.thumb_list.item(next_index)
+            if next_item:
+                self.thumb_list.setCurrentItem(next_item)
+                self.thumb_list.scrollToItem(next_item)
 
         self.status_bar.showMessage(f"Removed {len(paths_to_remove)} items.", 3000)
 
@@ -1315,6 +1586,7 @@ class ImageSorter(QMainWindow):
         """Find visual duplicates using findimagedupes. Returns dict of {group_id: [files]}."""
         import subprocess
         import tempfile
+        import shutil
 
         # Check if findimagedupes is available
         try:
@@ -1332,27 +1604,50 @@ class ImageSorter(QMainWindow):
             )
             raise RuntimeError("findimagedupes not found")
 
-        # Run findimagedupes
+        # Get unique directories containing the files
+        directories = list(set(os.path.dirname(p) for p in file_paths))
+        file_paths_set = set(file_paths)
+
+        # Create a temporary directory for the fingerprint database
+        temp_dir = tempfile.mkdtemp()
+        db_file = os.path.join(temp_dir, "fingerprints.db")
+
         try:
+            # Use custom hook to output files with ||| delimiter (handles spaces in paths)
+            custom_hook = 'VIEW(){ for f in "$@"; do printf "%s|||" "$f"; done; echo; }'
+
+            # Run findimagedupes on the directories
+            # -f is for fingerprint database, -i is for custom view hook
             result = subprocess.run(
-                ['findimagedupes', '--quiet', '--'] + file_paths,
+                ['findimagedupes', '-f', db_file, '-i', custom_hook] + directories,
                 capture_output=True,
-                text=True,
-                check=True
+                text=True
             )
 
-            # Parse output - each line is a group of duplicates separated by spaces
+            # Parse output - each line has files separated by |||
             duplicates = {}
-            for group_id, line in enumerate(result.stdout.strip().split('\n')):
-                if line:
-                    files = line.split()
-                    if len(files) > 1:
-                        duplicates[group_id] = files
+            group_id = 0
+
+            for line in result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+
+                # Split by ||| delimiter
+                files = [f.strip() for f in line.strip().split('|||') if f.strip()]
+
+                # Filter to only include files from our input set
+                valid_files = [f for f in files if f in file_paths_set and os.path.isfile(f)]
+
+                if len(valid_files) > 1:
+                    duplicates[group_id] = valid_files
+                    group_id += 1
 
             return duplicates
 
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"findimagedupes failed: {e.stderr}")
+        finally:
+            # Clean up temp directory and database
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
     def delete_duplicate_files(self, duplicates):
         """Delete duplicate files, keeping one per group based on dedup_mode.
@@ -1399,8 +1694,199 @@ class ImageSorter(QMainWindow):
 
         return deleted_count
 
+    def remove_folder_duplicates(self, tree):
+        """Remove duplicate images in selected folders based on folder dedup settings.
+
+        Args:
+            tree: The FolderTree widget (source or destination)
+        """
+        import hashlib
+        import subprocess
+
+        # Ensure folder dedup menu is set up
+        if not hasattr(self, 'folder_dedup_menu'):
+            self.setup_folder_dedup_menu()
+
+        # Get selected folder paths
+        selected_indexes = tree.selectedIndexes()
+        # Filter to column 0 only to avoid duplicates from multiple columns
+        selected_paths = []
+        seen_rows = set()
+        for idx in selected_indexes:
+            if idx.column() == 0 and idx.row() not in seen_rows:
+                seen_rows.add(idx.row())
+                path = tree.model().filePath(idx)
+                if os.path.isdir(path):
+                    selected_paths.append(path)
+
+        if not selected_paths:
+            # Use root path if nothing selected
+            if tree == self.src_tree:
+                selected_paths = [self.src_root_path]
+            else:
+                selected_paths = [self.dest_root_path]
+
+        if not selected_paths or not selected_paths[0]:
+            QMessageBox.information(self, "Remove Duplicates",
+                                   "Please select one or more folders first.")
+            return
+
+        # Collect all image files from selected folders
+        valid_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.tiff', '.bmp')
+        file_paths = []
+
+        for folder_path in selected_paths:
+            if self.folder_dedup_recursive:
+                # Recursive: walk all subdirectories
+                for root, dirs, files in os.walk(folder_path):
+                    for f in files:
+                        if f.lower().endswith(valid_extensions):
+                            file_paths.append(os.path.join(root, f))
+            else:
+                # Non-recursive: only immediate directory
+                try:
+                    for f in os.listdir(folder_path):
+                        if f.lower().endswith(valid_extensions):
+                            full_path = os.path.join(folder_path, f)
+                            if os.path.isfile(full_path):
+                                file_paths.append(full_path)
+                except (PermissionError, OSError) as e:
+                    print(f"Error accessing {folder_path}: {e}")
+
+        if len(file_paths) < 2:
+            QMessageBox.information(self, "Remove Duplicates",
+                                   "Need at least 2 images to find duplicates.")
+            return
+
+        # Build scope message
+        folder_names = [os.path.basename(p) for p in selected_paths]
+        if len(folder_names) > 3:
+            scope_msg = f"{len(folder_names)} folders"
+        else:
+            scope_msg = ", ".join(folder_names)
+        if self.folder_dedup_recursive:
+            scope_msg += " (recursive)"
+
+        # Confirm operation
+        mode_descriptions = {
+            "exact": "MD5 checksum comparison",
+            "visual_largest": "visual similarity (retain largest)",
+            "visual_smallest": "visual similarity (retain smallest)",
+            "visual_deepest": "visual similarity (retain deepest path)",
+            "visual_shallow": "visual similarity (retain shallowest path)"
+        }
+        mode_desc = mode_descriptions.get(self.folder_dedup_mode, self.folder_dedup_mode)
+
+        reply = QMessageBox.question(
+            self, "Remove Duplicates",
+            f"Find and remove duplicates from {scope_msg} ({len(file_paths)} files) using {mode_desc}?\n\n"
+            "This will permanently delete duplicate files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Show progress
+        self.status_bar.showMessage("Finding duplicates...", 0)
+        QApplication.processEvents()
+
+        try:
+            if self.folder_dedup_mode == "exact":
+                duplicates = self.find_exact_duplicates(file_paths)
+            else:
+                duplicates = self.find_visual_duplicates(file_paths)
+
+            if not duplicates:
+                self.status_bar.showMessage("No duplicates found", 3000)
+                QMessageBox.information(self, "Remove Duplicates", "No duplicate images found.")
+                return
+
+            # Delete duplicates using folder-specific mode
+            deleted_count = self.delete_folder_duplicate_files(duplicates)
+
+            # Refresh thumbnail view if it shows affected folder
+            self.refresh_thumbnails()
+
+            # Update folder counts
+            if self.show_counts_act.isChecked():
+                self.src_tree.count_delegate._count_cache.clear()
+                self.dest_tree.count_delegate._count_cache.clear()
+                self.src_tree.viewport().update()
+                self.dest_tree.viewport().update()
+
+            self.status_bar.showMessage(f"Removed {deleted_count} duplicate file(s)", 3000)
+            QMessageBox.information(self, "Remove Duplicates",
+                                   f"Successfully removed {deleted_count} duplicate file(s).")
+
+        except Exception as e:
+            self.status_bar.showMessage("Error during deduplication", 3000)
+            QMessageBox.critical(self, "Error", f"Failed to remove duplicates:\n{e}")
+
+    def delete_folder_duplicate_files(self, duplicates):
+        """Delete duplicate files using folder dedup mode.
+
+        Args:
+            duplicates: dict of {group_id: [file_paths]}
+
+        Returns:
+            Number of files deleted
+        """
+        deleted_count = 0
+
+        for group_id, files in duplicates.items():
+            if len(files) < 2:
+                continue
+
+            # Determine which file to keep based on folder_dedup_mode
+            if self.folder_dedup_mode == "exact":
+                # For exact duplicates, keep the first one (arbitrary)
+                keep_file = files[0]
+                delete_files = files[1:]
+            elif self.folder_dedup_mode == "visual_largest":
+                # Keep the largest file
+                files_with_size = [(f, os.path.getsize(f)) for f in files]
+                files_with_size.sort(key=lambda x: x[1], reverse=True)
+                keep_file = files_with_size[0][0]
+                delete_files = [f for f, _ in files_with_size[1:]]
+            elif self.folder_dedup_mode == "visual_smallest":
+                # Keep the smallest file
+                files_with_size = [(f, os.path.getsize(f)) for f in files]
+                files_with_size.sort(key=lambda x: x[1])
+                keep_file = files_with_size[0][0]
+                delete_files = [f for f, _ in files_with_size[1:]]
+            elif self.folder_dedup_mode == "visual_deepest":
+                # Keep the file with the deepest path (most directory separators)
+                files_with_depth = [(f, f.count(os.sep)) for f in files]
+                files_with_depth.sort(key=lambda x: x[1], reverse=True)
+                keep_file = files_with_depth[0][0]
+                delete_files = [f for f, _ in files_with_depth[1:]]
+            elif self.folder_dedup_mode == "visual_shallow":
+                # Keep the file with the shallowest path (fewest directory separators)
+                files_with_depth = [(f, f.count(os.sep)) for f in files]
+                files_with_depth.sort(key=lambda x: x[1])
+                keep_file = files_with_depth[0][0]
+                delete_files = [f for f, _ in files_with_depth[1:]]
+            else:
+                continue
+
+            # Delete the duplicate files
+            for file_path in delete_files:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+
+        return deleted_count
+
     def undo_last_operation(self):
         """Undo the last move, copy, or delete operation."""
+        # First check if there's a delete to undo (takes priority as it's the most recent)
+        if hasattr(self, 'delete_undo_manager') and self.delete_undo_manager.can_undo():
+            self.undo_delete()
+            return
+
         if not self.last_operation:
             self.status_bar.showMessage("Nothing to undo", 3000)
             return
@@ -1435,10 +1921,6 @@ class ImageSorter(QMainWindow):
                         success_count += 1
                     else:
                         failed_count += 1
-                elif operation_type == "delete":
-                    # For delete, we can't undo (files are gone)
-                    # This is just a placeholder for future trash/recycle bin support
-                    failed_count += 1
             except Exception as e:
                 failed_count += 1
                 QMessageBox.warning(self, "Undo Error", f"Could not undo {os.path.basename(dest)}:\n{e}")
@@ -1459,10 +1941,38 @@ class ImageSorter(QMainWindow):
             self.src_tree.viewport().update()
             self.dest_tree.viewport().update()
 
-        # Show status
-        if success_count > 0:
-            op_name = "copied" if operation_type == "copy" else "moved"
-            self.status_bar.showMessage(f"Undid {op_name} operation for {success_count} file(s)", 3000)
+        self.status_bar.showMessage(f"Undid {operation_type}: {success_count} file(s)", 3000)
+
+    def undo_delete(self):
+        """Undo the last file deletion."""
+        if not hasattr(self, 'delete_undo_manager') or not self.delete_undo_manager.can_undo():
+            self.status_bar.showMessage("Nothing to undo", 3000)
+            return
+
+        # Save current scroll position
+        scroll_bar = self.thumb_list.verticalScrollBar()
+        saved_scroll_pos = scroll_bar.value()
+
+        # Restore the deleted files
+        restored_paths = self.delete_undo_manager.undo()
+
+        if restored_paths:
+            # Refresh thumbnails to show restored files
+            self.refresh_thumbnails()
+
+            # Restore scroll position after thumbnails are reloaded
+            QTimer.singleShot(100, lambda: scroll_bar.setValue(saved_scroll_pos))
+
+            # Update folder count caches
+            if hasattr(self.src_tree, 'count_delegate') and hasattr(self.dest_tree, 'count_delegate'):
+                self.src_tree.count_delegate._count_cache.clear()
+                self.dest_tree.count_delegate._count_cache.clear()
+                self.src_tree.viewport().update()
+                self.dest_tree.viewport().update()
+
+            self.status_bar.showMessage(f"Restored {len(restored_paths)} file(s)", 3000)
+        else:
+            self.status_bar.showMessage("Could not restore deleted file(s)", 3000)
 
     def resizeEvent(self, event):
         """Handle main window resize - triggers thumbnail redraw."""
@@ -1473,7 +1983,261 @@ class ImageSorter(QMainWindow):
             if self._settings_loaded:
                 self.write_settings()
 
+    def show_about(self):
+        """Show the About dialog."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("About Visual Image Master")
+        dialog.setMinimumSize(450, 350)
+
+        layout = QVBoxLayout(dialog)
+
+        # Application title
+        title_label = QLabel("<h1>Visual Image Master 2026</h1>")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Version and description
+        info_text = """
+        <p style='text-align: center;'>
+        <b>Version 1.0.0</b><br><br>
+        A powerful desktop application for browsing, sorting,<br>
+        filtering, and organizing image collections.<br><br>
+        <b>Features:</b><br>
+        Three-pane interface with drag-and-drop support<br>
+        Face detection and AI-powered filtering<br>
+        Visual duplicate detection and removal<br>
+        Full-screen preview with crop functionality<br>
+        Batch file operations with undo support<br><br>
+        <b>Technologies:</b><br>
+        Python 3 | PySide6 (Qt6) | OpenCV | Pillow<br><br>
+        <hr>
+        <small>
+        Copyright 2026. All rights reserved.<br>
+        Licensed under the MIT License.
+        </small>
+        </p>
+        """
+        info_label = QLabel(info_text)
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        # OK button
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        button_box.accepted.connect(dialog.accept)
+        layout.addWidget(button_box)
+
+        dialog.exec()
+
+    def show_manual(self):
+        """Show the Manual/Help dialog."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Visual Image Master - Manual")
+        dialog.setMinimumSize(700, 600)
+
+        layout = QVBoxLayout(dialog)
+
+        # Create text browser for markdown-style content
+        text_browser = QTextBrowser()
+        text_browser.setOpenExternalLinks(True)
+        text_browser.setReadOnly(True)
+
+        manual_text = self.get_manual_text()
+        text_browser.setMarkdown(manual_text)
+
+        layout.addWidget(text_browser)
+
+        # Close button
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        dialog.exec()
+
+    def get_manual_text(self):
+        """Return the manual/help text content."""
+        return """
+# Visual Image Master 2026
+
+A powerful desktop application for browsing, sorting, filtering, and organizing large image collections with an intuitive three-pane interface.
+
+## Overview
+
+Visual Image Master provides a streamlined workflow for managing images through:
+- **Source Tree (Left)**: Browse and select source directories
+- **Thumbnail Grid (Center)**: View and interact with images
+- **Destination Tree (Right)**: Select target folders for organizing
+
+## Getting Started
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+### Requirements
+- Python 3.8+
+- PySide6 (Qt6 bindings)
+- Pillow (image processing)
+- OpenCV (face detection and quality analysis)
+- findimagedupes (optional, for visual duplicate detection)
+
+## Interface Guide
+
+### Navigation
+
+- **Source/Destination Trees**: Click folders to navigate; use path entry box to type paths directly
+- **Browse Button (...)**: Open folder selection dialog
+- **Thumbnail Grid**: Click to select, Ctrl+click for multi-select, Shift+click for range select
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Delete` | Delete selected files (with undo) |
+| `Shift+Delete` | Permanently delete (no undo) |
+| `Ctrl+Z` | Undo last operation |
+| `Ctrl+R` | Rotate image 90° clockwise |
+| `Ctrl+S` | Save cropped image (in preview) |
+| `Enter` | Open preview window |
+| `Ctrl+Q` | Exit application |
+| `F1` | Open this manual |
+| `Ctrl+Wheel` | Zoom thumbnails/trees/preview |
+
+### Mouse Controls
+
+- **Double-click thumbnail**: Open full-screen preview
+- **Drag thumbnails**: Move/copy to destination folder
+- **Ctrl+Drag**: Copy instead of move
+- **Right-click thumbnail**: Context menu with file operations
+- **Right-click folder**: Create, rename, or delete folders
+
+## Features
+
+### Filtering Images
+
+Click the filter button (🔽) in the toolbar:
+- **Left-click**: Toggle filter on/off
+- **Right-click**: Select filter mode
+
+Filter modes:
+- **Has Face**: Show only images with detected faces
+- **No Face**: Show only images without faces
+- **Advanced**: Configure AI-powered filters (objects, quality, scenes)
+
+### Sorting Images
+
+Click the sort button (⇅) to access sort options:
+- Name (A-Z or Z-A)
+- Date Modified
+- Resolution
+- Width / Height
+- Quality Score
+- File Size
+
+### Duplicate Removal
+
+**Thumbnail Pane** (🗑️ button):
+- Works on selected images or all images in view
+- Right-click for mode options
+
+**Folder Trees** (🗑️ button next to path):
+- Works on selected folders (multi-select with Ctrl/Shift)
+- Supports recursive processing
+
+Deduplication modes:
+- **Exact (MD5)**: Remove byte-identical files
+- **Visual - Retain Largest**: Keep highest resolution
+- **Visual - Retain Smallest**: Keep smallest file size
+- **Visual - Retain Deepest**: Keep file deepest in folder structure
+- **Visual - Retain Shallow**: Keep file closest to root
+
+### Preview Window
+
+Double-click any thumbnail or press Enter to open the preview:
+- **Arrow keys**: Navigate between images
+- **Escape**: Close preview
+- **Scroll wheel**: Zoom in/out (when not in fit mode)
+
+**Crop Functionality** (View > Crop menu):
+- Rectangle: Free-form resizable crop
+- Fixed sizes: 1024×1024, 768×768, 640×640, 512×512
+- Drag to reposition, drag corners to resize
+- `Ctrl+S` to save cropped image
+
+### File Operations
+
+**Moving/Copying Files**:
+1. Select thumbnails in the grid
+2. Drag to destination folder, or
+3. Right-click > Move/Copy to Selected, or
+4. Right-click > Move/Copy to New (enter path)
+
+**Undo Support**:
+- `Ctrl+Z` undoes the last move, copy, or delete
+- Delete operations store files temporarily for recovery
+- Shift+Delete bypasses undo (permanent deletion)
+
+## Options Menu
+
+- **Remember Settings**: Persist window layout and preferences
+- **Show Filenames**: Display names below thumbnails
+- **Show Dimensions**: Display image dimensions
+- **Show File Size**: Display file sizes
+- **Show Folder Counts**: Show image counts in folder trees
+- **Confirm Deletions**: Prompt before deleting files
+- **Face Detection Settings**: Configure detection preset (Fast/Balanced/Thorough)
+
+## Face Detection
+
+Three detection presets:
+- **Fast**: Haar Cascade only (quickest, less accurate)
+- **Balanced**: DNN-based detection (recommended)
+- **Thorough**: Both methods combined (most accurate)
+
+For best results with DNN detection, download the model files:
+```bash
+cd models
+python download_models.py
+```
+
+## Tips & Tricks
+
+1. **Quick Navigation**: Type or paste paths directly in the path entry boxes
+2. **Batch Operations**: Select multiple files with Ctrl+click before moving/copying
+3. **Zoom Levels**: Use Ctrl+wheel to zoom thumbnails, folder trees, or preview
+4. **Filter Workflow**: Enable face filter to quickly sort portrait vs. landscape photos
+5. **Duplicate Cleanup**: Use recursive mode on parent folders to scan entire hierarchies
+
+## Troubleshooting
+
+**"findimagedupes not found"**: Install the tool for visual duplicate detection:
+```bash
+# Ubuntu/Debian
+sudo apt install findimagedupes
+
+# Fedora
+sudo dnf install findimagedupes
+
+# Arch
+sudo pacman -S findimagedupes
+```
+
+**Slow face detection**: Switch to "Fast" preset in Options > Face Detection Settings
+
+**Missing DNN models**: Run `python models/download_models.py` to download detection models
+
+---
+
+For bug reports and feature requests, visit the project repository.
+"""
+
     def closeEvent(self, event):
-        """Save settings when the application closes."""
+        """Save settings and clean up when the application closes."""
         self.write_settings()
+        # Clean up delete undo temp directory
+        if hasattr(self, 'delete_undo_manager'):
+            self.delete_undo_manager.cleanup()
         event.accept()

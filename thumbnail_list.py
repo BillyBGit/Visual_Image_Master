@@ -47,13 +47,25 @@ class ThumbnailList(QListWidget):
     def keyPressEvent(self, event):
         """Intercepts keyboard shortcuts."""
         if event.key() == Qt.Key.Key_Delete:
-            self.delete_selected_files()
+            # Shift+Delete = permanent delete (no undo)
+            permanent = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            self.delete_selected_files(permanent=permanent)
         elif event.key() == Qt.Key.Key_R and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             self.rotate_selected_images()
+        elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            # Enter key opens preview, same as double-click
+            current_item = self.currentItem()
+            if current_item:
+                self.open_preview(current_item)
         else:
             super().keyPressEvent(event)
 
-    def delete_selected_files(self):
+    def delete_selected_files(self, permanent=False):
+        """Delete selected files.
+
+        Args:
+            permanent: If True, delete permanently (Shift+Delete). If False, allow undo.
+        """
         import os
         selected_items = self.selectedItems()
         if not selected_items:
@@ -66,9 +78,10 @@ class ThumbnailList(QListWidget):
 
         do_delete = True
         if should_confirm:
+            delete_type = "permanently delete" if permanent else "delete"
             confirm = QMessageBox.question(
                 self, "Confirm Delete",
-                f"Are you sure you want to permanently delete {len(selected_items)} file(s)?",
+                f"Are you sure you want to {delete_type} {len(selected_items)} file(s)?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             do_delete = (confirm == QMessageBox.StandardButton.Yes)
@@ -77,12 +90,24 @@ class ThumbnailList(QListWidget):
             # Remember the row of the first selected item to select next
             first_row = self.row(selected_items[0])
 
+            # Start a new deletion batch for undo (clears previous undo state)
+            if not permanent and main_win and hasattr(main_win, 'delete_undo_manager'):
+                main_win.delete_undo_manager.start_new_deletion()
+
             deleted_paths = []
             for item in selected_items:
                 file_path = item.data(Qt.ItemDataRole.UserRole)
                 try:
                     if os.path.exists(file_path):
-                        os.remove(file_path)
+                        if permanent:
+                            # Permanent delete - no undo
+                            os.remove(file_path)
+                        else:
+                            # Store for undo (moves to temp location)
+                            if main_win and hasattr(main_win, 'delete_undo_manager'):
+                                main_win.delete_undo_manager.store_for_undo(file_path)
+                            else:
+                                os.remove(file_path)
 
                     deleted_paths.append(file_path)
                     self.takeItem(self.row(item))
@@ -100,6 +125,13 @@ class ThumbnailList(QListWidget):
             for widget in QApplication.topLevelWidgets():
                 if isinstance(widget, ImagePreviewWindow):
                     widget.handle_external_deletion(deleted_paths)
+
+            # Show status message
+            if main_win and hasattr(main_win, 'status_bar'):
+                if permanent:
+                    main_win.status_bar.showMessage(f"Permanently deleted {len(deleted_paths)} file(s)", 3000)
+                else:
+                    main_win.status_bar.showMessage(f"Deleted {len(deleted_paths)} file(s) - Ctrl+Z to undo", 3000)
 
     def rotate_selected_images(self):
         """Rotate selected images 90° clockwise and reload thumbnails."""

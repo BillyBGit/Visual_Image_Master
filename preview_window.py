@@ -416,7 +416,12 @@ class ImagePreviewWindow(QMainWindow):
         if self.crop_mode:
             self.update_crop_overlay()
 
-    def delete_current_image(self):
+    def delete_current_image(self, permanent=False):
+        """Delete the current image.
+
+        Args:
+            permanent: If True, delete permanently (Shift+Delete). If False, allow undo.
+        """
         if not self.image_list:
             return
 
@@ -430,18 +435,30 @@ class ImagePreviewWindow(QMainWindow):
 
         do_delete = True
         if should_confirm:
+            delete_type = "permanently delete" if permanent else "delete"
             reply = QMessageBox.question(
                 self, "Delete Image",
-                f"Are you sure you want to delete {os.path.basename(path_to_delete)}?",
+                f"Are you sure you want to {delete_type} {os.path.basename(path_to_delete)}?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             do_delete = (reply == QMessageBox.StandardButton.Yes)
 
         if do_delete:
             try:
-                # 1. Physical Delete
+                # Start a new deletion batch for undo (clears previous undo state)
+                if not permanent and main_win and hasattr(main_win, 'delete_undo_manager'):
+                    main_win.delete_undo_manager.start_new_deletion()
+
+                # 1. Physical Delete or store for undo
                 if os.path.exists(path_to_delete):
-                    os.remove(path_to_delete)
+                    if permanent:
+                        os.remove(path_to_delete)
+                    else:
+                        # Store for undo (moves to temp location)
+                        if main_win and hasattr(main_win, 'delete_undo_manager'):
+                            main_win.delete_undo_manager.store_for_undo(path_to_delete)
+                        else:
+                            os.remove(path_to_delete)
 
                 # 2. UI SYNC: Update the main window's thumbnail list
                 if main_win and hasattr(main_win, 'remove_thumbnails_by_path'):
@@ -457,6 +474,13 @@ class ImagePreviewWindow(QMainWindow):
                 else:
                     # No more images
                     self.load_image()
+
+                # Show status message
+                if main_win and hasattr(main_win, 'status_bar'):
+                    if permanent:
+                        main_win.status_bar.showMessage("Permanently deleted image", 3000)
+                    else:
+                        main_win.status_bar.showMessage("Deleted image - Ctrl+Z to undo", 3000)
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not delete: {e}")
@@ -732,7 +756,9 @@ class ImagePreviewWindow(QMainWindow):
                 self.current_index = (self.current_index + 1) % len(self.image_list)
                 self.load_image()
         elif event.key() == Qt.Key.Key_Delete:
-            self.delete_current_image()
+            # Shift+Delete = permanent delete (no undo)
+            permanent = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            self.delete_current_image(permanent=permanent)
         else:
             super().keyPressEvent(event)
 

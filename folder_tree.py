@@ -173,6 +173,25 @@ class FolderTree(QTreeView):
         else:
             super().keyPressEvent(event)
 
+    def mousePressEvent(self, event):
+        """Handle mouse press - clear multi-selection on plain left-click."""
+        # If left-click without Ctrl or Shift modifiers and we have multiple selections,
+        # clear the selection first so only the clicked item gets selected
+        if event.button() == Qt.MouseButton.LeftButton:
+            modifiers = event.modifiers()
+            has_ctrl = modifiers & Qt.KeyboardModifier.ControlModifier
+            has_shift = modifiers & Qt.KeyboardModifier.ShiftModifier
+
+            if not has_ctrl and not has_shift:
+                # Plain left-click - if we have multiple selections, clear them
+                selected_indexes = self.selectedIndexes()
+                # Filter to unique rows (column 0 only)
+                selected_rows = set(idx.row() for idx in selected_indexes if idx.column() == 0)
+                if len(selected_rows) > 1:
+                    self.clearSelection()
+
+        super().mousePressEvent(event)
+
     def dragMoveEvent(self, event):
         index = self.indexAt(event.position().toPoint())
         if index.isValid():
