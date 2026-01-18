@@ -22,8 +22,10 @@ class SettingsManager:
         # Save toggle states
         self.settings.setValue("remember_settings", self.app.remember_settings_act.isChecked())
         self.settings.setValue("preview_fit", self.app.preview_fit_default)
+        self.settings.setValue("preview_autoname_extract", self.app.preview_autoname_extract)
         self.settings.setValue("confirm_delete", self.app.conf_delete_act.isChecked())
         self.settings.setValue("show_names", self.app.show_names_act.isChecked())
+        self.settings.setValue("show_dimensions", self.app.show_dimensions_act.isChecked())
         self.settings.setValue("show_counts", self.app.show_counts_act.isChecked())
 
         # Save sort settings
@@ -33,6 +35,9 @@ class SettingsManager:
         # Save filter settings
         self.settings.setValue("filter_active", self.app.filter_active)
         self.settings.setValue("filter_mode", self.app.filter_mode if self.app.filter_mode else "")
+
+        # Save face detection preset
+        self.settings.setValue("face_detection_preset", self.app.face_detection_preset)
 
         # Save folder tree zoom levels
         self.settings.setValue("src_tree_zoom", self.app.src_tree.zoom_level)
@@ -93,7 +98,9 @@ class SettingsManager:
         # 4. Restore Boolean Settings
         self.app.conf_delete_act.setChecked(self.settings.value("confirm_delete", True, type=bool))
         self.app.show_names_act.setChecked(self.settings.value("show_names", False, type=bool))
+        self.app.show_dimensions_act.setChecked(self.settings.value("show_dimensions", False, type=bool))
         self.app.preview_fit_default = self.settings.value("preview_fit", False, type=bool)
+        self.app.preview_autoname_extract = self.settings.value("preview_autoname_extract", False, type=bool)
 
         # Restore folder counts setting
         show_counts = self.settings.value("show_counts", False, type=bool)
@@ -118,6 +125,9 @@ class SettingsManager:
         # Update visual indicators
         if hasattr(self.app, 'filter_btn'):
             self.app.update_filter_visuals()
+
+        # Restore face detection preset
+        self.app.face_detection_preset = self.settings.value("face_detection_preset", "balanced")
 
         # Restore folder tree zoom levels
         src_zoom = self.settings.value("src_tree_zoom", 1.0, type=float)

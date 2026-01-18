@@ -194,6 +194,11 @@ class FolderTree(QTreeView):
         urls = event.mimeData().urls()
         is_copy = event.modifiers() & Qt.KeyboardModifier.ControlModifier
 
+        # Start a new operation batch for undo tracking
+        if self.parent_app:
+            operation_type = 'copy' if is_copy else 'move'
+            self.parent_app.start_operation_batch(operation_type)
+
         moved_files = []
         for url in urls:
             source_path = url.toLocalFile()

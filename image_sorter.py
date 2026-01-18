@@ -7,14 +7,19 @@ import shutil
 from PySide6.QtWidgets import (QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
                                QLineEdit, QMessageBox, QProgressBar, QStatusBar,
                                QFileSystemModel, QToolButton, QMenu, QApplication,
-                               QListWidgetItem)
-from PySide6.QtCore import Qt, QSize, QDir
-from PySide6.QtGui import QAction, QIcon
+                               QListWidgetItem, QPushButton, QFileDialog)
+from PySide6.QtCore import Qt, QSize, QDir, QTimer
+from PySide6.QtGui import QAction, QIcon, QActionGroup
 from PIL import Image
 
 from thumbnail_list import ThumbnailList
 from folder_tree import FolderTree
 from face_detection import FaceDetector, ImageQualityAnalyzer
+from face_detection_dialog import FaceDetectionDialog
+from advanced_filter_dialog import AdvancedFilterDialog
+from object_detection import get_detector as get_object_detector
+from quality_assessment import get_assessor as get_quality_assessor
+from scene_recognition import get_recognizer as get_scene_recognizer
 from settings_manager import SettingsManager
 
 
@@ -26,6 +31,7 @@ class ImageSorter(QMainWindow):
 
         # --- Persistence Placeholders ---
         self.preview_fit_default = False
+        self.preview_autoname_extract = False
         self.preview_geometry = None
         self._settings_loaded = False
         self.src_root_path = None
@@ -35,13 +41,28 @@ class ImageSorter(QMainWindow):
         self.sort_by = "name"
         self.sort_ascending = True
         self.filter_active = False
-        self.filter_mode = None  # None, "has_face", "no_face"
+        self.filter_mode = None  # None, "has_face", "no_face", "advanced"
+        self.advanced_filter_settings = {}  # Settings from advanced filter dialog
 
-        # Face detector
-        self.face_detector = FaceDetector()
+        # Face detection preset
+        self.face_detection_preset = "balanced"
+
+        # Face detector (will be initialized with preset after settings load)
+        self.face_detector = None
 
         # Image quality analyzer
         self.quality_analyzer = ImageQualityAnalyzer()
+
+        # Advanced AI detectors (lazy-loaded)
+        self._object_detector = None
+        self._quality_assessor = None
+        self._scene_recognizer = None
+
+        # Undo state for move/copy operations
+        self.last_operation = None  # {"type": "move"|"copy", "files": [(src, dest), ...]}
+
+        # Deduplication mode
+        self.dedup_mode = "exact"  # "exact", "visual_largest", "visual_smallest"
 
         # Settings manager
         self.settings_manager = SettingsManager(self)
@@ -68,6 +89,16 @@ class ImageSorter(QMainWindow):
         self.show_names_act.triggered.connect(self.toggle_filenames)
         options_menu.addAction(self.show_names_act)
 
+        self.show_dimensions_act = QAction('Show Dimensions', self, checkable=True)
+        self.show_dimensions_act.setChecked(False)
+        self.show_dimensions_act.triggered.connect(self.toggle_dimensions)
+        options_menu.addAction(self.show_dimensions_act)
+
+        self.show_filesize_act = QAction('Show File Size', self, checkable=True)
+        self.show_filesize_act.setChecked(False)
+        self.show_filesize_act.triggered.connect(self.toggle_filesize)
+        options_menu.addAction(self.show_filesize_act)
+
         self.show_counts_act = QAction('Show Folder Counts', self, checkable=True)
         self.show_counts_act.setChecked(False)
         self.show_counts_act.triggered.connect(self.toggle_folder_counts)
@@ -77,6 +108,12 @@ class ImageSorter(QMainWindow):
         self.conf_delete_act.setChecked(True)
         self.conf_delete_act.triggered.connect(self.toggle_conf_del)
         options_menu.addAction(self.conf_delete_act)
+
+        options_menu.addSeparator()
+
+        face_detect_settings_act = QAction('Face Detection Settings...', self)
+        face_detect_settings_act.triggered.connect(self.show_face_detection_settings)
+        options_menu.addAction(face_detect_settings_act)
 
         # --- Status Bar and Progress Bar Setup ---
         self.status_bar = QStatusBar()
@@ -89,19 +126,29 @@ class ImageSorter(QMainWindow):
         # --- Main Layout ---
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Source Tree (Left) with path entry
+        # Source Tree (Left) with path entry and browse button
         self.src_widget = QWidget()
         self.src_layout = QVBoxLayout(self.src_widget)
         self.src_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Source path row with text entry and browse button
+        self.src_path_row = QHBoxLayout()
         self.src_path_display = QLineEdit(os.path.expanduser("~"))
         self.src_path_display.setPlaceholderText("Source folder path...")
         self.src_path_display.returnPressed.connect(self.on_source_path_change)
+        self.src_browse_btn = QPushButton("...")
+        self.src_browse_btn.setMaximumWidth(30)
+        self.src_browse_btn.setToolTip("Browse for source folder")
+        self.src_browse_btn.clicked.connect(self.browse_source_folder)
+        self.src_path_row.addWidget(self.src_path_display)
+        self.src_path_row.addWidget(self.src_browse_btn)
+
         self.src_model = QFileSystemModel()
         self.src_model.setRootPath(QDir.rootPath())
         self.src_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
         self.src_tree = FolderTree(self, is_source=True)
         self.src_tree.set_model_and_clean_columns(self.src_model)
-        self.src_layout.addWidget(self.src_path_display)
+        self.src_layout.addLayout(self.src_path_row)
         self.src_layout.addWidget(self.src_tree)
 
         # Thumbnail View (Middle)
@@ -113,9 +160,14 @@ class ImageSorter(QMainWindow):
         self.toolbar_layout = QHBoxLayout()
         self.toolbar_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Set icon size for toolbar buttons (30% larger)
+        icon_size = QSize(32, 32)  # Increased from default ~24x24
+
         # Filter button - handled with custom left/right click
         self.filter_btn = QToolButton()
         self.filter_btn.setText("🔽")
+        self.filter_btn.setIconSize(icon_size)
+        self.filter_btn.setMinimumSize(icon_size)
         self.filter_btn.setToolTip("Left-click to toggle filter, right-click for options")
         self.filter_btn.clicked.connect(self.toggle_filter)
         self.filter_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -129,33 +181,58 @@ class ImageSorter(QMainWindow):
         # Sort button
         self.sort_btn = QToolButton()
         self.sort_btn.setText("⇅")
+        self.sort_btn.setIconSize(icon_size)
+        self.sort_btn.setMinimumSize(icon_size)
         self.sort_btn.setToolTip("Sort images")
         self.sort_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.sort_menu = QMenu(self.sort_btn)
         self.sort_btn.setMenu(self.sort_menu)
         self.setup_sort_menu()
 
+        # Deduplicate button
+        self.dedup_btn = QToolButton()
+        self.dedup_btn.setText("🗑️")
+        self.dedup_btn.setIconSize(icon_size)
+        self.dedup_btn.setMinimumSize(icon_size)
+        self.dedup_btn.setToolTip("Remove duplicates (right-click for options)")
+        self.dedup_btn.clicked.connect(self.remove_duplicates)
+        self.dedup_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.dedup_btn.customContextMenuRequested.connect(self.show_dedup_menu)
+        self.dedup_menu = QMenu(self.dedup_btn)
+        self.setup_dedup_menu()
+
         self.toolbar_layout.addWidget(self.filter_btn)
         self.toolbar_layout.addWidget(self.sort_btn)
+        self.toolbar_layout.addWidget(self.dedup_btn)
         self.toolbar_layout.addStretch()
 
         self.thumb_list = ThumbnailList(self)
         self.mid_layout.addLayout(self.toolbar_layout)
         self.mid_layout.addWidget(self.thumb_list)
 
-        # Destination Tree (Right) with path entry
+        # Destination Tree (Right) with path entry and browse button
         self.dest_widget = QWidget()
         self.dest_layout = QVBoxLayout(self.dest_widget)
         self.dest_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Destination path row with text entry and browse button
+        self.dest_path_row = QHBoxLayout()
         self.dest_path_display = QLineEdit(os.path.expanduser("~"))
         self.dest_path_display.setPlaceholderText("Destination folder path...")
         self.dest_path_display.returnPressed.connect(self.on_dest_path_change)
+        self.dest_browse_btn = QPushButton("...")
+        self.dest_browse_btn.setMaximumWidth(30)
+        self.dest_browse_btn.setToolTip("Browse for destination folder")
+        self.dest_browse_btn.clicked.connect(self.browse_dest_folder)
+        self.dest_path_row.addWidget(self.dest_path_display)
+        self.dest_path_row.addWidget(self.dest_browse_btn)
+
         self.dest_model = QFileSystemModel()
         self.dest_model.setRootPath(QDir.rootPath())
         self.dest_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
         self.dest_tree = FolderTree(self, is_source=False)
         self.dest_tree.set_model_and_clean_columns(self.dest_model)
-        self.dest_layout.addWidget(self.dest_path_display)
+        self.dest_layout.addLayout(self.dest_path_row)
         self.dest_layout.addWidget(self.dest_tree)
 
         self.main_splitter.addWidget(self.src_widget)
@@ -169,11 +246,21 @@ class ImageSorter(QMainWindow):
         # Load existing settings (blocks signals during restoration)
         self.settings_manager.read_settings()
 
+        # Initialize face detector with loaded preset
+        self.face_detector = FaceDetector(self.face_detection_preset)
+
         # Mark settings as loaded to allow subsequent writes
         self._settings_loaded = True
 
         # Initial Load
         self.refresh_thumbnails()
+
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for main window."""
+        if event.key() == Qt.Key.Key_Z and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            self.undo_last_operation()
+        else:
+            super().keyPressEvent(event)
 
     def write_settings(self):
         """Delegate to settings manager."""
@@ -244,6 +331,17 @@ class ImageSorter(QMainWindow):
         quality_desc_act.triggered.connect(lambda: self.set_sort("quality", False))
         self.sort_menu.addAction(quality_desc_act)
 
+        self.sort_menu.addSeparator()
+
+        # File size sorting
+        size_asc_act = QAction("File Size (Smallest First)", self, checkable=True)
+        size_asc_act.triggered.connect(lambda: self.set_sort("filesize", True))
+        self.sort_menu.addAction(size_asc_act)
+
+        size_desc_act = QAction("File Size (Largest First)", self, checkable=True)
+        size_desc_act.triggered.connect(lambda: self.set_sort("filesize", False))
+        self.sort_menu.addAction(size_desc_act)
+
         self.sort_actions = {
             ("name", True): name_asc_act,
             ("name", False): name_desc_act,
@@ -257,6 +355,8 @@ class ImageSorter(QMainWindow):
             ("height", False): height_desc_act,
             ("quality", True): quality_asc_act,
             ("quality", False): quality_desc_act,
+            ("filesize", True): size_asc_act,
+            ("filesize", False): size_desc_act,
         }
 
         self.sort_actions[("name", True)].setChecked(True)
@@ -273,14 +373,100 @@ class ImageSorter(QMainWindow):
         no_face_act.triggered.connect(lambda: self.set_filter("no_face"))
         self.filter_menu.addAction(no_face_act)
 
+        self.filter_menu.addSeparator()
+
+        advanced_act = QAction("Advanced AI Filters...", self)
+        advanced_act.triggered.connect(self.show_advanced_filters)
+        self.filter_menu.addAction(advanced_act)
+
+        self.filter_menu.addSeparator()
+
+        # Invert filter option
+        self.invert_filter_act = QAction("Invert Filter", self, checkable=True)
+        self.invert_filter_act.triggered.connect(self.toggle_filter_inversion)
+        self.filter_menu.addAction(self.invert_filter_act)
+
         self.filter_actions = {
             "has_face": has_face_act,
             "no_face": no_face_act,
         }
 
+    def setup_dedup_menu(self):
+        """Create the deduplication menu with different modes."""
+        self.dedup_menu.clear()
+
+        # Create action group for mutual exclusivity
+        dedup_group = QActionGroup(self)
+        dedup_group.setExclusive(True)
+
+        exact_act = QAction("Exact (MD5 checksum)", self, checkable=True)
+        exact_act.triggered.connect(lambda: self.set_dedup_mode("exact"))
+        dedup_group.addAction(exact_act)
+        self.dedup_menu.addAction(exact_act)
+
+        visual_largest_act = QAction("Visual - Retain Largest", self, checkable=True)
+        visual_largest_act.triggered.connect(lambda: self.set_dedup_mode("visual_largest"))
+        dedup_group.addAction(visual_largest_act)
+        self.dedup_menu.addAction(visual_largest_act)
+
+        visual_smallest_act = QAction("Visual - Retain Smallest", self, checkable=True)
+        visual_smallest_act.triggered.connect(lambda: self.set_dedup_mode("visual_smallest"))
+        dedup_group.addAction(visual_smallest_act)
+        self.dedup_menu.addAction(visual_smallest_act)
+
+        # Set default checked
+        exact_act.setChecked(True)
+
+        self.dedup_actions = {
+            "exact": exact_act,
+            "visual_largest": visual_largest_act,
+            "visual_smallest": visual_smallest_act,
+        }
+
+    def set_dedup_mode(self, mode):
+        """Set the deduplication mode."""
+        self.dedup_mode = mode
+        self.dedup_actions[mode].setChecked(True)
+
+    def show_dedup_menu(self, pos):
+        """Show the deduplication menu on right-click."""
+        self.dedup_menu.exec(self.dedup_btn.mapToGlobal(pos))
+
     def show_filter_menu(self, pos):
         """Show the filter menu on right-click."""
+        # Enable/disable invert filter based on whether a filter is active
+        filter_is_active = self.filter_active and self.filter_mode
+        self.invert_filter_act.setEnabled(filter_is_active)
+
+        # Update invert filter checkmark based on current advanced filter settings
+        if self.filter_mode == "advanced":
+            is_inverted = self.advanced_filter_settings.get('global_invert', False)
+            self.invert_filter_act.setChecked(is_inverted)
+        else:
+            self.invert_filter_act.setChecked(False)
+
         self.filter_menu.exec(self.filter_btn.mapToGlobal(pos))
+
+    def toggle_filter_inversion(self):
+        """Toggle the global filter inversion for advanced filters."""
+        if self.filter_mode == "advanced":
+            # Toggle the global_invert flag
+            current_invert = self.advanced_filter_settings.get('global_invert', False)
+            self.advanced_filter_settings['global_invert'] = not current_invert
+
+            # Refresh thumbnails to apply the inverted filter
+            self.refresh_thumbnails()
+
+            if self._settings_loaded:
+                self.write_settings()
+        else:
+            QMessageBox.information(
+                self,
+                "Advanced Filters Only",
+                "Filter inversion only applies to Advanced AI Filters.\n\n"
+                "Please activate Advanced AI Filters first by right-clicking "
+                "the filter button and selecting 'Advanced AI Filters...'"
+            )
 
     def toggle_filter(self):
         """Toggle filter on/off with left click."""
@@ -326,7 +512,12 @@ class ImageSorter(QMainWindow):
             """)
             self.thumb_list.set_filter_active(True)
 
-            filter_name = "Contains Face" if self.filter_mode == "has_face" else "Does Not Contain Face"
+            if self.filter_mode == "has_face":
+                filter_name = "Contains Face"
+            elif self.filter_mode == "no_face":
+                filter_name = "Does Not Contain Face"
+            else:
+                filter_name = "Advanced AI Filters"
             self.status_bar.showMessage(f"Filter active: {filter_name}", 3000)
         else:
             if hasattr(self, '_filter_btn_original_style'):
@@ -337,6 +528,240 @@ class ImageSorter(QMainWindow):
 
             if not self.filter_active:
                 self.status_bar.showMessage("Filter disabled", 3000)
+
+    def show_advanced_filters(self):
+        """Show the advanced AI filters dialog."""
+        dialog = AdvancedFilterDialog(self)
+
+        # Pre-populate with current settings if advanced mode was active
+        if self.filter_mode == "advanced" and self.advanced_filter_settings:
+            dialog.set_filter_settings(self.advanced_filter_settings)
+
+        if dialog.exec():
+            self.advanced_filter_settings = dialog.get_filter_settings()
+
+            # Debug output
+            print(f"Advanced filter settings: {self.advanced_filter_settings}")
+            print(f"Has active filters: {dialog.has_active_filters()}")
+
+            if dialog.has_active_filters():
+                self.filter_mode = "advanced"
+                self.filter_active = True
+
+                # Reset debug counter
+                if hasattr(self, '_filter_debug_count'):
+                    delattr(self, '_filter_debug_count')
+
+                # Uncheck simple filter actions
+                for action in self.filter_actions.values():
+                    action.setChecked(False)
+
+                self.update_filter_visuals()
+                self.refresh_thumbnails()
+                print(f"Applied advanced filters - mode: {self.filter_mode}, active: {self.filter_active}")
+            else:
+                # No filters enabled, clear advanced mode
+                self.filter_mode = None
+                self.filter_active = False
+                self.advanced_filter_settings = {}
+                self.update_filter_visuals()
+                self.refresh_thumbnails()
+
+            if self._settings_loaded:
+                self.write_settings()
+
+    def get_advanced_detectors(self):
+        """Lazy-load and return advanced AI detectors."""
+        if self._object_detector is None:
+            conf = self.advanced_filter_settings.get('object_confidence', 0.5)
+            self._object_detector = get_object_detector(conf)
+
+            # Set custom model if specified
+            custom_model_path = self.advanced_filter_settings.get('custom_model_path')
+            if custom_model_path:
+                try:
+                    self._object_detector.set_custom_model(custom_model_path)
+                except Exception as e:
+                    QMessageBox.warning(
+                        self,
+                        "Custom Model Error",
+                        f"Failed to load custom YOLO model:\n{e}\n\nFalling back to default model."
+                    )
+
+        if self._quality_assessor is None:
+            self._quality_assessor = get_quality_assessor()
+
+        if self._scene_recognizer is None:
+            conf = self.advanced_filter_settings.get('scene_confidence', 0.3)
+            self._scene_recognizer = get_scene_recognizer(conf)
+
+        return self._object_detector, self._quality_assessor, self._scene_recognizer
+
+    def matches_advanced_filters(self, image_path):
+        """Check if image matches advanced filter criteria."""
+        if not self.advanced_filter_settings:
+            return True
+
+        obj_detector, quality_assessor, scene_recognizer = self.get_advanced_detectors()
+
+        # Debug: Track which filters are being evaluated
+        if not hasattr(self, '_filter_debug_count'):
+            self._filter_debug_count = 0
+            print(f"\n=== Starting advanced filter evaluation ===")
+            print(f"Filter settings: {self.advanced_filter_settings}")
+
+        # Face detection filter
+        if self.advanced_filter_settings.get('face_detection', False):
+            min_faces = self.advanced_filter_settings.get('face_count_min', 0)
+            face_count = len(self.face_detector.detect_faces(image_path))
+            inverse = self.advanced_filter_settings.get('face_inverse', False)
+
+            if inverse:
+                # Does NOT contain: face count must be less than minimum
+                if face_count >= min_faces:
+                    return False
+            else:
+                # Contains: face count must be at least minimum
+                if face_count < min_faces:
+                    return False
+
+        # Object detection filter
+        if self.advanced_filter_settings.get('object_detection', False):
+            categories = self.advanced_filter_settings.get('object_categories', [])
+            inverse = self.advanced_filter_settings.get('object_inverse', False)
+            custom_model_path = self.advanced_filter_settings.get('custom_model_path')
+
+            self._filter_debug_count += 1
+            if self._filter_debug_count <= 3:  # Debug first 3 images
+                print(f"\n[Image {self._filter_debug_count}] {os.path.basename(image_path)}")
+                print(f"  Categories: {categories}")
+                print(f"  Inverse: {inverse}")
+                print(f"  Custom model: {custom_model_path}")
+
+            # For custom models: if no categories selected, check for ANY detection
+            if custom_model_path and not categories:
+                detections = obj_detector.detect_objects(image_path)
+                has_detections = len(detections) > 0
+
+                if self._filter_debug_count <= 3:
+                    print(f"  Custom model detections: {detections}")
+
+                if inverse:
+                    # Does NOT contain: must have no detections
+                    if has_detections:
+                        if self._filter_debug_count <= 3:
+                            print(f"  REJECTED: has detections (inverse mode)")
+                        return False
+                else:
+                    # Contains: must have at least one detection
+                    if not has_detections:
+                        if self._filter_debug_count <= 3:
+                            print(f"  REJECTED: no detections")
+                        return False
+            # For standard models or when categories are selected
+            elif categories:
+                matches_any = False
+                for category in categories:
+                    if obj_detector.has_category(image_path, category):
+                        matches_any = True
+                        if self._filter_debug_count <= 3:
+                            print(f"  Found category: {category}")
+                        break
+
+                if self._filter_debug_count <= 3:
+                    print(f"  Matches any category: {matches_any}")
+
+                if inverse:
+                    # Does NOT contain: must not match any category
+                    if matches_any:
+                        if self._filter_debug_count <= 3:
+                            print(f"  REJECTED: matches category (inverse mode)")
+                        return False
+                else:
+                    # Contains: must match at least one category
+                    if not matches_any:
+                        if self._filter_debug_count <= 3:
+                            print(f"  REJECTED: no category match")
+                        return False
+
+            if self._filter_debug_count <= 3:
+                print(f"  PASSED object detection filter")
+            # If no categories selected and no custom model, skip this filter (don't exclude anything)
+
+        # Scene recognition filter
+        if self.advanced_filter_settings.get('scene_recognition', False):
+            scene_groups = self.advanced_filter_settings.get('scene_groups', [])
+            inverse = self.advanced_filter_settings.get('scene_inverse', False)
+
+            # Only apply filter if scene groups are selected
+            if scene_groups:
+                matches_any = False
+                for group in scene_groups:
+                    if scene_recognizer.has_scene_group(image_path, group):
+                        matches_any = True
+                        break
+
+                if inverse:
+                    # Does NOT contain: must not match any scene group
+                    if matches_any:
+                        return False
+                else:
+                    # Contains: must match at least one scene group
+                    if not matches_any:
+                        return False
+            # If no scene groups selected, skip this filter (don't exclude anything)
+
+        # Quality filter
+        if self.advanced_filter_settings.get('quality_filter', False):
+            quality = quality_assessor.assess_quality(image_path)
+            inverse = self.advanced_filter_settings.get('quality_inverse', False)
+
+            if quality is None:
+                # If we can't assess quality, treat as not meeting criteria
+                return inverse  # Return True if inverse (looking for bad quality), False otherwise
+
+            min_score = self.advanced_filter_settings.get('quality_min_score', 60)
+            min_sharpness = self.advanced_filter_settings.get('quality_sharpness_min', 40)
+            min_bright = self.advanced_filter_settings.get('quality_brightness_min', 50)
+            max_bright = self.advanced_filter_settings.get('quality_brightness_max', 200)
+
+            meets_criteria = (
+                quality['overall_score'] >= min_score and
+                quality['sharpness'] >= min_sharpness and
+                min_bright <= quality['brightness'] <= max_bright
+            )
+
+            if inverse:
+                # Does NOT meet: must fail criteria
+                if meets_criteria:
+                    return False
+            else:
+                # Meets: must pass criteria
+                if not meets_criteria:
+                    return False
+
+        # File size filter
+        if self.advanced_filter_settings.get('filesize_filter', False):
+            min_kb = self.advanced_filter_settings.get('filesize_min_kb', 0)
+            max_kb = self.advanced_filter_settings.get('filesize_max_kb', 10240)
+
+            try:
+                file_size_bytes = os.path.getsize(image_path)
+                file_size_kb = file_size_bytes / 1024
+
+                # Check if file size is within range
+                if file_size_kb < min_kb or file_size_kb > max_kb:
+                    return False
+            except Exception:
+                # If we can't get file size, exclude the file
+                return False
+
+        # Apply global invert if enabled
+        result = True
+        if self.advanced_filter_settings.get('global_invert', False):
+            result = not result
+
+        return result
 
     def set_sort(self, sort_by, ascending):
         """Update the sort criteria and refresh thumbnails."""
@@ -421,6 +846,28 @@ class ImageSorter(QMainWindow):
         if self._settings_loaded:
             self.write_settings()
 
+    def browse_source_folder(self):
+        """Open dialog to browse for source folder."""
+        current_path = self.src_path_display.text() or os.path.expanduser("~")
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Source Folder", current_path,
+            QFileDialog.Option.ShowDirsOnly
+        )
+        if folder:
+            self.src_path_display.setText(folder)
+            self.on_source_path_change()
+
+    def browse_dest_folder(self):
+        """Open dialog to browse for destination folder."""
+        current_path = self.dest_path_display.text() or os.path.expanduser("~")
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Destination Folder", current_path,
+            QFileDialog.Option.ShowDirsOnly
+        )
+        if folder:
+            self.dest_path_display.setText(folder)
+            self.on_dest_path_change()
+
     def on_splitter_moved(self, pos, index):
         """Called when the splitter is moved - triggers thumbnail redraw."""
         self.thumb_list.scheduleDelayedItemsLayout()
@@ -429,8 +876,15 @@ class ImageSorter(QMainWindow):
             self.write_settings()
 
     def toggle_filenames(self):
-        """Toggles visibility of text for all items in the thumbnail list."""
+        """Toggles visibility of filenames for all items in the thumbnail list."""
         show = self.show_names_act.isChecked()
+
+        # If enabling filenames, disable dimensions and filesize (mutually exclusive)
+        if show:
+            if self.show_dimensions_act.isChecked():
+                self.show_dimensions_act.setChecked(False)
+            if self.show_filesize_act.isChecked():
+                self.show_filesize_act.setChecked(False)
 
         for i in range(self.thumb_list.count()):
             item = self.thumb_list.item(i)
@@ -442,6 +896,76 @@ class ImageSorter(QMainWindow):
 
         if self._settings_loaded:
             self.write_settings()
+
+    def toggle_dimensions(self):
+        """Toggles visibility of image dimensions for all items in the thumbnail list."""
+        show = self.show_dimensions_act.isChecked()
+
+        # If enabling dimensions, disable filenames and filesize (mutually exclusive)
+        if show:
+            if self.show_names_act.isChecked():
+                self.show_names_act.setChecked(False)
+            if self.show_filesize_act.isChecked():
+                self.show_filesize_act.setChecked(False)
+
+        for i in range(self.thumb_list.count()):
+            item = self.thumb_list.item(i)
+            if show:
+                full_path = item.data(Qt.ItemDataRole.UserRole)
+                dimensions = self.get_image_dimensions_str(full_path)
+                item.setText(dimensions)
+            else:
+                item.setText("")
+
+        if self._settings_loaded:
+            self.write_settings()
+
+    def toggle_filesize(self):
+        """Toggles visibility of file size for all items in the thumbnail list."""
+        show = self.show_filesize_act.isChecked()
+
+        # If enabling filesize, disable filenames and dimensions (mutually exclusive)
+        if show:
+            if self.show_names_act.isChecked():
+                self.show_names_act.setChecked(False)
+            if self.show_dimensions_act.isChecked():
+                self.show_dimensions_act.setChecked(False)
+
+        for i in range(self.thumb_list.count()):
+            item = self.thumb_list.item(i)
+            if show:
+                full_path = item.data(Qt.ItemDataRole.UserRole)
+                filesize = self.get_file_size_str(full_path)
+                item.setText(filesize)
+            else:
+                item.setText("")
+
+        if self._settings_loaded:
+            self.write_settings()
+
+    def get_image_dimensions_str(self, file_path):
+        """Get image dimensions as a formatted string (widthxheight)."""
+        try:
+            with Image.open(file_path) as img:
+                return f"{img.width}x{img.height}"
+        except Exception:
+            return "?x?"
+
+    def get_file_size_str(self, file_path):
+        """Get file size as a human-readable string."""
+        try:
+            size_bytes = os.path.getsize(file_path)
+            # Convert to human-readable format
+            if size_bytes < 1024:
+                return f"{size_bytes}B"
+            elif size_bytes < 1024 * 1024:
+                return f"{size_bytes / 1024:.1f}KB"
+            elif size_bytes < 1024 * 1024 * 1024:
+                return f"{size_bytes / (1024 * 1024):.1f}MB"
+            else:
+                return f"{size_bytes / (1024 * 1024 * 1024):.2f}GB"
+        except Exception:
+            return "?"
 
     def toggle_folder_counts(self):
         """Toggles display of image counts in folder trees."""
@@ -463,10 +987,36 @@ class ImageSorter(QMainWindow):
         if self._settings_loaded:
             self.write_settings()
 
+    def show_face_detection_settings(self):
+        """Show face detection settings dialog."""
+        dialog = FaceDetectionDialog(self, self.face_detection_preset)
+
+        if dialog.exec():
+            new_preset = dialog.get_selected_preset()
+
+            if new_preset != self.face_detection_preset:
+                self.face_detection_preset = new_preset
+                self.face_detector.set_preset(new_preset)
+
+                self.status_bar.showMessage(
+                    f"Face detection preset changed to: {new_preset.capitalize()}",
+                    5000
+                )
+
+                if self._settings_loaded:
+                    self.write_settings()
+
     def refresh_thumbnails(self):
+        # Show progress bar immediately
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate mode
+        self.status_bar.showMessage("Loading directory...")
+        QApplication.processEvents()  # Force UI update
+
         self.thumb_list.clear()
         path = self.get_current_source_path()
         if not os.path.isdir(path):
+            self.progress_bar.setVisible(False)
             return
 
         valid = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.tiff', '.bmp')
@@ -484,11 +1034,17 @@ class ImageSorter(QMainWindow):
 
             for i, f in enumerate(files):
                 full_path = os.path.join(path, f)
-                has_face = self.face_detector.has_face(full_path)
 
-                if self.filter_mode == "has_face" and has_face:
-                    filtered_files.append(f)
-                elif self.filter_mode == "no_face" and not has_face:
+                # Apply appropriate filter
+                include = False
+                if self.filter_mode == "has_face":
+                    include = self.face_detector.has_face(full_path)
+                elif self.filter_mode == "no_face":
+                    include = not self.face_detector.has_face(full_path)
+                elif self.filter_mode == "advanced":
+                    include = self.matches_advanced_filters(full_path)
+
+                if include:
                     filtered_files.append(f)
 
                 self.progress_bar.setValue(i + 1)
@@ -503,13 +1059,20 @@ class ImageSorter(QMainWindow):
 
         if total_files == 0:
             if self.filter_active and self.filter_mode:
-                filter_name = "with faces" if self.filter_mode == "has_face" else "without faces"
+                if self.filter_mode == "has_face":
+                    filter_name = "with faces"
+                elif self.filter_mode == "no_face":
+                    filter_name = "without faces"
+                else:
+                    filter_name = "matching AI filters"
                 self.status_bar.showMessage(f"No images {filter_name} found in this directory.", 3000)
             else:
                 self.status_bar.showMessage("No images found in this directory.", 3000)
             return
 
         show_names = self.show_names_act.isChecked()
+        show_dimensions = self.show_dimensions_act.isChecked()
+        show_filesize = self.show_filesize_act.isChecked()
 
         self.progress_bar.setRange(0, total_files)
         self.progress_bar.setValue(0)
@@ -518,9 +1081,18 @@ class ImageSorter(QMainWindow):
 
         for i, f in enumerate(files):
             full_p = os.path.join(path, f)
-            display_name = f if show_names else ""
 
-            item = QListWidgetItem(QIcon(full_p), display_name)
+            # Determine display text (mutually exclusive)
+            if show_names:
+                display_text = f
+            elif show_dimensions:
+                display_text = self.get_image_dimensions_str(full_p)
+            elif show_filesize:
+                display_text = self.get_file_size_str(full_p)
+            else:
+                display_text = ""
+
+            item = QListWidgetItem(QIcon(full_p), display_text)
             item.setData(Qt.ItemDataRole.UserRole, full_p)
             self.thumb_list.addItem(item)
 
@@ -532,7 +1104,12 @@ class ImageSorter(QMainWindow):
         self.progress_bar.setVisible(False)
 
         if self.filter_active and self.filter_mode:
-            filter_name = "with faces" if self.filter_mode == "has_face" else "without faces"
+            if self.filter_mode == "has_face":
+                filter_name = "with faces"
+            elif self.filter_mode == "no_face":
+                filter_name = "without faces"
+            else:
+                filter_name = "matching AI filters"
             self.status_bar.showMessage(f"Showing {total_files} images {filter_name}", 3000)
         else:
             self.status_bar.showMessage("Ready", 3000)
@@ -561,6 +1138,9 @@ class ImageSorter(QMainWindow):
                           reverse=not self.sort_ascending)
         elif self.sort_by == "quality":
             files = sorted(files, key=lambda f: self.get_image_quality(os.path.join(path, f)),
+                          reverse=not self.sort_ascending)
+        elif self.sort_by == "filesize":
+            files = sorted(files, key=lambda f: self.get_file_size(os.path.join(path, f)),
                           reverse=not self.sort_ascending)
         return files
 
@@ -592,6 +1172,13 @@ class ImageSorter(QMainWindow):
         """Get image quality/sharpness score."""
         return self.quality_analyzer.get_blur_score(file_path)
 
+    def get_file_size(self, file_path):
+        """Get file size in bytes."""
+        try:
+            return os.path.getsize(file_path)
+        except Exception:
+            return 0
+
     def remove_thumbnails_by_path(self, paths_to_remove):
         """Removes specific items from the thumb_list without a full reload."""
         paths_to_remove = {os.path.normpath(p) for p in paths_to_remove}
@@ -611,6 +1198,10 @@ class ImageSorter(QMainWindow):
             self.src_tree.viewport().update()
             self.dest_tree.viewport().update()
 
+    def start_operation_batch(self, operation_type):
+        """Start a new operation batch for undo tracking."""
+        self.last_operation = {'type': operation_type, 'files': []}
+
     def smart_transfer(self, src, dst_folder, is_copy):
         """Handles file transfer with automatic renaming to avoid conflicts."""
         dest = os.path.join(dst_folder, os.path.basename(src))
@@ -622,10 +1213,256 @@ class ImageSorter(QMainWindow):
         try:
             if is_copy:
                 shutil.copy2(src, dest)
+                # Track copy operation for undo (only if operation batch is active)
+                if self.last_operation and self.last_operation['type'] == 'copy':
+                    self.last_operation['files'].append((src, dest))
             else:
                 shutil.move(src, dest)
+                # Track move operation for undo (only if operation batch is active)
+                if self.last_operation and self.last_operation['type'] == 'move':
+                    self.last_operation['files'].append((src, dest))
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not transfer file: {e}")
+
+    def remove_duplicates(self):
+        """Remove duplicate images based on the selected deduplication mode."""
+        import hashlib
+        import subprocess
+
+        # Get files to process
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            # Use selected files
+            file_paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+            scope_msg = f"{len(file_paths)} selected file(s)"
+        else:
+            # Use all files in thumbnail list
+            file_paths = [self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+                         for i in range(self.thumb_list.count())]
+            scope_msg = f"all {len(file_paths)} file(s) in directory"
+
+        if len(file_paths) < 2:
+            QMessageBox.information(self, "Remove Duplicates",
+                                   "Need at least 2 images to find duplicates.")
+            return
+
+        # Confirm operation
+        mode_descriptions = {
+            "exact": "MD5 checksum comparison",
+            "visual_largest": "visual similarity (retain largest)",
+            "visual_smallest": "visual similarity (retain smallest)"
+        }
+        mode_desc = mode_descriptions.get(self.dedup_mode, self.dedup_mode)
+
+        reply = QMessageBox.question(
+            self, "Remove Duplicates",
+            f"Find and remove duplicates from {scope_msg} using {mode_desc}?\n\n"
+            "This will permanently delete duplicate files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Show progress
+        self.status_bar.showMessage("Finding duplicates...", 0)
+        QApplication.processEvents()
+
+        try:
+            if self.dedup_mode == "exact":
+                duplicates = self.find_exact_duplicates(file_paths)
+            else:
+                duplicates = self.find_visual_duplicates(file_paths)
+
+            if not duplicates:
+                self.status_bar.showMessage("No duplicates found", 3000)
+                QMessageBox.information(self, "Remove Duplicates", "No duplicate images found.")
+                return
+
+            # Delete duplicates
+            deleted_count = self.delete_duplicate_files(duplicates)
+
+            # Refresh thumbnail view
+            self.refresh_thumbnails()
+
+            self.status_bar.showMessage(f"Removed {deleted_count} duplicate file(s)", 3000)
+            QMessageBox.information(self, "Remove Duplicates",
+                                   f"Successfully removed {deleted_count} duplicate file(s).")
+
+        except Exception as e:
+            self.status_bar.showMessage("Error during deduplication", 3000)
+            QMessageBox.critical(self, "Error", f"Failed to remove duplicates:\n{e}")
+
+    def find_exact_duplicates(self, file_paths):
+        """Find exact duplicates using MD5 checksums. Returns dict of {hash: [files]}."""
+        import hashlib
+
+        hash_dict = {}
+        for path in file_paths:
+            try:
+                with open(path, 'rb') as f:
+                    file_hash = hashlib.md5(f.read()).hexdigest()
+                    if file_hash not in hash_dict:
+                        hash_dict[file_hash] = []
+                    hash_dict[file_hash].append(path)
+            except Exception as e:
+                print(f"Error hashing {path}: {e}")
+
+        # Return only groups with duplicates (more than 1 file)
+        return {h: files for h, files in hash_dict.items() if len(files) > 1}
+
+    def find_visual_duplicates(self, file_paths):
+        """Find visual duplicates using findimagedupes. Returns dict of {group_id: [files]}."""
+        import subprocess
+        import tempfile
+
+        # Check if findimagedupes is available
+        try:
+            subprocess.run(['findimagedupes', '--version'],
+                          capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            QMessageBox.warning(
+                self, "Tool Not Found",
+                "The 'findimagedupes' tool is not installed.\n\n"
+                "Install it with:\n"
+                "  Ubuntu/Debian: sudo apt install findimagedupes\n"
+                "  Fedora: sudo dnf install findimagedupes\n"
+                "  Arch: sudo pacman -S findimagedupes\n\n"
+                "Or from source: https://github.com/jhnc/findimagedupes"
+            )
+            raise RuntimeError("findimagedupes not found")
+
+        # Run findimagedupes
+        try:
+            result = subprocess.run(
+                ['findimagedupes', '--quiet', '--'] + file_paths,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            # Parse output - each line is a group of duplicates separated by spaces
+            duplicates = {}
+            for group_id, line in enumerate(result.stdout.strip().split('\n')):
+                if line:
+                    files = line.split()
+                    if len(files) > 1:
+                        duplicates[group_id] = files
+
+            return duplicates
+
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"findimagedupes failed: {e.stderr}")
+
+    def delete_duplicate_files(self, duplicates):
+        """Delete duplicate files, keeping one per group based on dedup_mode.
+
+        Args:
+            duplicates: dict of {group_id: [file_paths]}
+
+        Returns:
+            Number of files deleted
+        """
+        deleted_count = 0
+
+        for group_id, files in duplicates.items():
+            if len(files) < 2:
+                continue
+
+            # Determine which file to keep
+            if self.dedup_mode == "exact":
+                # For exact duplicates, keep the first one (arbitrary)
+                keep_file = files[0]
+                delete_files = files[1:]
+            elif self.dedup_mode == "visual_largest":
+                # Keep the largest file
+                files_with_size = [(f, os.path.getsize(f)) for f in files]
+                files_with_size.sort(key=lambda x: x[1], reverse=True)
+                keep_file = files_with_size[0][0]
+                delete_files = [f for f, _ in files_with_size[1:]]
+            elif self.dedup_mode == "visual_smallest":
+                # Keep the smallest file
+                files_with_size = [(f, os.path.getsize(f)) for f in files]
+                files_with_size.sort(key=lambda x: x[1])
+                keep_file = files_with_size[0][0]
+                delete_files = [f for f, _ in files_with_size[1:]]
+            else:
+                continue
+
+            # Delete the duplicate files
+            for file_path in delete_files:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+
+        return deleted_count
+
+    def undo_last_operation(self):
+        """Undo the last move, copy, or delete operation."""
+        if not self.last_operation:
+            self.status_bar.showMessage("Nothing to undo", 3000)
+            return
+
+        operation_type = self.last_operation['type']
+        files = self.last_operation['files']
+
+        if not files:
+            self.last_operation = None
+            return
+
+        # Save current scroll position
+        scroll_bar = self.thumb_list.verticalScrollBar()
+        saved_scroll_pos = scroll_bar.value()
+
+        success_count = 0
+        failed_count = 0
+
+        for src, dest in files:
+            try:
+                if operation_type == "copy":
+                    # For copy, delete the copied file
+                    if os.path.exists(dest):
+                        os.remove(dest)
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                elif operation_type == "move":
+                    # For move, move the file back to original location
+                    if os.path.exists(dest):
+                        shutil.move(dest, src)
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                elif operation_type == "delete":
+                    # For delete, we can't undo (files are gone)
+                    # This is just a placeholder for future trash/recycle bin support
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                QMessageBox.warning(self, "Undo Error", f"Could not undo {os.path.basename(dest)}:\n{e}")
+
+        # Clear the operation history after undo
+        self.last_operation = None
+
+        # Refresh thumbnails and folder counts
+        self.refresh_thumbnails()
+
+        # Restore scroll position after thumbnails are reloaded
+        QTimer.singleShot(100, lambda: scroll_bar.setValue(saved_scroll_pos))
+
+        # Update folder count caches
+        if hasattr(self.src_tree, 'count_delegate') and hasattr(self.dest_tree, 'count_delegate'):
+            self.src_tree.count_delegate._count_cache.clear()
+            self.dest_tree.count_delegate._count_cache.clear()
+            self.src_tree.viewport().update()
+            self.dest_tree.viewport().update()
+
+        # Show status
+        if success_count > 0:
+            op_name = "copied" if operation_type == "copy" else "moved"
+            self.status_bar.showMessage(f"Undid {op_name} operation for {success_count} file(s)", 3000)
 
     def resizeEvent(self, event):
         """Handle main window resize - triggers thumbnail redraw."""

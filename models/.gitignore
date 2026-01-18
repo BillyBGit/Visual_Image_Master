@@ -1,0 +1,8 @@
+# Ignore downloaded model files (users should run download_models.py)
+*.caffemodel
+*.prototxt
+
+# Keep the scripts and documentation
+!download_models.py
+!README.md
+!.gitignore

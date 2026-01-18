@@ -1,10 +1,15 @@
-# Image Sorter Application Dependencies
+# Visual Image Master 2026 - Dependencies
 
-# Qt6 bindings for Python
+# Qt6 bindings for Python (GUI framework)
 PySide6>=6.6.0
 
-# Image processing library
-Pillow>=10.0.0
+# Image processing libraries
+Pillow>=10.0.0                    # Image I/O and basic operations
+opencv-python>=4.8.0              # Computer vision and DNN inference
 
-# Face detection
-opencv-python>=4.8.0
+# Scientific computing (required by OpenCV and image analysis)
+numpy>=1.24.0                     # Array operations and numerical computing
+
+# Optional: For custom PyTorch YOLO models (.pt, .pth, .safetensors)
+# Uncomment the line below if you want to use PyTorch YOLO models
+# ultralytics>=8.0.0              # YOLO v8+ models support
