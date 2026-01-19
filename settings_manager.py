@@ -54,9 +54,7 @@ class SettingsManager:
         if hasattr(self.app, 'preview_geometry') and self.app.preview_geometry:
             self.settings.setValue("preview_geometry", self.app.preview_geometry)
 
-        # Save YOLO window geometry if it exists
-        if hasattr(self.app, 'yolo_geometry') and self.app.yolo_geometry:
-            self.settings.setValue("yolo_geometry", self.app.yolo_geometry)
+        # Note: YOLO window geometry not saved - always opens maximized
 
         # Save YOLO labels and output path
         if hasattr(self.app, 'yolo_labels') and self.app.yolo_labels:
@@ -165,10 +163,9 @@ class SettingsManager:
         # 5. Restore Preview Window Geometry
         self.app.preview_geometry = self.settings.value("preview_geometry")
 
-        # 5b. Restore YOLO Window Geometry
-        self.app.yolo_geometry = self.settings.value("yolo_geometry")
+        # Note: YOLO window geometry not restored - always opens maximized
 
-        # 5c. Restore YOLO labels and output path
+        # 5b. Restore YOLO labels and output path
         self.app.yolo_labels = self.settings.value("yolo_labels", [])
         self.app.yolo_output_path = self.settings.value("yolo_output_path", "")
         self.app.yolo_resolution_index = self.settings.value("yolo_resolution_index", 0, type=int)

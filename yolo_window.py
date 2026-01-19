@@ -6,7 +6,7 @@ import os
 from PySide6.QtWidgets import (QMainWindow, QScrollArea, QLabel, QSplitter, QWidget,
                                 QVBoxLayout, QHBoxLayout, QStatusBar, QApplication,
                                 QComboBox, QGroupBox, QPushButton, QRadioButton,
-                                QButtonGroup, QInputDialog, QMessageBox)
+                                QButtonGroup, QInputDialog, QMessageBox, QMenu)
 from PySide6.QtCore import Qt, QTimer, QSize, QPoint, QRect
 from PySide6.QtGui import QAction, QPixmap, QKeySequence
 
@@ -61,6 +61,9 @@ class YoloWindow(QMainWindow):
         # Unsaved changes tracking
         self.has_unsaved_changes = False
 
+        # Initialization flag - prevents re-initialization on subsequent show events
+        self._initialized = False
+
         # Set window title
         self.setWindowTitle("YOLO Labeling Tool")
 
@@ -69,10 +72,8 @@ class YoloWindow(QMainWindow):
         self._setup_menu()
 
         # Always show maximized - simplifies coordinate handling
+        # Initialization happens in showEvent() to ensure geometry is finalized
         self.showMaximized()
-
-        # Load saved settings and image after window is fully shown
-        QTimer.singleShot(100, self._initialize_after_show)
 
         # Event configuration
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -143,6 +144,20 @@ class YoloWindow(QMainWindow):
         resolution_layout.addLayout(set_layout)
 
         self.right_panel_layout.addWidget(resolution_group)
+
+        # Extracted Images section
+        extractions_group = QGroupBox("Extracted Images")
+        extractions_layout = QVBoxLayout(extractions_group)
+
+        # Dropdown for existing extractions
+        self.extractions_combo = QComboBox()
+        self.extractions_combo.setToolTip("Select a previously extracted image to load its annotations")
+        self.extractions_combo.currentIndexChanged.connect(self._on_extraction_selected)
+        self.extractions_combo.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.extractions_combo.customContextMenuRequested.connect(self._show_extractions_context_menu)
+        extractions_layout.addWidget(self.extractions_combo)
+
+        self.right_panel_layout.addWidget(extractions_group)
 
         # Label panel (labels list, output path, save button)
         self.label_panel = YoloLabelPanel()
@@ -660,6 +675,8 @@ class YoloWindow(QMainWindow):
             self.status_bar.showMessage(f"Output path: {path}", 3000)
             # Try to load classes from existing YAML file
             self._load_classes_from_yaml(path)
+            # Update extractions list for the new path
+            self._update_extractions_list()
 
     def _load_classes_from_yaml(self, output_path):
         """Load class labels and colors from any YAML file in the directory."""
@@ -682,6 +699,249 @@ class YoloWindow(QMainWindow):
             self.status_bar.showMessage(f"Error loading YAML: {e}", 5000)
 
         return False
+
+    # Special marker for "Save new extraction" option
+    SAVE_NEW_EXTRACTION = "__SAVE_NEW__"
+
+    def _update_extractions_list(self):
+        """Update the extractions dropdown with existing images for current source.
+
+        The dropdown shows:
+        - If no extractions exist: "Press Ctrl+S to extract"
+        - If extractions exist: list of extraction filenames + "Save new extraction" at the end
+        """
+        self.extractions_combo.blockSignals(True)
+        self.extractions_combo.clear()
+
+        output_path = self.label_panel.output_path
+        if not output_path or not os.path.isdir(output_path):
+            self.extractions_combo.addItem("(No output path set)")
+            self.extractions_combo.blockSignals(False)
+            return
+
+        if not self.image_list:
+            self.extractions_combo.addItem("(No image loaded)")
+            self.extractions_combo.blockSignals(False)
+            return
+
+        # Get base name of current image (without extension)
+        current_path = self.image_list[self.current_index]
+        base_name = os.path.splitext(os.path.basename(current_path))[0]
+
+        # Look for extracted images matching pattern: basename_N.jpg
+        images_dir = os.path.join(output_path, "images")
+        extractions = []
+
+        if os.path.isdir(images_dir):
+            # Find all matching images
+            import re
+            pattern = re.compile(rf"^{re.escape(base_name)}_(\d+)\.jpg$", re.IGNORECASE)
+
+            try:
+                for filename in os.listdir(images_dir):
+                    match = pattern.match(filename)
+                    if match:
+                        suffix_num = int(match.group(1))
+                        extractions.append((suffix_num, filename))
+
+                # Sort by suffix number
+                extractions.sort(key=lambda x: x[0])
+            except OSError:
+                pass
+
+        if not extractions:
+            # No extractions yet - prompt user to create first one
+            self.extractions_combo.addItem("Press Ctrl+S to extract")
+        else:
+            # List existing extractions, auto-select the first one
+            for suffix_num, filename in extractions:
+                self.extractions_combo.addItem(filename, filename)
+            # Add option to create a new extraction at the end
+            self.extractions_combo.addItem("Save new extraction", self.SAVE_NEW_EXTRACTION)
+
+        self.extractions_combo.blockSignals(False)
+
+    def _show_extractions_context_menu(self, pos):
+        """Show context menu for extractions dropdown."""
+        # Only show if a real extraction is selected (not placeholder or "Save new")
+        data = self.extractions_combo.currentData()
+        if data is None or data == self.SAVE_NEW_EXTRACTION:
+            return
+
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete extraction")
+        delete_action.triggered.connect(self._delete_selected_extraction)
+        menu.exec(self.extractions_combo.mapToGlobal(pos))
+
+    def _delete_selected_extraction(self):
+        """Delete the currently selected extraction image and label file."""
+        data = self.extractions_combo.currentData()
+        if data is None or data == self.SAVE_NEW_EXTRACTION:
+            return
+
+        filename = data  # e.g., "image_0.jpg"
+        base_name = os.path.splitext(filename)[0]  # e.g., "image_0"
+
+        output_path = self.label_panel.output_path
+        if not output_path:
+            return
+
+        image_path = os.path.join(output_path, "images", filename)
+        label_path = os.path.join(output_path, "labels", f"{base_name}.txt")
+
+        # Confirm deletion
+        reply = QMessageBox.question(
+            self, "Delete Extraction",
+            f"Delete {filename} and its annotations?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Delete files
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+            if os.path.exists(label_path):
+                os.remove(label_path)
+
+            self.status_bar.showMessage(f"Deleted: {filename}", 3000)
+
+            # Refresh extractions list
+            self._update_extractions_list()
+
+            # Clear annotations since the extraction is gone
+            if self.overlay:
+                self.overlay.clear_annotations()
+
+        except OSError as e:
+            self.status_bar.showMessage(f"Delete failed: {e}", 5000)
+
+    def _on_extraction_selected(self, index):
+        """Handle selection of an extraction from the dropdown."""
+        if index < 0:
+            return
+
+        data = self.extractions_combo.currentData()
+
+        # Check if this is a placeholder message (no data) or "Save new extraction"
+        if data is None:
+            # This is the "Press Ctrl+S to extract" placeholder - do nothing
+            return
+
+        if data == self.SAVE_NEW_EXTRACTION:
+            # User selected "Save new extraction" - clear annotations for new extraction
+            if self.overlay:
+                self.overlay.clear_annotations()
+            self._set_unsaved_changes(True)
+            self.status_bar.showMessage("Ready to save new extraction - press Ctrl+S", 3000)
+            return
+
+        # data is a filename - load that extraction
+        filename = data
+        output_path = self.label_panel.output_path
+        if not output_path:
+            return
+
+        # Load the corresponding label file
+        base_name = os.path.splitext(filename)[0]
+        label_path = os.path.join(output_path, "labels", f"{base_name}.txt")
+
+        try:
+            current_labels = self.label_panel.get_all_labels()
+            annotations, source_info = YoloFileHandler.load_annotations(
+                label_path, current_labels, DEFAULT_COLORS
+            )
+
+            # Restore selection box position if source info is available
+            if source_info and not self.original_pixmap.isNull():
+                sel_x = source_info.get('sel_x', 0)
+                sel_y = source_info.get('sel_y', 0)
+                sel_w = source_info.get('sel_w', 0)
+                sel_h = source_info.get('sel_h', 0)
+
+                if sel_w > 0 and sel_h > 0:
+                    # Compute selection size in original image pixels
+                    sel_width_px = int(sel_w * self.original_pixmap.width())
+                    sel_height_px = int(sel_h * self.original_pixmap.height())
+
+                    # Set selection size and mode
+                    self.selection_size = QSize(sel_width_px, sel_height_px)
+                    self.size_mode = self.SIZE_MODE_IMAGE
+                    self.image_mode_radio.setChecked(True)
+                    self.screen_mode_radio.setChecked(False)
+
+                    # Lock the selection
+                    self.selection_locked = True
+                    self.set_btn.setEnabled(False)
+                    self.clear_btn.setEnabled(True)
+                    self.resolution_combo.setEnabled(False)
+                    self.image_mode_radio.setEnabled(False)
+                    self.screen_mode_radio.setEnabled(False)
+
+                    # Create overlay if needed
+                    self._create_overlay()
+
+                    # Set selection ratios on overlay
+                    self.overlay.selection_ratios = (sel_x, sel_y, sel_w, sel_h)
+                    self.overlay.selection_position_ratios = (
+                        sel_x + sel_w / 2,
+                        sel_y + sel_h / 2
+                    )
+                    self.overlay.set_size_mode(YoloOverlay.SIZE_MODE_IMAGE)
+                    self.overlay.set_selection_locked(True)
+
+                    self._update_overlay()
+                    self._update_selection_display()
+
+            # Load annotations
+            if self.overlay:
+                self.overlay.clear_annotations()
+                if annotations:
+                    self.overlay.annotations = annotations
+                    self.overlay.update()
+
+            self._set_unsaved_changes(False)
+            self.status_bar.showMessage(
+                f"Loaded extraction: {filename} ({len(annotations)} annotation(s))", 3000
+            )
+
+        except Exception as e:
+            self.status_bar.showMessage(f"Error loading extraction: {str(e)}", 3000)
+
+    def _get_next_extraction_suffix(self):
+        """Get the next available suffix number for a new extraction.
+
+        Returns:
+            int: Next available suffix (0, 1, 2, ...)
+        """
+        output_path = self.label_panel.output_path
+        if not output_path or not self.image_list:
+            return 0
+
+        current_path = self.image_list[self.current_index]
+        base_name = os.path.splitext(os.path.basename(current_path))[0]
+
+        images_dir = os.path.join(output_path, "images")
+        if not os.path.isdir(images_dir):
+            return 0
+
+        # Find the highest existing suffix
+        import re
+        pattern = re.compile(rf"^{re.escape(base_name)}_(\d+)\.jpg$", re.IGNORECASE)
+        max_suffix = -1
+
+        try:
+            for filename in os.listdir(images_dir):
+                match = pattern.match(filename)
+                if match:
+                    suffix_num = int(match.group(1))
+                    max_suffix = max(max_suffix, suffix_num)
+        except OSError:
+            pass
+
+        return max_suffix + 1
 
     def _on_save_requested(self):
         """Handle save button click - save cropped image and YOLO annotations."""
@@ -734,15 +994,28 @@ class YoloWindow(QMainWindow):
                     Qt.TransformationMode.SmoothTransformation
                 )
 
+            # Determine save name based on dropdown selection
+            selected_data = self.extractions_combo.currentData()
+
+            if selected_data is None or selected_data == self.SAVE_NEW_EXTRACTION:
+                # Create new extraction with next available suffix
+                suffix = self._get_next_extraction_suffix()
+                save_name = f"{base_name}_{suffix}"
+                is_new = True
+            else:
+                # Overwrite existing extraction
+                save_name = os.path.splitext(selected_data)[0]  # Remove .jpg extension
+                is_new = False
+
             # Save image
-            image_path = os.path.join(images_dir, f"{base_name}.jpg")
+            image_path = os.path.join(images_dir, f"{save_name}.jpg")
             if not cropped_pixmap.save(image_path, "JPEG", 95):
                 self.status_bar.showMessage(f"Failed to save image to {image_path}", 3000)
                 return
 
             # Save YOLO annotations
             annotations = self.overlay.get_annotations()
-            label_path = os.path.join(labels_dir, f"{base_name}.txt")
+            label_path = os.path.join(labels_dir, f"{save_name}.txt")
             self._save_yolo_annotations(label_path, annotations)
 
             # Update yolo.yaml with class names
@@ -751,10 +1024,29 @@ class YoloWindow(QMainWindow):
             # Clear unsaved changes
             self._set_unsaved_changes(False)
 
+            # Update the extractions list
+            old_index = self.extractions_combo.currentIndex()
+            self._update_extractions_list()
+
+            # Select the saved extraction in the dropdown
+            if is_new:
+                # Find and select the newly created extraction
+                for i in range(self.extractions_combo.count()):
+                    if self.extractions_combo.itemData(i) == f"{save_name}.jpg":
+                        self.extractions_combo.setCurrentIndex(i)
+                        break
+            else:
+                # Re-select the same index (or find by name if index changed)
+                for i in range(self.extractions_combo.count()):
+                    if self.extractions_combo.itemData(i) == f"{save_name}.jpg":
+                        self.extractions_combo.setCurrentIndex(i)
+                        break
+
             # Show success message
             num_annotations = len(annotations)
+            action = "Created" if is_new else "Updated"
             self.status_bar.showMessage(
-                f"Saved: {base_name}.jpg with {num_annotations} annotation(s)", 3000
+                f"{action}: {save_name}.jpg with {num_annotations} annotation(s)", 3000
             )
 
             # Auto-advance if enabled
@@ -873,10 +1165,11 @@ class YoloWindow(QMainWindow):
         YoloFileHandler.save_yaml(output_path, labels)
 
     def _load_existing_annotations(self):
-        """Load existing annotations from YOLO label file if available.
+        """Load the first existing extraction if available.
 
-        Also restores the selection box position from source info if the
-        original image matches.
+        This is called after image load to auto-select and load the first
+        extraction from the dropdown. The dropdown has already been populated
+        by _update_extractions_list().
         """
         if not self.overlay:
             return
@@ -884,78 +1177,15 @@ class YoloWindow(QMainWindow):
         # Clear existing annotations
         self.overlay.clear_annotations()
 
-        output_path = self.label_panel.output_path
-        if not output_path or not os.path.isdir(output_path):
-            return
-
-        # Get current image filename
-        if not self.image_list:
-            return
-
-        current_path = self.image_list[self.current_index]
-        base_name = os.path.splitext(os.path.basename(current_path))[0]
-        label_path = os.path.join(output_path, "labels", f"{base_name}.txt")
-
-        try:
-            current_labels = self.label_panel.get_all_labels()
-            annotations, source_info = YoloFileHandler.load_annotations(
-                label_path, current_labels, DEFAULT_COLORS
-            )
-
-            # Restore selection box position if source info matches current image
-            if source_info and not self.original_pixmap.isNull():
-                current_filename = os.path.basename(current_path)
-                if (source_info.get('filename') == current_filename and
-                    source_info.get('width') == self.original_pixmap.width() and
-                    source_info.get('height') == self.original_pixmap.height()):
-                    # Source matches - restore selection box position
-                    sel_x = source_info.get('sel_x', 0)
-                    sel_y = source_info.get('sel_y', 0)
-                    sel_w = source_info.get('sel_w', 0)
-                    sel_h = source_info.get('sel_h', 0)
-
-                    if sel_w > 0 and sel_h > 0:
-                        # Compute selection size in original image pixels
-                        sel_width_px = int(sel_w * self.original_pixmap.width())
-                        sel_height_px = int(sel_h * self.original_pixmap.height())
-
-                        # Set selection size and mode for proper restoration
-                        # Use image mode since we're storing as image-relative ratios
-                        self.selection_size = QSize(sel_width_px, sel_height_px)
-                        self.size_mode = self.SIZE_MODE_IMAGE
-                        self.image_mode_radio.setChecked(True)
-                        self.screen_mode_radio.setChecked(False)
-
-                        # Lock the selection
-                        self.selection_locked = True
-                        self.set_btn.setEnabled(False)
-                        self.clear_btn.setEnabled(True)
-                        self.resolution_combo.setEnabled(False)
-                        self.image_mode_radio.setEnabled(False)
-                        self.screen_mode_radio.setEnabled(False)
-
-                        # Set selection ratios on overlay
-                        self.overlay.selection_ratios = (sel_x, sel_y, sel_w, sel_h)
-                        self.overlay.selection_position_ratios = (
-                            sel_x + sel_w / 2,
-                            sel_y + sel_h / 2
-                        )
-                        self.overlay.set_size_mode(YoloOverlay.SIZE_MODE_IMAGE)
-                        self.overlay.set_selection_locked(True)
-
-                        self._update_overlay()
-                        self._update_selection_display()
-                        self.status_bar.showMessage(
-                            f"Restored selection box ({sel_width_px}x{sel_height_px})", 2000
-                        )
-
-            if annotations:
-                self.overlay.annotations = annotations
-                self.overlay.update()
-                self.status_bar.showMessage(f"Loaded {len(annotations)} annotation(s)", 3000)
-
-        except Exception as e:
-            self.status_bar.showMessage(f"Error loading annotations: {str(e)}", 3000)
+        # Check if there are any existing extractions in the dropdown
+        # The first item with actual data (not placeholder) is the first extraction
+        if self.extractions_combo.count() > 0:
+            first_data = self.extractions_combo.itemData(0)
+            if first_data is not None and first_data != self.SAVE_NEW_EXTRACTION:
+                # There's an existing extraction - select it (this will trigger loading)
+                self.extractions_combo.setCurrentIndex(0)
+                # Manually trigger the load since we blocked signals during list update
+                self._on_extraction_selected(0)
 
     def toggle_fit_mode(self, checked):
         """Toggle fit-to-window mode."""
@@ -981,8 +1211,11 @@ class YoloWindow(QMainWindow):
             zoom_percent = int(self.zoom_factor * 100)
             self.zoom_label.setText(f"Zoom: {zoom_percent}%")
 
-    def load_image(self):
-        """Load and display the current image."""
+    def _load_image_without_annotations(self):
+        """Load and display the current image without loading annotations.
+
+        Used during initial window setup to avoid timing issues with overlay sizing.
+        """
         if not self.image_list:
             self.image_label.setText("No images to display")
             self.image_label.setPixmap(QPixmap())
@@ -1008,6 +1241,13 @@ class YoloWindow(QMainWindow):
         self.update_image()
         self.update_zoom_display()
         self._update_window_title()
+
+        # Update the extractions dropdown for this image
+        self._update_extractions_list()
+
+    def load_image(self):
+        """Load and display the current image."""
+        self._load_image_without_annotations()
 
         # Load existing annotations if available
         self._load_existing_annotations()
@@ -1110,14 +1350,29 @@ class YoloWindow(QMainWindow):
             return True
         return super().eventFilter(source, event)
 
-    def _initialize_after_show(self):
-        """Initialize after window is fully shown and sized.
+    def showEvent(self, event):
+        """Handle window show event - initialize after window is fully visible."""
+        super().showEvent(event)
+        if not self._initialized:
+            self._initialized = True
+            # Use singleShot(0) to let the event loop finish processing the show
+            # This ensures the window manager has fully processed the maximize request
+            QTimer.singleShot(0, self._deferred_initialize)
 
-        This consolidates loading to happen once after the window is maximized,
-        avoiding double-drawing issues from multiple timer callbacks.
+    def _deferred_initialize(self):
+        """Initialize after window geometry is finalized.
+
+        This is called via timer from showEvent to ensure all layout
+        calculations are complete before we try to position overlays.
         """
+        # Process any pending events to ensure layout is fully complete
+        QApplication.processEvents()
+
         self._load_saved_settings()
-        self.load_image()
+        # Load image but skip annotations - will load after layout is settled
+        self._load_image_without_annotations()
+        # Load annotations after a brief delay to ensure display is finalized
+        QTimer.singleShot(50, self._load_existing_annotations)
 
     def _load_saved_settings(self):
         """Load saved YOLO settings from the main app."""
