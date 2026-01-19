@@ -54,6 +54,31 @@ class SettingsManager:
         if hasattr(self.app, 'preview_geometry') and self.app.preview_geometry:
             self.settings.setValue("preview_geometry", self.app.preview_geometry)
 
+        # Save YOLO window geometry if it exists
+        if hasattr(self.app, 'yolo_geometry') and self.app.yolo_geometry:
+            self.settings.setValue("yolo_geometry", self.app.yolo_geometry)
+
+        # Save YOLO labels and output path
+        if hasattr(self.app, 'yolo_labels') and self.app.yolo_labels:
+            # Convert QColor to string for storage
+            labels_to_save = []
+            for label in self.app.yolo_labels:
+                labels_to_save.append({
+                    'class_id': label['class_id'],
+                    'color': label['color'].name() if hasattr(label['color'], 'name') else label['color'],
+                    'name': label['name']
+                })
+            self.settings.setValue("yolo_labels", labels_to_save)
+
+        if hasattr(self.app, 'yolo_output_path'):
+            self.settings.setValue("yolo_output_path", self.app.yolo_output_path or "")
+
+        if hasattr(self.app, 'yolo_resolution_index'):
+            self.settings.setValue("yolo_resolution_index", self.app.yolo_resolution_index)
+
+        if hasattr(self.app, 'yolo_size_mode'):
+            self.settings.setValue("yolo_size_mode", self.app.yolo_size_mode)
+
         # Save current folder paths
         self.settings.setValue("src_root_path", self.app.src_root_path if self.app.src_root_path else "/")
         self.settings.setValue("dest_root_path", self.app.dest_root_path if self.app.dest_root_path else "/")
@@ -139,6 +164,15 @@ class SettingsManager:
 
         # 5. Restore Preview Window Geometry
         self.app.preview_geometry = self.settings.value("preview_geometry")
+
+        # 5b. Restore YOLO Window Geometry
+        self.app.yolo_geometry = self.settings.value("yolo_geometry")
+
+        # 5c. Restore YOLO labels and output path
+        self.app.yolo_labels = self.settings.value("yolo_labels", [])
+        self.app.yolo_output_path = self.settings.value("yolo_output_path", "")
+        self.app.yolo_resolution_index = self.settings.value("yolo_resolution_index", 0, type=int)
+        self.app.yolo_size_mode = self.settings.value("yolo_size_mode", "image")
 
         # 6. Restore Folder Paths
         src_root = self.settings.value("src_root_path", os.path.expanduser("~"))

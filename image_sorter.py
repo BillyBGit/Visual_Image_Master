@@ -147,6 +147,7 @@ from object_detection import get_detector as get_object_detector
 from quality_assessment import get_assessor as get_quality_assessor
 from scene_recognition import get_recognizer as get_scene_recognizer
 from settings_manager import SettingsManager
+from yolo_window import YoloWindow
 
 
 class ImageSorter(QMainWindow):
@@ -159,6 +160,11 @@ class ImageSorter(QMainWindow):
         self.preview_fit_default = False
         self.preview_autoname_extract = False
         self.preview_geometry = None
+        self.yolo_geometry = None
+        self.yolo_labels = []
+        self.yolo_output_path = ""
+        self.yolo_resolution_index = 0
+        self.yolo_size_mode = "image"
         self._settings_loaded = False
         self.src_root_path = None
         self.dest_root_path = None
@@ -247,6 +253,13 @@ class ImageSorter(QMainWindow):
         face_detect_settings_act = QAction('Face Detection Settings...', self)
         face_detect_settings_act.triggered.connect(self.show_face_detection_settings)
         options_menu.addAction(face_detect_settings_act)
+
+        # Tools Menu
+        tools_menu = menu_bar.addMenu('&Tools')
+
+        yolo_labeling_act = QAction('&YOLO Labelling...', self)
+        yolo_labeling_act.triggered.connect(self.open_yolo_window)
+        tools_menu.addAction(yolo_labeling_act)
 
         # Help Menu
         help_menu = menu_bar.addMenu('&Help')
@@ -667,7 +680,7 @@ class ImageSorter(QMainWindow):
     def show_filter_menu(self, pos):
         """Show the filter menu on right-click."""
         # Enable/disable invert filter based on whether a filter is active
-        filter_is_active = self.filter_active and self.filter_mode
+        filter_is_active = self.filter_active and self.filter_mode is not None
         self.invert_filter_act.setEnabled(filter_is_active)
 
         # Update invert filter checkmark based on current advanced filter settings
@@ -1982,6 +1995,33 @@ class ImageSorter(QMainWindow):
 
             if self._settings_loaded:
                 self.write_settings()
+
+    def open_yolo_window(self):
+        """Open the YOLO labeling window with current thumbnails."""
+        # Get the current image list from thumbnails
+        image_list = []
+        for i in range(self.thumb_list.count()):
+            item = self.thumb_list.item(i)
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                image_list.append(path)
+
+        if not image_list:
+            QMessageBox.information(
+                self, "No Images",
+                "Please select a source folder with images first."
+            )
+            return
+
+        # Get current selection index, default to 0
+        current_index = 0
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            current_index = self.thumb_list.row(selected_items[0])
+
+        # Open YOLO window
+        self.yolo_window = YoloWindow(image_list, current_index, self)
+        self.yolo_window.show()
 
     def show_about(self):
         """Show the About dialog."""
