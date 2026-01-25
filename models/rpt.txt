@@ -1,0 +1,10 @@
+deploy.prototxt
+download_models.py
+IO_places365.txt
+README.md
+res10_300x300_ssd_iter_140000_fp16.caffemodel
+resnet18_places365.pth.tar
+rpt.txt
+wd-v1-4-vit-tagger-v2.onnx
+yolov4-tiny.cfg
+yolov4-tiny.weights

@@ -77,6 +77,43 @@ class SettingsManager:
         if hasattr(self.app, 'yolo_size_mode'):
             self.settings.setValue("yolo_size_mode", self.app.yolo_size_mode)
 
+        # Save caption settings
+        if hasattr(self.app, 'caption_backend'):
+            self.settings.setValue("caption_backend", self.app.caption_backend or "florence2")
+
+        if hasattr(self.app, 'caption_ollama_url'):
+            self.settings.setValue("caption_ollama_url", self.app.caption_ollama_url or "")
+
+        if hasattr(self.app, 'caption_ollama_model'):
+            self.settings.setValue("caption_ollama_model", self.app.caption_ollama_model or "")
+
+        if hasattr(self.app, 'caption_florence_model'):
+            self.settings.setValue("caption_florence_model", self.app.caption_florence_model or "base")
+
+        if hasattr(self.app, 'caption_florence_detail'):
+            self.settings.setValue("caption_florence_detail", self.app.caption_florence_detail or "detailed")
+
+        if hasattr(self.app, 'caption_florence_custom_path'):
+            self.settings.setValue("caption_florence_custom_path", self.app.caption_florence_custom_path or "")
+
+        if hasattr(self.app, 'caption_wd14_model'):
+            self.settings.setValue("caption_wd14_model", self.app.caption_wd14_model or "vit-v2")
+
+        if hasattr(self.app, 'caption_wd14_threshold'):
+            self.settings.setValue("caption_wd14_threshold", self.app.caption_wd14_threshold or 0.55)
+
+        if hasattr(self.app, 'caption_wd14_custom_paths'):
+            # Convert dict to JSON string for storage
+            import json
+            paths_json = json.dumps(self.app.caption_wd14_custom_paths or {})
+            self.settings.setValue("caption_wd14_custom_paths", paths_json)
+
+        if hasattr(self.app, 'caption_blend_instructions'):
+            self.settings.setValue("caption_blend_instructions", self.app.caption_blend_instructions or "")
+
+        if hasattr(self.app, 'caption_blend_model'):
+            self.settings.setValue("caption_blend_model", self.app.caption_blend_model or "")
+
         # Save current folder paths
         self.settings.setValue("src_root_path", self.app.src_root_path if self.app.src_root_path else "/")
         self.settings.setValue("dest_root_path", self.app.dest_root_path if self.app.dest_root_path else "/")
@@ -170,6 +207,30 @@ class SettingsManager:
         self.app.yolo_output_path = self.settings.value("yolo_output_path", "")
         self.app.yolo_resolution_index = self.settings.value("yolo_resolution_index", 0, type=int)
         self.app.yolo_size_mode = self.settings.value("yolo_size_mode", "image")
+
+        # 5c. Restore Caption settings
+        self.app.caption_backend = self.settings.value("caption_backend", "florence2")
+        self.app.caption_ollama_url = self.settings.value("caption_ollama_url", "http://localhost:11434")
+        self.app.caption_ollama_model = self.settings.value("caption_ollama_model", "llava")
+        self.app.caption_florence_model = self.settings.value("caption_florence_model", "base")
+        self.app.caption_florence_detail = self.settings.value("caption_florence_detail", "detailed")
+        self.app.caption_florence_custom_path = self.settings.value("caption_florence_custom_path", "")
+        self.app.caption_wd14_model = self.settings.value("caption_wd14_model", "vit-v2")
+        self.app.caption_wd14_threshold = self.settings.value("caption_wd14_threshold", 0.55, type=float)
+
+        # Load WD14 custom paths from JSON
+        import json
+        paths_json = self.settings.value("caption_wd14_custom_paths", "{}")
+        try:
+            self.app.caption_wd14_custom_paths = json.loads(paths_json)
+        except (json.JSONDecodeError, TypeError):
+            self.app.caption_wd14_custom_paths = {}
+
+        # Load blend instructions
+        self.app.caption_blend_instructions = self.settings.value("caption_blend_instructions", "")
+
+        # Load blend model
+        self.app.caption_blend_model = self.settings.value("caption_blend_model", "")
 
         # 6. Restore Folder Paths
         src_root = self.settings.value("src_root_path", os.path.expanduser("~"))

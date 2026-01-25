@@ -55,6 +55,10 @@ class YoloWindow(QMainWindow):
         self.size_mode = self.SIZE_MODE_IMAGE  # Default to image resolution mode
         self.selection_locked = False  # Whether the selection size is locked
 
+        # Track last used selection for restoring on new images
+        self._last_selection_size = None  # QSize of last used selection
+        self._last_size_mode = self.SIZE_MODE_IMAGE  # Mode of last used selection
+
         # Overlay widget
         self.overlay = None
 
@@ -63,6 +67,7 @@ class YoloWindow(QMainWindow):
 
         # Initialization flag - prevents re-initialization on subsequent show events
         self._initialized = False
+        self._maximize_attempts = 0  # Counter for maximize retries
 
         # Set window title
         self.setWindowTitle("YOLO Labeling Tool")
@@ -71,9 +76,7 @@ class YoloWindow(QMainWindow):
         self._setup_ui()
         self._setup_menu()
 
-        # Always show maximized - simplifies coordinate handling
-        # Initialization happens in showEvent() to ensure geometry is finalized
-        self.showMaximized()
+        # Note: Window will be maximized in showEvent() after geometry is available
 
         # Event configuration
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -146,8 +149,8 @@ class YoloWindow(QMainWindow):
         self.right_panel_layout.addWidget(resolution_group)
 
         # Extracted Images section
-        extractions_group = QGroupBox("Extracted Images")
-        extractions_layout = QVBoxLayout(extractions_group)
+        self.extractions_group = QGroupBox("Extracted Images (0)")
+        extractions_layout = QVBoxLayout(self.extractions_group)
 
         # Dropdown for existing extractions
         self.extractions_combo = QComboBox()
@@ -157,7 +160,7 @@ class YoloWindow(QMainWindow):
         self.extractions_combo.customContextMenuRequested.connect(self._show_extractions_context_menu)
         extractions_layout.addWidget(self.extractions_combo)
 
-        self.right_panel_layout.addWidget(extractions_group)
+        self.right_panel_layout.addWidget(self.extractions_group)
 
         # Label panel (labels list, output path, save button)
         self.label_panel = YoloLabelPanel()
@@ -167,6 +170,8 @@ class YoloWindow(QMainWindow):
         self.label_panel.labels_changed.connect(self._on_labels_changed)
         self.label_panel.output_path_changed.connect(self._on_output_path_changed)
         self.label_panel.save_requested.connect(self._on_save_requested)
+        self.label_panel.load_directory_requested.connect(self._on_load_directory_requested)
+        self.label_panel.refresh_files_requested.connect(self._on_refresh_files_requested)
         self.right_panel_layout.addWidget(self.label_panel, 1)  # Stretch to fill
 
         self.splitter.addWidget(self.right_panel)
@@ -417,6 +422,10 @@ class YoloWindow(QMainWindow):
         self.resolution_combo.setEnabled(False)
         self.image_mode_radio.setEnabled(False)
         self.screen_mode_radio.setEnabled(False)
+
+        # Save as last used selection for restoring on new images
+        self._last_selection_size = QSize(self.selection_size)
+        self._last_size_mode = self.size_mode
 
         # Tell overlay that selection is locked (enables drawing)
         if self.overlay:
@@ -677,6 +686,95 @@ class YoloWindow(QMainWindow):
             self._load_classes_from_yaml(path)
             # Update extractions list for the new path
             self._update_extractions_list()
+            # Auto-load annotations from the first extraction if available
+            self._load_existing_annotations()
+
+    def _on_load_directory_requested(self):
+        """Handle Load Directory button - reload all annotations from output directory."""
+        output_path = self.label_panel.output_path
+        if not output_path or not os.path.isdir(output_path):
+            self.status_bar.showMessage("No valid output directory set", 3000)
+            return
+
+        # Reload classes from YAML
+        self._load_classes_from_yaml(output_path)
+
+        # Update extractions list
+        self._update_extractions_list()
+
+        # Load first extraction if available
+        self._load_existing_annotations()
+
+        self.status_bar.showMessage("Reloaded directory contents", 3000)
+
+    def _on_refresh_files_requested(self):
+        """Handle Refresh Files button - update all label files to match current class IDs."""
+        output_path = self.label_panel.output_path
+        if not output_path or not os.path.isdir(output_path):
+            self.status_bar.showMessage("No valid output directory set", 3000)
+            return
+
+        labels_dir = os.path.join(output_path, "labels")
+        if not os.path.isdir(labels_dir):
+            self.status_bar.showMessage("No labels directory found", 3000)
+            return
+
+        all_labels = self.label_panel.get_all_labels()
+        if not all_labels:
+            self.status_bar.showMessage("No labels defined", 3000)
+            return
+
+        # Count files to update
+        updated_count = 0
+        error_count = 0
+
+        try:
+            for filename in os.listdir(labels_dir):
+                if not filename.endswith('.txt'):
+                    continue
+
+                label_path = os.path.join(labels_dir, filename)
+                try:
+                    # Read, update class IDs, and rewrite the file
+                    if self._refresh_single_label_file(label_path, all_labels):
+                        updated_count += 1
+                except Exception as e:
+                    error_count += 1
+
+            # Also update the YAML file
+            self._update_yolo_yaml(output_path)
+
+            if error_count > 0:
+                self.status_bar.showMessage(
+                    f"Refreshed {updated_count} file(s), {error_count} error(s)", 5000
+                )
+            else:
+                self.status_bar.showMessage(
+                    f"Refreshed {updated_count} label file(s)", 3000
+                )
+
+            # Reload current annotations to reflect any changes
+            self._load_existing_annotations()
+
+        except OSError as e:
+            self.status_bar.showMessage(f"Error reading labels directory: {e}", 5000)
+
+    def _refresh_single_label_file(self, label_path, all_labels):
+        """Refresh a single label file to match current class definitions.
+
+        Returns True if the file was modified.
+        """
+        # Load current annotations
+        annotations, source_info = YoloFileHandler.load_annotations(
+            label_path, all_labels, DEFAULT_COLORS
+        )
+
+        if not annotations and not source_info:
+            return False
+
+        # Rewrite with current class mappings
+        YoloFileHandler.save_annotations(label_path, annotations, all_labels, source_info)
+        return True
 
     def _load_classes_from_yaml(self, output_path):
         """Load class labels and colors from any YAML file in the directory."""
@@ -758,6 +856,10 @@ class YoloWindow(QMainWindow):
                 self.extractions_combo.addItem(filename, filename)
             # Add option to create a new extraction at the end
             self.extractions_combo.addItem("Save new extraction", self.SAVE_NEW_EXTRACTION)
+
+        # Update group box title with count
+        extraction_count = len(extractions)
+        self.extractions_group.setTitle(f"Extracted Images ({extraction_count})")
 
         self.extractions_combo.blockSignals(False)
 
@@ -871,6 +973,10 @@ class YoloWindow(QMainWindow):
                     self.size_mode = self.SIZE_MODE_IMAGE
                     self.image_mode_radio.setChecked(True)
                     self.screen_mode_radio.setChecked(False)
+
+                    # Save as last used selection for restoring on new images
+                    self._last_selection_size = QSize(self.selection_size)
+                    self._last_size_mode = self.size_mode
 
                     # Lock the selection
                     self.selection_locked = True
@@ -1171,21 +1277,102 @@ class YoloWindow(QMainWindow):
         extraction from the dropdown. The dropdown has already been populated
         by _update_extractions_list().
         """
-        if not self.overlay:
-            return
-
-        # Clear existing annotations
-        self.overlay.clear_annotations()
+        # Clear existing annotations if overlay exists
+        if self.overlay:
+            self.overlay.clear_annotations()
 
         # Check if there are any existing extractions in the dropdown
         # The first item with actual data (not placeholder) is the first extraction
+        has_extractions = False
         if self.extractions_combo.count() > 0:
             first_data = self.extractions_combo.itemData(0)
             if first_data is not None and first_data != self.SAVE_NEW_EXTRACTION:
+                has_extractions = True
                 # There's an existing extraction - select it (this will trigger loading)
                 self.extractions_combo.setCurrentIndex(0)
                 # Manually trigger the load since we blocked signals during list update
+                # _on_extraction_selected will create the overlay if needed
                 self._on_extraction_selected(0)
+
+        # If no extractions but we have a last used selection, restore it unlocked
+        if not has_extractions and self._last_selection_size is not None:
+            self._restore_unlocked_selection()
+
+    def _restore_unlocked_selection(self):
+        """Restore the last used selection size in unlocked state.
+
+        This allows the user to position and adjust before clicking Set.
+        """
+        # Restore selection size and mode from last used
+        self.selection_size = QSize(self._last_selection_size)
+        self.size_mode = self._last_size_mode
+
+        # Set UI to unlocked state
+        self.selection_locked = False
+        self.set_btn.setEnabled(True)
+        self.clear_btn.setEnabled(False)
+        self.resolution_combo.setEnabled(True)
+        self.image_mode_radio.setEnabled(True)
+        self.screen_mode_radio.setEnabled(True)
+
+        # Update radio buttons to match mode
+        if self.size_mode == self.SIZE_MODE_IMAGE:
+            self.image_mode_radio.setChecked(True)
+            self.screen_mode_radio.setChecked(False)
+        else:
+            self.image_mode_radio.setChecked(False)
+            self.screen_mode_radio.setChecked(True)
+
+        # Handle oversized selection (selection larger than image)
+        if not self.original_pixmap.isNull():
+            img_w = self.original_pixmap.width()
+            img_h = self.original_pixmap.height()
+
+            if self.selection_size.width() > img_w or self.selection_size.height() > img_h:
+                # Selection is larger than image - switch to screen mode and zoom
+                self._handle_oversized_selection(self.selection_size, img_w, img_h)
+                self._update_selection_display()
+                self.status_bar.showMessage(
+                    f"Selection restored: {self.selection_size.width()} × {self.selection_size.height()} (not set - position and click Set)",
+                    4000
+                )
+                return
+
+        # In image mode, ensure we're at native size for accurate pixel selection
+        # This matches the behavior in _on_resolution_changed
+        if self.size_mode == self.SIZE_MODE_IMAGE:
+            if self.fit_to_window:
+                self.fit_to_window = False
+                self.fit_act.setChecked(False)
+                self.native_act.setChecked(True)
+            # Always reset to 100% zoom for consistent selection sizing
+            self.zoom_factor = 1.0
+
+        # Create overlay if needed
+        self._create_overlay()
+        if self.overlay:
+            self.overlay.set_size_mode(
+                YoloOverlay.SIZE_MODE_IMAGE if self.size_mode == self.SIZE_MODE_IMAGE
+                else YoloOverlay.SIZE_MODE_SCREEN
+            )
+            self.overlay.set_selection_locked(False)
+            # Clear any previous position - will center on next update
+            self.overlay.selection_ratios = None
+            self.overlay.selection_position_ratios = None
+
+        # Force image update to ensure displayed_pixmap is correct before overlay calc
+        self.update_image()
+
+        # Process pending events to let layouts settle, then update overlay again
+        # This fixes timing issues on first navigation where layout isn't finalized
+        QApplication.processEvents()
+        self._update_overlay()
+        self._update_selection_display()
+
+        self.status_bar.showMessage(
+            f"Selection restored: {self.selection_size.width()} × {self.selection_size.height()} (not set - position and click Set)",
+            4000
+        )
 
     def toggle_fit_mode(self, checked):
         """Toggle fit-to-window mode."""
@@ -1310,6 +1497,18 @@ class YoloWindow(QMainWindow):
             class_id = event.key() - Qt.Key.Key_0
             if self.label_panel.select_label_by_id(class_id):
                 self.status_bar.showMessage(f"Selected label {class_id}", 2000)
+        elif event.key() == Qt.Key.Key_Home:
+            # Jump to first image
+            if self.image_list:
+                if self._check_unsaved_changes():
+                    self.current_index = 0
+                    self.load_image()
+        elif event.key() == Qt.Key.Key_End:
+            # Jump to last image
+            if self.image_list:
+                if self._check_unsaved_changes():
+                    self.current_index = len(self.image_list) - 1
+                    self.load_image()
         else:
             super().keyPressEvent(event)
 
@@ -1355,9 +1554,9 @@ class YoloWindow(QMainWindow):
         super().showEvent(event)
         if not self._initialized:
             self._initialized = True
-            # Use singleShot(0) to let the event loop finish processing the show
+            # Use singleShot to let the event loop finish processing the show/maximize
             # This ensures the window manager has fully processed the maximize request
-            QTimer.singleShot(0, self._deferred_initialize)
+            QTimer.singleShot(50, self._deferred_initialize)
 
     def _deferred_initialize(self):
         """Initialize after window geometry is finalized.
@@ -1367,6 +1566,15 @@ class YoloWindow(QMainWindow):
         """
         # Process any pending events to ensure layout is fully complete
         QApplication.processEvents()
+
+        # Double-check window is maximized (Linux window managers can be slow)
+        # Retry up to 5 times with 100ms delays
+        if not self.isMaximized() and self._maximize_attempts < 5:
+            self._maximize_attempts += 1
+            self.showMaximized()
+            # Give window manager time to process, then re-run initialization
+            QTimer.singleShot(100, self._deferred_initialize)
+            return
 
         self._load_saved_settings()
         # Load image but skip annotations - will load after layout is settled

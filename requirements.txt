@@ -13,3 +13,25 @@ numpy>=1.24.0                     # Array operations and numerical computing
 # Optional: For custom PyTorch YOLO models (.pt, .pth, .safetensors)
 # Uncomment the line below if you want to use PyTorch YOLO models
 # ultralytics>=8.0.0              # YOLO v8+ models support
+
+# Optional: For Auto Caption feature (Florence2 and WD14 models)
+# Uncomment the lines below to enable local caption generation
+#
+# Core dependencies:
+# huggingface-hub>=0.20.0         # HuggingFace model downloads (required for all)
+#
+# For Florence2 models (natural language captions):
+# torch>=2.0.0                    # PyTorch backend
+# transformers>=4.40.0            # HuggingFace Transformers
+# accelerate>=0.20.0              # Model loading acceleration
+# einops>=0.7.0                   # Required by Florence2
+#
+# For WD14 models (anime/illustration tagging):
+# WD14 supports multiple backends - install at least one:
+#   Option 1 (Recommended): ONNX Runtime (faster, smaller, no PyTorch needed)
+#     onnxruntime>=1.16.0         # For ONNX format models
+#   Option 2: PyTorch (supports SafeTensors and PyTorch formats)
+#     torch>=2.0.0                # PyTorch backend (already listed above for Florence2)
+#     timm>=0.9.0                 # Vision model architectures
+#     safetensors>=0.4.0          # For SafeTensors format (optional)
+# Note: numpy>=1.24.0 is already listed above and required for all backends

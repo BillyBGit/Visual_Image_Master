@@ -10,7 +10,8 @@ from PySide6.QtWidgets import (QMainWindow, QSplitter, QWidget, QVBoxLayout, QHB
                                QLineEdit, QMessageBox, QProgressBar, QStatusBar,
                                QFileSystemModel, QToolButton, QMenu, QApplication,
                                QListWidgetItem, QPushButton, QFileDialog, QDialog,
-                               QTextBrowser, QLabel, QDialogButtonBox, QScrollArea)
+                               QTextBrowser, QLabel, QDialogButtonBox, QScrollArea,
+                               QProgressDialog)
 from PySide6.QtCore import Qt, QSize, QDir, QTimer
 from PySide6.QtGui import QAction, QIcon, QActionGroup
 from PIL import Image
@@ -165,6 +166,17 @@ class ImageSorter(QMainWindow):
         self.yolo_output_path = ""
         self.yolo_resolution_index = 0
         self.yolo_size_mode = "image"
+        self.caption_backend = "florence2"
+        self.caption_ollama_url = "http://localhost:11434"
+        self.caption_ollama_model = "llava"
+        self.caption_florence_model = "base"
+        self.caption_florence_detail = "detailed"
+        self.caption_florence_custom_path = ""
+        self.caption_wd14_model = "vit-v2"
+        self.caption_wd14_threshold = 0.55  # Higher threshold to reduce excessive tags
+        self.caption_wd14_custom_paths = {}  # Dict of model_key -> custom path
+        self.caption_blend_instructions = ""  # Custom Ollama blending instructions
+        self.caption_blend_model = ""  # Ollama model to use for blending
         self._settings_loaded = False
         self.src_root_path = None
         self.dest_root_path = None
@@ -260,6 +272,10 @@ class ImageSorter(QMainWindow):
         yolo_labeling_act = QAction('&YOLO Labelling...', self)
         yolo_labeling_act.triggered.connect(self.open_yolo_window)
         tools_menu.addAction(yolo_labeling_act)
+
+        auto_caption_act = QAction('&Auto Caption...', self)
+        auto_caption_act.triggered.connect(self.open_caption_window)
+        tools_menu.addAction(auto_caption_act)
 
         # Help Menu
         help_menu = menu_bar.addMenu('&Help')
@@ -368,9 +384,18 @@ class ImageSorter(QMainWindow):
         self.dedup_menu = QMenu(self.dedup_btn)
         self.setup_dedup_menu()
 
+        # Batch caption button
+        self.batch_caption_btn = QToolButton()
+        self.batch_caption_btn.setText("📝")
+        self.batch_caption_btn.setIconSize(icon_size)
+        self.batch_caption_btn.setMinimumSize(icon_size)
+        self.batch_caption_btn.setToolTip("Generate captions for images (selected or all)")
+        self.batch_caption_btn.clicked.connect(self.batch_generate_captions)
+
         self.toolbar_layout.addWidget(self.filter_btn)
         self.toolbar_layout.addWidget(self.sort_btn)
         self.toolbar_layout.addWidget(self.dedup_btn)
+        self.toolbar_layout.addWidget(self.batch_caption_btn)
         self.toolbar_layout.addStretch()
 
         self.thumb_list = ThumbnailList(self)
@@ -419,6 +444,13 @@ class ImageSorter(QMainWindow):
 
         # Load existing settings (blocks signals during restoration)
         self.settings_manager.read_settings()
+
+        # Load WD14 custom paths into caption generator
+        if self.caption_wd14_custom_paths:
+            from caption_generator import get_caption_generator
+            generator = get_caption_generator()
+            for model_key, path in self.caption_wd14_custom_paths.items():
+                generator.set_wd14_custom_path(model_key, path)
 
         # Initialize face detector with loaded preset
         self.face_detector = FaceDetector(self.face_detection_preset)
@@ -2019,9 +2051,203 @@ class ImageSorter(QMainWindow):
         if selected_items:
             current_index = self.thumb_list.row(selected_items[0])
 
-        # Open YOLO window
+        # Open YOLO window - use showMaximized() for immediate full-screen
         self.yolo_window = YoloWindow(image_list, current_index, self)
-        self.yolo_window.show()
+        self.yolo_window.showMaximized()
+
+    def open_caption_window(self):
+        """Open the Auto Caption window with current thumbnails."""
+        from caption_window import CaptionWindow
+
+        # Get the current image list from thumbnails
+        image_list = []
+        for i in range(self.thumb_list.count()):
+            item = self.thumb_list.item(i)
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                image_list.append(path)
+
+        if not image_list:
+            QMessageBox.information(
+                self, "No Images",
+                "Please select a source folder with images first."
+            )
+            return
+
+        # Get current selection index, default to 0
+        current_index = 0
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            current_index = self.thumb_list.row(selected_items[0])
+
+        # Open Caption window
+        self.caption_window = CaptionWindow(image_list, current_index, self)
+        self.caption_window.showMaximized()
+
+    def batch_generate_captions(self):
+        """Generate captions for selected or all thumbnail images."""
+        from caption_generator import get_caption_generator, CaptionWorker
+
+        # Get images to process - selected items or all if none selected
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            image_paths = []
+            for item in selected_items:
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path:
+                    image_paths.append(path)
+        else:
+            # No selection - use all thumbnails
+            image_paths = []
+            for i in range(self.thumb_list.count()):
+                item = self.thumb_list.item(i)
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path:
+                    image_paths.append(path)
+
+        if not image_paths:
+            QMessageBox.information(
+                self, "No Images",
+                "No images available to caption."
+            )
+            return
+
+        # Filter out images that already have captions
+        images_without_captions = []
+        images_with_captions = []
+        for path in image_paths:
+            caption_path = os.path.splitext(path)[0] + ".txt"
+            if os.path.exists(caption_path):
+                images_with_captions.append(path)
+            else:
+                images_without_captions.append(path)
+
+        # Ask what to do if some already have captions
+        if images_with_captions and images_without_captions:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Existing Captions")
+            msg_box.setText(
+                f"{len(images_with_captions)} image(s) already have captions.\n"
+                f"{len(images_without_captions)} need captions.\n\n"
+                "What would you like to do?"
+            )
+            skip_btn = msg_box.addButton("Skip existing", QMessageBox.ButtonRole.AcceptRole)
+            overwrite_btn = msg_box.addButton("Overwrite all", QMessageBox.ButtonRole.DestructiveRole)
+            cancel_btn = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+            msg_box.setDefaultButton(skip_btn)
+            msg_box.exec()
+
+            clicked = msg_box.clickedButton()
+            if clicked == cancel_btn:
+                return
+            elif clicked == skip_btn:
+                # Skip existing - only process images without captions
+                image_paths = images_without_captions
+            # overwrite_btn = process all (overwrite existing)
+        elif images_with_captions and not images_without_captions:
+            # All have captions
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("All Have Captions")
+            msg_box.setText(
+                f"All {len(images_with_captions)} image(s) already have captions.\n"
+                "Do you want to regenerate them?"
+            )
+            overwrite_btn = msg_box.addButton("Overwrite", QMessageBox.ButtonRole.AcceptRole)
+            cancel_btn = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+            msg_box.setDefaultButton(cancel_btn)
+            msg_box.exec()
+
+            if msg_box.clickedButton() != overwrite_btn:
+                return
+
+        if not image_paths:
+            QMessageBox.information(self, "Nothing to Do", "No images need captions.")
+            return
+
+        # Create progress dialog
+        progress = QProgressDialog(
+            "Generating captions...", "Cancel", 0, len(image_paths), self
+        )
+        progress.setWindowTitle("Batch Caption Generation")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+
+        # Get caption settings
+        backend = getattr(self, 'caption_backend', 'florence2')
+        ollama_url = getattr(self, 'caption_ollama_url', 'http://localhost:11434')
+        ollama_model = getattr(self, 'caption_ollama_model', 'llava')
+        florence_model = getattr(self, 'caption_florence_model', 'base')
+        florence_detail = getattr(self, 'caption_florence_detail', 'detailed')
+        wd14_model = getattr(self, 'caption_wd14_model', 'vit-v2')
+        wd14_threshold = getattr(self, 'caption_wd14_threshold', 0.55)
+
+        # Get generator instance
+        generator = get_caption_generator()
+
+        # Process images
+        successful = 0
+        failed = 0
+        errors = []
+
+        for i, image_path in enumerate(image_paths):
+            if progress.wasCanceled():
+                break
+
+            # Update progress
+            filename = os.path.basename(image_path)
+            progress.setLabelText(f"Generating caption for:\n{filename}\n\n({i+1} of {len(image_paths)})")
+            progress.setValue(i)
+            QApplication.processEvents()
+
+            try:
+                # Generate caption
+                if backend == "florence2":
+                    caption = generator.generate_florence(
+                        image_path,
+                        model_key=florence_model,
+                        detail_level=florence_detail
+                    )
+                elif backend == "wd14":
+                    caption = generator.generate_wd14(
+                        image_path,
+                        model_key=wd14_model,
+                        threshold=wd14_threshold
+                    )
+                else:  # ollama
+                    caption = generator.generate_ollama(
+                        image_path, ollama_url, ollama_model
+                    )
+
+                # Save caption to txt file
+                caption_path = os.path.splitext(image_path)[0] + ".txt"
+                with open(caption_path, 'w', encoding='utf-8') as f:
+                    f.write(caption)
+
+                successful += 1
+
+            except Exception as e:
+                failed += 1
+                errors.append(f"{filename}: {str(e)[:50]}")
+
+            QApplication.processEvents()
+
+        progress.setValue(len(image_paths))
+        progress.close()
+
+        # Show results
+        if progress.wasCanceled():
+            msg = f"Batch captioning cancelled.\n\nCompleted: {successful}\nFailed: {failed}"
+        else:
+            msg = f"Batch captioning complete.\n\nSuccessful: {successful}\nFailed: {failed}"
+
+        if errors and len(errors) <= 5:
+            msg += f"\n\nErrors:\n" + "\n".join(errors)
+        elif errors:
+            msg += f"\n\nFirst 5 errors:\n" + "\n".join(errors[:5])
+            msg += f"\n... and {len(errors) - 5} more"
+
+        QMessageBox.information(self, "Batch Caption Results", msg)
 
     def show_about(self):
         """Show the About dialog."""

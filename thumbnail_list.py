@@ -57,6 +57,17 @@ class ThumbnailList(QListWidget):
             current_item = self.currentItem()
             if current_item:
                 self.open_preview(current_item)
+        elif event.key() == Qt.Key.Key_Home:
+            # Jump to first item
+            if self.count() > 0:
+                self.setCurrentRow(0)
+                self.scrollToItem(self.item(0))
+        elif event.key() == Qt.Key.Key_End:
+            # Jump to last item
+            if self.count() > 0:
+                last = self.count() - 1
+                self.setCurrentRow(last)
+                self.scrollToItem(self.item(last))
         else:
             super().keyPressEvent(event)
 

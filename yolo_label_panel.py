@@ -168,6 +168,8 @@ class YoloLabelPanel(QWidget):
     labels_changed = Signal()  # Emitted when labels list changes
     output_path_changed = Signal(str)  # Emitted when output path changes
     save_requested = Signal()  # Emitted when save button clicked
+    load_directory_requested = Signal()  # Emitted when load directory button clicked
+    refresh_files_requested = Signal()  # Emitted when refresh files button clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -238,7 +240,10 @@ class YoloLabelPanel(QWidget):
         path_layout.addLayout(path_row)
         layout.addWidget(path_group)
 
-        # Save button
+        # Save and utility buttons row
+        save_row = QHBoxLayout()
+
+        # Save button (larger, takes 2x space)
         self.save_btn = QPushButton("Save Annotation")
         self.save_btn.setMinimumHeight(40)
         self.save_btn.setStyleSheet(
@@ -247,7 +252,23 @@ class YoloLabelPanel(QWidget):
             "QPushButton:disabled { background-color: #cccccc; color: #666666; }"
         )
         self.save_btn.clicked.connect(self._on_save_clicked)
-        layout.addWidget(self.save_btn)
+        save_row.addWidget(self.save_btn, 2)  # Stretch factor 2
+
+        # Load Directory button
+        self.load_dir_btn = QPushButton("Load Dir")
+        self.load_dir_btn.setMinimumHeight(40)
+        self.load_dir_btn.setToolTip("Reload all annotations from the output directory")
+        self.load_dir_btn.clicked.connect(self._on_load_directory_clicked)
+        save_row.addWidget(self.load_dir_btn, 1)  # Stretch factor 1
+
+        # Refresh Files button
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.setMinimumHeight(40)
+        self.refresh_btn.setToolTip("Update all label files to match current class IDs")
+        self.refresh_btn.clicked.connect(self._on_refresh_files_clicked)
+        save_row.addWidget(self.refresh_btn, 1)  # Stretch factor 1
+
+        layout.addLayout(save_row)
 
         # Initial state
         self._update_button_states()
@@ -491,6 +512,14 @@ class YoloLabelPanel(QWidget):
         """Handle save button click."""
         self.save_requested.emit()
 
+    def _on_load_directory_clicked(self):
+        """Handle load directory button click."""
+        self.load_directory_requested.emit()
+
+    def _on_refresh_files_clicked(self):
+        """Handle refresh files button click."""
+        self.refresh_files_requested.emit()
+
     def _update_button_states(self):
         """Update button enabled states based on current state."""
         has_labels = len(self.labels) > 0
@@ -498,6 +527,8 @@ class YoloLabelPanel(QWidget):
 
         self.delete_all_btn.setEnabled(has_labels)
         self.save_btn.setEnabled(has_labels and has_path)
+        self.load_dir_btn.setEnabled(has_path)
+        self.refresh_btn.setEnabled(has_labels and has_path)
 
         # Update save button tooltip
         if not has_labels:

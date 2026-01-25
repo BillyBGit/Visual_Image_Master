@@ -1,6 +1,11 @@
 # Ignore downloaded model files (users should run download_models.py)
 *.caffemodel
 *.prototxt
+*.safetensor
+*.onnx
+*.weights
+*.tar
+*.pth
 
 # Keep the scripts and documentation
 !download_models.py

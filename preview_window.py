@@ -759,6 +759,16 @@ class ImagePreviewWindow(QMainWindow):
             # Shift+Delete = permanent delete (no undo)
             permanent = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
             self.delete_current_image(permanent=permanent)
+        elif event.key() == Qt.Key.Key_Home:
+            # Jump to first image
+            if self.image_list:
+                self.current_index = 0
+                self.load_image()
+        elif event.key() == Qt.Key.Key_End:
+            # Jump to last image
+            if self.image_list:
+                self.current_index = len(self.image_list) - 1
+                self.load_image()
         else:
             super().keyPressEvent(event)
 
