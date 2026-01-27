@@ -179,7 +179,7 @@ class CaptionGenerator:
             return True, "Florence2 ready"
         except ImportError as e:
             missing = str(e).split("'")[1] if "'" in str(e) else str(e)
-            return False, f"Missing: {missing}. Install with: pip install transformers torch"
+            return False, f"Missing '{missing}' — install with: pip install transformers torch"
 
     def is_wd14_available(self) -> Tuple[bool, str]:
         """Check if WD14 dependencies are available.

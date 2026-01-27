@@ -39,7 +39,7 @@ A powerful desktop application for browsing, sorting, filtering, and organizing 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/visual-image-master.git
+git clone https://github.com/BillyBGit/visual-image-master.git
 cd visual-image-master
 
 # Install dependencies
