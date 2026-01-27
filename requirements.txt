@@ -29,9 +29,17 @@ numpy>=1.24.0                     # Array operations and numerical computing
 # For WD14 models (anime/illustration tagging):
 # WD14 supports multiple backends - install at least one:
 #   Option 1 (Recommended): ONNX Runtime (faster, smaller, no PyTorch needed)
-#     onnxruntime>=1.16.0         # For ONNX format models
+#     onnxruntime>=1.16.0         # CPU only - for ONNX format models
+#     onnxruntime-gpu>=1.16.0     # GPU accelerated (NVIDIA CUDA) - use INSTEAD of onnxruntime
 #   Option 2: PyTorch (supports SafeTensors and PyTorch formats)
 #     torch>=2.0.0                # PyTorch backend (already listed above for Florence2)
 #     timm>=0.9.0                 # Vision model architectures
 #     safetensors>=0.4.0          # For SafeTensors format (optional)
 # Note: numpy>=1.24.0 is already listed above and required for all backends
+#
+# Optional: For AI Image Upscaling (super-resolution models from openmodeldb.info)
+# Uncomment the lines below to enable AI upscaling with downloaded models
+# torch>=2.0.0                    # PyTorch backend (may already be installed for Florence2)
+# spandrel>=0.4.0                 # Universal model loader for 50+ upscaler architectures
+#                                 # Supports: ESRGAN, SwinIR, HAT, SPAN, Real-CUGAN, SCUNet, etc.
+#                                 # Download models from https://openmodeldb.info

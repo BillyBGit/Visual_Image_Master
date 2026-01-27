@@ -108,6 +108,40 @@ class ImagePreviewWindow(QMainWindow):
         self.autoname_extract_act.triggered.connect(self.toggle_autoname_extract)
         options_menu.addAction(self.autoname_extract_act)
 
+        # Enhance Menu
+        enhance_menu = menubar.addMenu("Enhance")
+
+        sharpen_act = QAction("Sharpen...", self)
+        sharpen_act.triggered.connect(lambda: self.open_enhance_dialog("sharpen"))
+        enhance_menu.addAction(sharpen_act)
+
+        denoise_act = QAction("Denoise...", self)
+        denoise_act.triggered.connect(lambda: self.open_enhance_dialog("denoise"))
+        enhance_menu.addAction(denoise_act)
+
+        brightness_act = QAction("Brightness/Contrast...", self)
+        brightness_act.triggered.connect(lambda: self.open_enhance_dialog("brightness_contrast"))
+        enhance_menu.addAction(brightness_act)
+
+        auto_levels_act = QAction("Auto Levels...", self)
+        auto_levels_act.triggered.connect(lambda: self.open_enhance_dialog("auto_levels"))
+        enhance_menu.addAction(auto_levels_act)
+
+        saturation_act = QAction("Color Saturation...", self)
+        saturation_act.triggered.connect(lambda: self.open_enhance_dialog("saturation"))
+        enhance_menu.addAction(saturation_act)
+
+        resize_act = QAction("Resize...", self)
+        resize_act.triggered.connect(lambda: self.open_enhance_dialog("resize"))
+        enhance_menu.addAction(resize_act)
+
+        enhance_menu.addSeparator()
+
+        # AI Model (Upscale / Denoise / Restore)
+        ai_model_act = QAction("AI Model...", self)
+        ai_model_act.triggered.connect(lambda: self.open_enhance_dialog("ai_upscale"))
+        enhance_menu.addAction(ai_model_act)
+
         # Crop Menu
         crop_menu = menubar.addMenu("Crop")
 
@@ -732,6 +766,37 @@ class ImagePreviewWindow(QMainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not save cropped image:\n{e}")
+
+    def open_enhance_dialog(self, operation=None):
+        """Open the enhancement dialog for the current image."""
+        if not self.image_list or self.current_index >= len(self.image_list):
+            return
+
+        from enhance_dialog import EnhanceDialog
+
+        image_path = self.image_list[self.current_index]
+        dialog = EnhanceDialog([image_path], self, preset_operation=operation)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Reload the image in preview
+            self.load_image()
+
+            # Update main window thumbnail
+            main_win = self.parent_app or find_main_window()
+            if main_win and hasattr(main_win, 'thumb_list'):
+                thumb_list = main_win.thumb_list
+                for i in range(thumb_list.count()):
+                    item = thumb_list.item(i)
+                    if item.data(Qt.ItemDataRole.UserRole) == image_path:
+                        item.setIcon(QIcon())
+                        thumb_list.scheduleDelayedItemsLayout()
+                        QApplication.processEvents()
+                        item.setIcon(QIcon(image_path))
+                        thumb_list.viewport().update()
+                        break
+
+            if main_win and hasattr(main_win, 'status_bar'):
+                main_win.status_bar.showMessage(f"Enhanced: {os.path.basename(image_path)}", 3000)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape or (event.key() == Qt.Key.Key_W and event.modifiers() == Qt.KeyboardModifier.ControlModifier):

@@ -14,6 +14,12 @@ A powerful desktop application for browsing, sorting, filtering, and organizing 
 - **AI-Powered Filtering**: Advanced filters for objects, quality scores, and scene recognition
 - **Duplicate Removal**: Find and remove exact (MD5) or visual duplicates
 - **Full-Screen Preview**: Navigate images with zoom, pan, and crop functionality
+- **Image Enhancement**: Built-in adjustments (brightness, contrast, sharpen, blur, denoise, etc.) with live split-view preview
+- **AI Model Enhancement**: Load .pth/.safetensors super-resolution models via Spandrel for upscaling, denoising, and restoration
+- **Auto Captioning**: Generate image captions using Florence2, WD14, or Ollama backends
+- **Batch Captioning**: Generate captions for entire folders in one operation
+- **Caption Blending**: Use Ollama LLMs to intelligently merge and refine captions
+- **YOLO Labeling**: Create object detection labels in YOLO format for ML training
 - **Batch Operations**: Select multiple files for bulk move, copy, or delete
 - **Undo Support**: Recover from accidental deletions and moves with Ctrl+Z
 - **Persistent Settings**: Remember window layout, paths, and preferences
@@ -55,7 +61,24 @@ opencv-python>=4.5.0
 
 ### Optional Dependencies
 
-For visual duplicate detection, install `findimagedupes`:
+**For Auto Captioning** (Florence2/WD14):
+```bash
+pip install transformers torch torchvision
+pip install onnxruntime  # For WD14 tagger
+```
+
+**For Ollama Integration**:
+- Install Ollama from https://ollama.com
+- Pull a vision model: `ollama pull llava`
+- Start the server: `ollama serve`
+
+**For AI Model Enhancement** (super-resolution, denoising, restoration):
+```bash
+pip install spandrel torch
+```
+Download `.pth` or `.safetensors` model files from [OpenModelDB](https://openmodeldb.info) and place them in the `models/` directory. Supports 50+ architectures including ESRGAN, SwinIR, HAT, SPAN, Real-CUGAN, and SCUNet.
+
+**For visual duplicate detection**, install `findimagedupes`:
 
 ```bash
 # Ubuntu/Debian
@@ -184,6 +207,75 @@ Double-click any thumbnail or press Enter to open full-screen preview:
 - **Fixed Sizes**: 1024×1024, 768×768, 640×640, 512×512
 - **Save**: Ctrl+S to save cropped region to original file
 
+**Enhancement** (Enhance menu):
+- Apply built-in adjustments or AI models directly from the preview window
+- Opens the Enhancement dialog with split-view preview
+
+### Image Enhancement
+
+Access via the Enhance menu in the preview window, or right-click a thumbnail and select Enhance.
+
+**Built-In Operations** (no extra dependencies):
+- Brightness, Contrast, Saturation, Sharpness
+- Gaussian Blur, Bilateral Denoise
+- Auto Levels, Histogram Equalization (CLAHE)
+
+**AI Model Enhancement** (requires `spandrel` and `torch`):
+- Load any `.pth` or `.safetensors` model from the `models/` directory
+- Supports 50+ architectures: ESRGAN, SwinIR, HAT, SPAN, Real-CUGAN, SCUNet, etc.
+- Use for super-resolution upscaling, denoising, and image restoration
+
+**Split-View Preview**:
+- Draggable vertical divider shows original (left) vs enhanced (right) side-by-side
+- Colored labels ("Original" in cyan, "Enhanced" in green) for clarity
+- Apply to save the enhanced result, or Cancel to discard
+
+### Auto Caption Tool
+
+Access via View > Auto Caption or right-click context menu on thumbnails.
+
+**Caption Backends**:
+
+| Backend | Type | Description |
+|---------|------|-------------|
+| Florence2 | Local | Microsoft's vision-language model for detailed captions |
+| WD14 | Local | Danbooru-style tag generation for anime/illustration |
+| Ollama | Server | Use any Ollama vision model (llava, bakllava, etc.) |
+
+**Two-Box Interface**:
+- **Generated Caption**: Shows AI-generated caption, editable before use
+- **Saved Caption**: Shows caption from .txt file, saved alongside image
+
+**Action Buttons**:
+- **Replace (⬇)**: Copy generated caption to saved caption box
+- **Append (+)**: Add generated caption after saved caption
+- **Blend (⚡)**: Use Ollama to intelligently merge both captions
+
+**Caption Blending**:
+1. Generate a caption using any backend
+2. Edit the blend instructions if needed (or use defaults)
+3. Select an Ollama model for blending (text-only models work fine)
+4. Click Blend to merge generated and saved captions
+5. Result appears in Generated Caption box for review
+6. Use Ctrl+Z/Ctrl+Y to toggle between original and blended text
+7. Click Replace when satisfied to update the saved caption
+
+**Keyboard Shortcuts** (in Auto Caption window):
+- `Ctrl+S`: Save caption to .txt file
+- `Ctrl+Z`: Undo (restore previous generated caption)
+- `Ctrl+Y`: Redo (restore blended caption)
+- `Left/Right`: Navigate between images
+- `Escape`: Close window
+
+### YOLO Labeling Window
+
+Access via View > YOLO Labels for creating object detection training data.
+
+- Draw bounding boxes around objects
+- Assign class labels to each box
+- Export labels in YOLO format (.txt files)
+- Supports multiple classes per image
+
 ### File Operations
 
 **Moving/Copying Files**:
@@ -222,24 +314,36 @@ Double-click any thumbnail or press Enter to open full-screen preview:
 
 ```
 visual-image-master/
-├── main.py                 # Application entry point
-├── image_sorter.py         # Main window and core logic
-├── thumbnail_list.py       # Thumbnail grid widget
-├── folder_tree.py          # Folder tree widgets
-├── preview_window.py       # Full-screen image preview
-├── crop_overlay.py         # Crop selection overlay
-├── face_detection.py       # Face detection and quality analysis
-├── face_detection_dialog.py # Face detection settings dialog
-├── advanced_filter_dialog.py # Advanced filter configuration
-├── object_detection.py     # Object detection module
-├── quality_assessment.py   # Image quality scoring
-├── scene_recognition.py    # Scene classification
-├── settings_manager.py     # Settings persistence
-├── utils.py                # Utility functions
-├── models/                 # DNN model files
-│   └── download_models.py  # Model download script
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
+├── main.py                    # Application entry point
+├── image_sorter.py            # Main window (core init, settings, navigation)
+├── image_sorter_filters.py    # FilteringMixin (sort, filter, dedup menus)
+├── image_sorter_operations.py # FileOperationsMixin (file ops, tools, undo)
+├── thumbnail_list.py          # Thumbnail grid widget
+├── folder_tree.py             # Folder tree widgets
+├── preview_window.py          # Full-screen image preview with crop/enhance
+├── crop_overlay.py            # Crop selection overlay
+├── enhance_dialog.py          # Image enhancement dialog (split-view preview)
+├── image_enhance.py           # Enhancement backends (OpenCV + Spandrel AI)
+├── caption_window.py          # Auto Caption tool window
+├── caption_generator.py       # Caption generation backends (Florence2, WD14, Ollama)
+├── autocaption_dialog.py      # Batch captioning progress dialog
+├── yolo_window.py             # YOLO label editor window
+├── yolo_label_panel.py        # YOLO label panel widget
+├── yolo_overlay.py            # YOLO bounding box overlay
+├── yolo_file_handler.py       # YOLO file I/O (labels, yaml)
+├── face_detection.py          # Face detection and quality analysis
+├── face_detection_dialog.py   # Face detection settings dialog
+├── advanced_filter_dialog.py  # Advanced filter configuration
+├── object_detection.py        # Object detection module
+├── quality_assessment.py      # Image quality scoring
+├── scene_recognition.py       # Scene classification
+├── settings_manager.py        # Settings persistence
+├── utils.py                   # Utility functions
+├── models/                    # DNN and AI enhancement model files
+│   └── download_models.py     # Model download script
+├── requirements.txt           # Python dependencies
+├── MANUAL.md                  # User manual
+└── README.md                  # This file
 ```
 
 ## Troubleshooting
@@ -282,6 +386,59 @@ Check Python version (requires 3.8+):
 python --version
 ```
 
+### Ollama not detected
+
+If the caption blending feature can't find Ollama:
+
+1. **Check if Ollama is running**:
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+2. **Start Ollama if not running**:
+   ```bash
+   ollama serve
+   ```
+
+3. **If using Open-WebUI with Docker**, ensure Ollama port is exposed or run Ollama standalone.
+
+4. **Enable debug mode** to see connection attempts:
+   ```bash
+   IMG_SORT_DEBUG=1 python main.py
+   ```
+
+### ONNX CUDAExecutionProvider warning
+
+If you see this warning when using WD14:
+```
+UserWarning: Specified provider 'CUDAExecutionProvider' is not in available provider names.
+```
+
+This means WD14 is falling back to CPU. To enable GPU acceleration:
+```bash
+pip uninstall onnxruntime
+pip install onnxruntime-gpu
+```
+
+Requires an NVIDIA GPU with CUDA installed. The warning is harmless if you only have CPU available.
+
+### AI Model enhancement not available
+
+If the AI Model option shows install instructions instead of model controls:
+
+```bash
+pip install spandrel torch
+```
+
+Place `.pth` or `.safetensors` model files in the `models/` directory (or browse to any folder via the dialog). Models can be downloaded from [OpenModelDB](https://openmodeldb.info).
+
+### Caption generation slow or unresponsive
+
+- Florence2 and WD14 models load on first use (may take 30-60 seconds initially)
+- Ollama response time depends on model size and hardware
+- The UI shows "Blending captions with Ollama..." during processing
+- Check terminal for debug output if issues persist
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -301,9 +458,32 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [PySide6](https://wiki.qt.io/Qt_for_Python) - Qt6 Python bindings
 - [OpenCV](https://opencv.org/) - Computer vision library
 - [Pillow](https://python-pillow.org/) - Python Imaging Library
+- [Spandrel](https://github.com/chaiNNer-org/spandrel) - Universal PyTorch model loader for image enhancement
+- [OpenModelDB](https://openmodeldb.info) - Community database of AI enhancement models
 - [findimagedupes](https://github.com/jhnc/findimagedupes) - Visual duplicate detection
 
 ## Changelog
+
+### Version 1.2.0
+- Image Enhancement dialog with live split-view preview (draggable before/after divider)
+- Built-in OpenCV operations: brightness, contrast, saturation, sharpness, blur, denoise, auto levels, CLAHE
+- AI Model enhancement via Spandrel: load .pth/.safetensors models for upscaling, denoising, and restoration
+- Batch caption generation for entire folders (Tools > Batch Generate Captions)
+- Enhance menu in preview window (Enhance > operation submenu)
+- AI Model option always visible with install instructions when Spandrel not available
+- Auto-detection of models/ directory for AI model files
+- Refactored image_sorter.py into modular mixin architecture (FilteringMixin, FileOperationsMixin)
+- User manual added (MANUAL.md, accessible via Help > Manual or F1)
+
+### Version 1.1.0
+- Auto Caption Tool with multiple backends (Florence2, WD14, Ollama)
+- Caption blending using Ollama LLMs
+- Two-box caption interface (Generated/Saved)
+- Undo/redo support for caption blending (Ctrl+Z/Ctrl+Y)
+- YOLO labeling window for object detection training data
+- Automatic Ollama endpoint detection (standalone and Docker)
+- Debug mode for troubleshooting (`IMG_SORT_DEBUG=1`)
+- Progress feedback during long-running operations
 
 ### Version 1.0.0
 - Initial release

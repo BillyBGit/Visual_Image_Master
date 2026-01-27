@@ -3,7 +3,7 @@ Thumbnail list widget for displaying image thumbnails.
 """
 
 from PySide6.QtWidgets import (QListWidget, QListWidgetItem, QMessageBox, QApplication,
-                               QAbstractItemView, QMenu, QInputDialog)
+                               QAbstractItemView, QMenu, QInputDialog, QDialog)
 from PySide6.QtCore import Qt, QSize, QUrl, QMimeData, QPoint
 from PySide6.QtGui import QIcon, QDrag, QPalette, QColor, QAction
 from PIL import Image
@@ -263,6 +263,18 @@ class ThumbnailList(QListWidget):
 
         menu.addSeparator()
 
+        # Auto Caption
+        caption_act = QAction("Auto Caption...", self)
+        caption_act.triggered.connect(self.show_autocaption_dialog)
+        menu.addAction(caption_act)
+
+        # Enhance
+        enhance_act = QAction("Enhance...", self)
+        enhance_act.triggered.connect(self.show_enhance_dialog)
+        menu.addAction(enhance_act)
+
+        menu.addSeparator()
+
         # Delete
         delete_act = QAction("Delete", self)
         delete_act.triggered.connect(self.delete_selected_files)
@@ -396,3 +408,51 @@ class ThumbnailList(QListWidget):
                 f"{operation} {success_count} file(s) to {os.path.basename(dest_folder)}",
                 3000
             )
+
+    def show_autocaption_dialog(self):
+        """Show the auto-caption dialog for selected images."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+
+        # Get list of image paths
+        image_paths = []
+        for item in selected_items:
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                image_paths.append(path)
+
+        if not image_paths:
+            QMessageBox.warning(self, "No Images", "No valid images selected.")
+            return
+
+        # Show the autocaption dialog
+        from autocaption_dialog import AutoCaptionDialog
+        dialog = AutoCaptionDialog(image_paths, self)
+        dialog.exec()
+
+    def show_enhance_dialog(self):
+        """Show the enhancement dialog for selected images."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+
+        # Get list of image paths
+        image_paths = []
+        for item in selected_items:
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                image_paths.append(path)
+
+        if not image_paths:
+            QMessageBox.warning(self, "No Images", "No valid images selected.")
+            return
+
+        # Show the enhance dialog
+        from enhance_dialog import EnhanceDialog
+        dialog = EnhanceDialog(image_paths, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh thumbnails if images were modified
+            main_win = self.parent_app or find_main_window()
+            if main_win and hasattr(main_win, 'refresh_thumbnails'):
+                main_win.refresh_thumbnails()

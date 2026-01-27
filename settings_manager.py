@@ -3,6 +3,7 @@ Settings manager for persisting application state.
 """
 
 import os
+import json
 from PySide6.QtCore import QSettings
 
 
@@ -113,6 +114,18 @@ class SettingsManager:
 
         if hasattr(self.app, 'caption_blend_model'):
             self.settings.setValue("caption_blend_model", self.app.caption_blend_model or "")
+
+        # Enhancement settings
+        if hasattr(self.app, 'enhance_model_dir'):
+            self.settings.setValue("enhance_model_dir", self.app.enhance_model_dir or "")
+        if hasattr(self.app, 'enhance_save_mode'):
+            self.settings.setValue("enhance_save_mode", self.app.enhance_save_mode or "overwrite")
+        if hasattr(self.app, 'enhance_copy_suffix'):
+            self.settings.setValue("enhance_copy_suffix", self.app.enhance_copy_suffix or "_enhanced")
+        if hasattr(self.app, 'enhance_last_operation'):
+            self.settings.setValue("enhance_last_operation", self.app.enhance_last_operation or "sharpen")
+        if hasattr(self.app, 'enhance_last_params'):
+            self.settings.setValue("enhance_last_params", json.dumps(self.app.enhance_last_params or {}))
 
         # Save current folder paths
         self.settings.setValue("src_root_path", self.app.src_root_path if self.app.src_root_path else "/")
@@ -231,6 +244,17 @@ class SettingsManager:
 
         # Load blend model
         self.app.caption_blend_model = self.settings.value("caption_blend_model", "")
+
+        # Load enhancement settings
+        self.app.enhance_model_dir = self.settings.value("enhance_model_dir", "")
+        self.app.enhance_save_mode = self.settings.value("enhance_save_mode", "overwrite")
+        self.app.enhance_copy_suffix = self.settings.value("enhance_copy_suffix", "_enhanced")
+        self.app.enhance_last_operation = self.settings.value("enhance_last_operation", "sharpen")
+        params_json = self.settings.value("enhance_last_params", "{}")
+        try:
+            self.app.enhance_last_params = json.loads(params_json)
+        except (json.JSONDecodeError, TypeError):
+            self.app.enhance_last_params = {}
 
         # 6. Restore Folder Paths
         src_root = self.settings.value("src_root_path", os.path.expanduser("~"))

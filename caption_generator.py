@@ -96,6 +96,56 @@ class CaptionWorker(QThread):
             self.error.emit(str(e))
 
 
+class BlendWorker(QThread):
+    """Worker thread for caption blending to avoid blocking UI."""
+
+    finished = Signal(str)  # Blended caption result
+    error = Signal(str)  # Error message
+
+    def __init__(self, generator, ollama_url: str, model: str,
+                 instructions: str, generated_caption: str, saved_caption: str):
+        super().__init__()
+        self.generator = generator
+        self.ollama_url = ollama_url
+        self.model = model
+        self.instructions = instructions
+        self.generated_caption = generated_caption
+        self.saved_caption = saved_caption
+
+    def run(self):
+        import os
+        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
+        try:
+            if debug:
+                print(f"[DEBUG] BlendWorker starting with model: {self.model}")
+
+            # Construct the prompt with both captions
+            prompt = (
+                f"{self.instructions}\n\n"
+                f"Generated caption:\n{self.generated_caption}\n\n"
+                f"Saved caption:\n{self.saved_caption}"
+            )
+
+            if debug:
+                print(f"[DEBUG] BlendWorker prompt length: {len(prompt)}")
+
+            # Call Ollama (text-only, no image)
+            blended = self.generator.generate_ollama_text(
+                self.ollama_url, self.model, prompt
+            )
+
+            if debug:
+                print(f"[DEBUG] BlendWorker received response length: {len(blended)}")
+
+            self.finished.emit(blended)
+
+        except Exception as e:
+            if debug:
+                print(f"[DEBUG] BlendWorker error: {e}")
+            self.error.emit(str(e))
+
+
 class CaptionGenerator:
     """Generates image captions using Florence2, WD14, or Ollama."""
 

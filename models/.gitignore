@@ -2,6 +2,7 @@
 *.caffemodel
 *.prototxt
 *.safetensor
+*.safetensors
 *.onnx
 *.weights
 *.tar

@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QAction, QPixmap, QKeySequence, QShortcut
 
 from utils import find_main_window
-from caption_generator import (get_caption_generator, CaptionWorker,
+from caption_generator import (get_caption_generator, CaptionWorker, BlendWorker,
                                FLORENCE_MODELS, FLORENCE_DETAIL_LEVELS, WD14_MODELS)
 
 
@@ -40,6 +40,11 @@ class CaptionWindow(QMainWindow):
         self.has_unsaved_changes = False
         self.current_caption_path = None
         self.caption_worker = None
+        self.blend_worker = None
+
+        # Undo/redo history for generated caption (stores previous states)
+        self._generated_undo_stack = []  # Stack of previous texts
+        self._generated_redo_stack = []  # Stack for redo
 
         # Initialization flag - prevents re-initialization on subsequent show events
         self._initialized = False
@@ -718,7 +723,12 @@ class CaptionWindow(QMainWindow):
             Tuple of (success, endpoint_url, message)
         """
         import urllib.request
+        import urllib.error
         import json
+        import os
+
+        # Check if debug mode is enabled
+        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
 
         # Try common Ollama endpoints in order
         endpoints = [
@@ -726,26 +736,77 @@ class CaptionWindow(QMainWindow):
             "http://localhost:3000/ollama"
         ]
 
+        # Track first working endpoint (even if it has no models)
+        fallback_endpoint = None
+        fallback_message = None
+
         for endpoint in endpoints:
             try:
                 api_url = f"{endpoint.rstrip('/')}/api/tags"
+                if debug:
+                    print(f"[DEBUG] Trying Ollama endpoint: {api_url}")
+
                 request = urllib.request.Request(api_url)
 
                 with urllib.request.urlopen(request, timeout=3) as response:
-                    result = json.loads(response.read().decode("utf-8"))
+                    response_text = response.read().decode("utf-8")
+                    if debug:
+                        print(f"[DEBUG] Response from {endpoint}: {response_text[:200]}...")
+
+                    result = json.loads(response_text)
                     models = result.get("models", [])
 
+                    if debug:
+                        print(f"[DEBUG] Found {len(models)} models at {endpoint}")
+                        if models:
+                            print(f"[DEBUG] First few models: {[m.get('name', 'unknown') for m in models[:3]]}")
+
                     if models:
+                        # Found endpoint with models - use it immediately
+                        if debug:
+                            print(f"[DEBUG] Using endpoint {endpoint} (has models)")
                         return True, endpoint, f"Found {len(models)} model(s) at {endpoint}"
                     else:
-                        # Endpoint works but no models
-                        return True, endpoint, f"Connected to {endpoint} but no models installed"
+                        # Endpoint works but no models - remember it as fallback
+                        if fallback_endpoint is None:
+                            if debug:
+                                print(f"[DEBUG] Endpoint {endpoint} connected but no models, saving as fallback")
+                            fallback_endpoint = endpoint
+                            fallback_message = f"Connected to {endpoint} but no models installed"
 
-            except Exception:
+            except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    # Authentication required - this is likely Open-WebUI
+                    # Try to provide helpful guidance but don't fail completely
+                    if debug:
+                        print(f"[DEBUG] Endpoint {endpoint} requires authentication (401)")
+                        print(f"[DEBUG] This is likely Open-WebUI with auth enabled")
+                    # Don't set as fallback since it won't work without auth
+                    continue
+                else:
+                    if debug:
+                        print(f"[DEBUG] HTTP Error from {endpoint}: {e.code} {e.reason}")
+                    continue
+            except Exception as e:
+                if debug:
+                    print(f"[DEBUG] Failed to connect to {endpoint}: {type(e).__name__}: {e}")
                 continue
 
-        # No endpoints worked
-        return False, "", "No Ollama server found. Please start Ollama or install it from https://ollama.com"
+        # Use fallback endpoint if we found one (even with no models)
+        if fallback_endpoint:
+            if debug:
+                print(f"[DEBUG] No endpoints with models found, using fallback: {fallback_endpoint}")
+            return True, fallback_endpoint, fallback_message
+
+        # No endpoints worked at all
+        if debug:
+            print("[DEBUG] No Ollama endpoints responded")
+        return False, "", (
+            "No accessible Ollama server found. Options:\n"
+            "1. Start standalone Ollama: 'ollama serve' (recommended)\n"
+            "2. Install Ollama from https://ollama.com\n"
+            "3. If using Open-WebUI with auth, run Ollama separately"
+        )
 
     def _refresh_blend_models(self):
         """Refresh the list of available Ollama models for blending."""
@@ -803,6 +864,9 @@ class CaptionWindow(QMainWindow):
 
     def _on_blend_clicked(self):
         """Blend generated and saved captions using Ollama (text-only)."""
+        import os
+        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
         generated = self.generated_caption_text.toPlainText().strip()
         saved = self.saved_caption_text.toPlainText().strip()
 
@@ -816,7 +880,7 @@ class CaptionWindow(QMainWindow):
 
         # Get blend model
         blend_model = self.blend_model_combo.currentText()
-        if not blend_model or blend_model.startswith("Error:") or blend_model == "No models found":
+        if not blend_model or blend_model.startswith("Error:") or blend_model == "No models found" or blend_model == "Ollama not detected":
             self.status_bar.showMessage("Please select a valid Ollama model for blending", 3000)
             return
 
@@ -832,28 +896,115 @@ class CaptionWindow(QMainWindow):
         # Get Ollama URL
         ollama_url = self.ollama_url.text().strip() or "http://localhost:11434"
 
-        # Disable blend button during blending
+        if debug:
+            print(f"[DEBUG] Starting blend with model: {blend_model}")
+            print(f"[DEBUG] Ollama URL: {ollama_url}")
+            print(f"[DEBUG] Generated caption length: {len(generated)}")
+            print(f"[DEBUG] Saved caption length: {len(saved)}")
+
+        # Disable buttons during blending
         self.blend_btn.setEnabled(False)
-        self.status_bar.showMessage(f"Blending captions with {blend_model}...", 0)
+        self.generate_btn.setEnabled(False)
+        self.replace_btn.setEnabled(False)
+        self.append_btn.setEnabled(False)
 
-        try:
-            # Construct the prompt with both captions
-            prompt = f"{instructions}\n\nGenerated caption:\n{generated}\n\nSaved caption:\n{saved}"
+        # Show progress indicator
+        self.progress_label.setText("Blending captions with Ollama...")
+        self.progress_label.show()
+        self.status_bar.showMessage(f"Blending captions with {blend_model}... (this may take a moment)", 0)
 
-            # Call Ollama (text-only, no image)
-            blended = self.generator.generate_ollama_text(ollama_url, blend_model, prompt)
+        # Create and start blend worker thread
+        self.blend_worker = BlendWorker(
+            self.generator, ollama_url, blend_model, instructions, generated, saved
+        )
+        self.blend_worker.finished.connect(self._on_blend_finished)
+        self.blend_worker.error.connect(self._on_blend_error)
+        self.blend_worker.start()
 
-            # Update saved caption with blended result
-            self.saved_caption_text.setPlainText(blended)
-            self.has_unsaved_changes = True
-            self._update_window_title()
-            self.status_bar.showMessage("Captions blended successfully", 3000)
+    def _on_blend_finished(self, blended_text):
+        """Handle successful blend completion."""
+        import os
+        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
 
-        except Exception as e:
-            self.status_bar.showMessage(f"Blend failed: {e}", 5000)
+        if debug:
+            print(f"[DEBUG] Blend completed, result length: {len(blended_text)}")
 
-        finally:
-            self.blend_btn.setEnabled(True)
+        # Save current text to undo stack before replacing
+        current_text = self.generated_caption_text.toPlainText()
+        if current_text:  # Only save if there was text
+            self._generated_undo_stack.append(current_text)
+            self._generated_redo_stack.clear()  # Clear redo on new action
+
+        # Put blended result into the Generated Caption box (not Saved)
+        self.generated_caption_text.setPlainText(blended_text)
+
+        # Hide progress and re-enable buttons
+        self.progress_label.hide()
+        self.blend_btn.setEnabled(True)
+        self.generate_btn.setEnabled(True)
+        self.replace_btn.setEnabled(True)
+        self.append_btn.setEnabled(True)
+
+        self.status_bar.showMessage("Captions blended - result in Generated Caption box", 3000)
+
+        # Cleanup worker
+        if self.blend_worker:
+            self.blend_worker.wait()
+            self.blend_worker.deleteLater()
+            self.blend_worker = None
+
+    def _on_blend_error(self, error_msg):
+        """Handle blend error."""
+        import os
+        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
+        if debug:
+            print(f"[DEBUG] Blend failed: {error_msg}")
+
+        # Hide progress and re-enable buttons
+        self.progress_label.hide()
+        self.blend_btn.setEnabled(True)
+        self.generate_btn.setEnabled(True)
+        self.replace_btn.setEnabled(True)
+        self.append_btn.setEnabled(True)
+
+        self.status_bar.showMessage(f"Blend failed: {error_msg}", 5000)
+
+        # Cleanup worker
+        if self.blend_worker:
+            self.blend_worker.wait()
+            self.blend_worker.deleteLater()
+            self.blend_worker = None
+
+    def _undo_generated_caption(self):
+        """Undo last change to generated caption (restore previous text)."""
+        if not self._generated_undo_stack:
+            self.status_bar.showMessage("Nothing to undo", 2000)
+            return
+
+        # Save current text to redo stack
+        current_text = self.generated_caption_text.toPlainText()
+        self._generated_redo_stack.append(current_text)
+
+        # Restore previous text
+        previous_text = self._generated_undo_stack.pop()
+        self.generated_caption_text.setPlainText(previous_text)
+        self.status_bar.showMessage("Undo: restored previous caption", 2000)
+
+    def _redo_generated_caption(self):
+        """Redo last undone change to generated caption."""
+        if not self._generated_redo_stack:
+            self.status_bar.showMessage("Nothing to redo", 2000)
+            return
+
+        # Save current text to undo stack
+        current_text = self.generated_caption_text.toPlainText()
+        self._generated_undo_stack.append(current_text)
+
+        # Restore redo text
+        redo_text = self._generated_redo_stack.pop()
+        self.generated_caption_text.setPlainText(redo_text)
+        self.status_bar.showMessage("Redo: restored blended caption", 2000)
 
     def _on_save_requested(self):
         """Save caption to text file."""
@@ -891,8 +1042,10 @@ class CaptionWindow(QMainWindow):
 
         self.current_caption_path = caption_path
 
-        # Clear the generated caption box when loading a new image
+        # Clear the generated caption box and undo/redo stacks when loading a new image
         self.generated_caption_text.clear()
+        self._generated_undo_stack.clear()
+        self._generated_redo_stack.clear()
 
         # Load saved caption
         if os.path.exists(caption_path):
@@ -1060,6 +1213,18 @@ class CaptionWindow(QMainWindow):
                 if self._check_unsaved_changes():
                     self.current_index = len(self.image_list) - 1
                     self.load_image()
+        elif event.key() == Qt.Key.Key_Z and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            # Ctrl+Z - Undo for generated caption when it has focus
+            if self.generated_caption_text.hasFocus():
+                self._undo_generated_caption()
+            else:
+                super().keyPressEvent(event)
+        elif event.key() == Qt.Key.Key_Y and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            # Ctrl+Y - Redo for generated caption when it has focus
+            if self.generated_caption_text.hasFocus():
+                self._redo_generated_caption()
+            else:
+                super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
 
