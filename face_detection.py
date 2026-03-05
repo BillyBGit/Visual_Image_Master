@@ -13,13 +13,13 @@ FACE_DETECTION_PRESETS = {
         "scale_factor": 1.2,
         "min_neighbors": 4,
         "min_size": 40,
-        "description": "Fast Haar Cascade detection (less accurate)"
+        "description": "Fast Haar Cascade detection (less accurate)",
     },
     "balanced": {
         "method": "dnn",
         "confidence": 0.5,
         "min_size": 30,
-        "description": "DNN-based detection (good balance)"
+        "description": "DNN-based detection (good balance)",
     },
     "thorough": {
         "method": "both",
@@ -27,8 +27,8 @@ FACE_DETECTION_PRESETS = {
         "haar_min_neighbors": 3,
         "dnn_confidence": 0.4,
         "min_size": 25,
-        "description": "Use both detectors (most accurate)"
-    }
+        "description": "Use both detectors (most accurate)",
+    },
 }
 
 
@@ -43,7 +43,7 @@ class FaceDetector:
             preset: One of "fast", "balanced", or "thorough"
         """
         # Load Haar Cascade classifier
-        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
 
         # Try to load DNN model
@@ -65,13 +65,17 @@ class FaceDetector:
             models_dir = os.path.join(script_dir, "models")
 
             prototxt_path = os.path.join(models_dir, "deploy.prototxt")
-            model_path = os.path.join(models_dir, "res10_300x300_ssd_iter_140000_fp16.caffemodel")
+            model_path = os.path.join(
+                models_dir, "res10_300x300_ssd_iter_140000_fp16.caffemodel"
+            )
 
             if os.path.exists(prototxt_path) and os.path.exists(model_path):
                 self.dnn_net = cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
                 print("✓ DNN face detection model loaded successfully")
             else:
-                print("⚠ DNN model files not found. Run models/download_models.py to download them.")
+                print(
+                    "⚠ DNN model files not found. Run models/download_models.py to download them."
+                )
                 print("  Falling back to Haar Cascade detection only.")
         except Exception as e:
             print(f"⚠ Could not load DNN model: {e}")
@@ -90,11 +94,17 @@ class FaceDetector:
         self.method = preset_config["method"]
 
         # Haar Cascade parameters
-        self.haar_scale_factor = preset_config.get("scale_factor", preset_config.get("haar_scale_factor", 1.1))
-        self.haar_min_neighbors = preset_config.get("min_neighbors", preset_config.get("haar_min_neighbors", 5))
+        self.haar_scale_factor = preset_config.get(
+            "scale_factor", preset_config.get("haar_scale_factor", 1.1)
+        )
+        self.haar_min_neighbors = preset_config.get(
+            "min_neighbors", preset_config.get("haar_min_neighbors", 5)
+        )
 
         # DNN parameters
-        self.dnn_confidence = preset_config.get("confidence", preset_config.get("dnn_confidence", 0.5))
+        self.dnn_confidence = preset_config.get(
+            "confidence", preset_config.get("dnn_confidence", 0.5)
+        )
 
         # Common parameters
         self.min_size = preset_config.get("min_size", 30)
@@ -211,7 +221,7 @@ class FaceDetector:
             gray,
             scaleFactor=self.haar_scale_factor,
             minNeighbors=self.haar_min_neighbors,
-            minSize=(self.min_size, self.min_size)
+            minSize=(self.min_size, self.min_size),
         )
 
         # Convert to list of tuples
@@ -226,10 +236,7 @@ class FaceDetector:
 
         # Create a blob from the image
         blob = cv2.dnn.blobFromImage(
-            cv2.resize(img, (300, 300)),
-            1.0,
-            (300, 300),
-            (104.0, 177.0, 123.0)
+            cv2.resize(img, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0)
         )
 
         # Pass the blob through the network

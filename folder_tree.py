@@ -4,11 +4,19 @@ Folder tree widget and delegate for displaying directory structures with image c
 
 import os
 import shutil
-from PySide6.QtWidgets import (QTreeView, QStyledItemDelegate, QMenu, QInputDialog,
-                               QLineEdit, QMessageBox, QAbstractItemView, QApplication,
-                               QFileSystemModel, QHeaderView)
+from PySide6.QtWidgets import (
+    QTreeView,
+    QStyledItemDelegate,
+    QMenu,
+    QInputDialog,
+    QLineEdit,
+    QMessageBox,
+    QAbstractItemView,
+    QApplication,
+    QFileSystemModel,
+)
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtGui import QAction
 from PySide6.QtGui import QDropEvent
 
 
@@ -18,7 +26,17 @@ class FolderCountDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.show_counts = False
-        self.valid_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.tiff', '.bmp')
+        self.valid_extensions = (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp",
+            ".avif",
+            ".tiff",
+            ".bmp",
+            ".tn3",
+        )
         self._count_cache = {}
 
     def set_show_counts(self, show):
@@ -36,8 +54,11 @@ class FolderCountDelegate(QStyledItemDelegate):
 
         try:
             if os.path.isdir(path):
-                count = sum(1 for f in os.listdir(path)
-                           if f.lower().endswith(self.valid_extensions))
+                count = sum(
+                    1
+                    for f in os.listdir(path)
+                    if f.lower().endswith(self.valid_extensions)
+                )
                 self._count_cache[path] = count
                 return count
         except (PermissionError, OSError):
@@ -139,7 +160,7 @@ class FolderTree(QTreeView):
             self.apply_zoom()
 
             # Save settings if available
-            if self.parent_app and hasattr(self.parent_app, '_settings_loaded'):
+            if self.parent_app and hasattr(self.parent_app, "_settings_loaded"):
                 if self.parent_app._settings_loaded:
                     self.parent_app.write_settings()
 
@@ -164,7 +185,9 @@ class FolderTree(QTreeView):
             idx = next((i for i in indexes if i.column() == 0), None)
             if idx:
                 # Reference the parent_app for these methods
-                if self.parent_app and hasattr(self.parent_app, 'on_source_folder_changed'):
+                if self.parent_app and hasattr(
+                    self.parent_app, "on_source_folder_changed"
+                ):
                     self.parent_app.on_source_folder_changed(idx)
 
     def keyPressEvent(self, event):
@@ -186,7 +209,9 @@ class FolderTree(QTreeView):
                 # Plain left-click - if we have multiple selections, clear them
                 selected_indexes = self.selectedIndexes()
                 # Filter to unique rows (column 0 only)
-                selected_rows = set(idx.row() for idx in selected_indexes if idx.column() == 0)
+                selected_rows = set(
+                    idx.row() for idx in selected_indexes if idx.column() == 0
+                )
                 if len(selected_rows) > 1:
                     self.clearSelection()
 
@@ -215,7 +240,7 @@ class FolderTree(QTreeView):
 
         # Start a new operation batch for undo tracking
         if self.parent_app:
-            operation_type = 'copy' if is_copy else 'move'
+            operation_type = "copy" if is_copy else "move"
             self.parent_app.start_operation_batch(operation_type)
 
         moved_files = []
@@ -254,8 +279,12 @@ class FolderTree(QTreeView):
         menu.exec(self.viewport().mapToGlobal(point))
 
     def create_folder_prompt(self, index):
-        parent_p = self.model().filePath(index) if index.isValid() else self.model().rootPath()
-        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:", QLineEdit.EchoMode.Normal, "New Folder")
+        parent_p = (
+            self.model().filePath(index) if index.isValid() else self.model().rootPath()
+        )
+        name, ok = QInputDialog.getText(
+            self, "New Folder", "Folder name:", QLineEdit.EchoMode.Normal, "New Folder"
+        )
         if ok and name:
             new_p = os.path.join(parent_p, name)
             if not os.path.exists(new_p):
@@ -263,7 +292,13 @@ class FolderTree(QTreeView):
 
     def rename_prompt(self, index):
         old_path = self.model().filePath(index)
-        new_name, ok = QInputDialog.getText(self, "Rename", "New name:", QLineEdit.EchoMode.Normal, os.path.basename(old_path))
+        new_name, ok = QInputDialog.getText(
+            self,
+            "Rename",
+            "New name:",
+            QLineEdit.EchoMode.Normal,
+            os.path.basename(old_path),
+        )
         if ok and new_name:
             new_path = os.path.join(os.path.dirname(old_path), new_name)
             try:
@@ -275,11 +310,14 @@ class FolderTree(QTreeView):
         selected_indexes = [i for i in self.selectedIndexes() if i.column() == 0]
         if not selected_indexes:
             return
-        paths = sorted([self.model().filePath(i) for i in selected_indexes], reverse=True)
+        paths = sorted(
+            [self.model().filePath(i) for i in selected_indexes], reverse=True
+        )
         reply = QMessageBox.question(
-            self, 'Delete',
+            self,
+            "Delete",
             f"Delete {len(paths)} folder(s)?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             for path in paths:

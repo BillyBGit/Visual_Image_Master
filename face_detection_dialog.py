@@ -2,9 +2,16 @@
 Face detection settings dialog for configuring detection parameters.
 """
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                               QRadioButton, QButtonGroup, QPushButton, QGroupBox)
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QRadioButton,
+    QButtonGroup,
+    QPushButton,
+    QGroupBox,
+)
 from face_detection import FACE_DETECTION_PRESETS
 
 
@@ -52,20 +59,24 @@ class FaceDetectionDialog(QDialog):
 
             # Create description label
             desc_label = QLabel(f"   {preset_info['description']}")
-            desc_label.setStyleSheet("color: #666; margin-left: 20px; margin-bottom: 8px;")
+            desc_label.setStyleSheet(
+                "color: #666; margin-left: 20px; margin-bottom: 8px;"
+            )
             desc_label.setWordWrap(True)
 
             # Add method details
             method_text = f"   Method: {preset_info['method'].upper()}"
-            if preset_info['method'] == 'haar':
+            if preset_info["method"] == "haar":
                 method_text += " (Haar Cascade only)"
-            elif preset_info['method'] == 'dnn':
+            elif preset_info["method"] == "dnn":
                 method_text += " (Deep Neural Network)"
-            elif preset_info['method'] == 'both':
+            elif preset_info["method"] == "both":
                 method_text += " (Haar + DNN combined)"
 
             method_label = QLabel(method_text)
-            method_label.setStyleSheet("color: #888; margin-left: 20px; margin-bottom: 12px; font-size: 9pt;")
+            method_label.setStyleSheet(
+                "color: #888; margin-left: 20px; margin-bottom: 12px; font-size: 9pt;"
+            )
 
             self.button_group.addButton(radio)
             self.preset_buttons[preset_key] = radio

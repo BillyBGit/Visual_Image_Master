@@ -33,7 +33,9 @@ class FilteringMixin:
         modified_asc_act.triggered.connect(lambda: self.set_sort("modified", True))
         self.sort_menu.addAction(modified_asc_act)
 
-        modified_desc_act = QAction("Modified Date (Newest First)", self, checkable=True)
+        modified_desc_act = QAction(
+            "Modified Date (Newest First)", self, checkable=True
+        )
         modified_desc_act.triggered.connect(lambda: self.set_sort("modified", False))
         self.sort_menu.addAction(modified_desc_act)
 
@@ -152,12 +154,16 @@ class FilteringMixin:
         self.dedup_menu.addAction(exact_act)
 
         visual_largest_act = QAction("Visual - Retain Largest", self, checkable=True)
-        visual_largest_act.triggered.connect(lambda: self.set_dedup_mode("visual_largest"))
+        visual_largest_act.triggered.connect(
+            lambda: self.set_dedup_mode("visual_largest")
+        )
         dedup_group.addAction(visual_largest_act)
         self.dedup_menu.addAction(visual_largest_act)
 
         visual_smallest_act = QAction("Visual - Retain Smallest", self, checkable=True)
-        visual_smallest_act.triggered.connect(lambda: self.set_dedup_mode("visual_smallest"))
+        visual_smallest_act.triggered.connect(
+            lambda: self.set_dedup_mode("visual_smallest")
+        )
         dedup_group.addAction(visual_smallest_act)
         self.dedup_menu.addAction(visual_smallest_act)
 
@@ -193,22 +199,30 @@ class FilteringMixin:
         self.folder_dedup_menu.addAction(exact_act)
 
         visual_largest_act = QAction("Visual - Retain Largest", self, checkable=True)
-        visual_largest_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_largest"))
+        visual_largest_act.triggered.connect(
+            lambda: self.set_folder_dedup_mode("visual_largest")
+        )
         folder_dedup_group.addAction(visual_largest_act)
         self.folder_dedup_menu.addAction(visual_largest_act)
 
         visual_smallest_act = QAction("Visual - Retain Smallest", self, checkable=True)
-        visual_smallest_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_smallest"))
+        visual_smallest_act.triggered.connect(
+            lambda: self.set_folder_dedup_mode("visual_smallest")
+        )
         folder_dedup_group.addAction(visual_smallest_act)
         self.folder_dedup_menu.addAction(visual_smallest_act)
 
         visual_deepest_act = QAction("Visual - Retain Deepest", self, checkable=True)
-        visual_deepest_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_deepest"))
+        visual_deepest_act.triggered.connect(
+            lambda: self.set_folder_dedup_mode("visual_deepest")
+        )
         folder_dedup_group.addAction(visual_deepest_act)
         self.folder_dedup_menu.addAction(visual_deepest_act)
 
         visual_shallow_act = QAction("Visual - Retain Shallow", self, checkable=True)
-        visual_shallow_act.triggered.connect(lambda: self.set_folder_dedup_mode("visual_shallow"))
+        visual_shallow_act.triggered.connect(
+            lambda: self.set_folder_dedup_mode("visual_shallow")
+        )
         folder_dedup_group.addAction(visual_shallow_act)
         self.folder_dedup_menu.addAction(visual_shallow_act)
 
@@ -216,7 +230,9 @@ class FilteringMixin:
         self.folder_dedup_menu.addSeparator()
 
         # Recursive toggle (independent, not mutually exclusive)
-        self.folder_recursive_act = QAction("Recursive (include subdirectories)", self, checkable=True)
+        self.folder_recursive_act = QAction(
+            "Recursive (include subdirectories)", self, checkable=True
+        )
         self.folder_recursive_act.triggered.connect(self.toggle_folder_dedup_recursive)
         self.folder_dedup_menu.addAction(self.folder_recursive_act)
 
@@ -243,7 +259,7 @@ class FilteringMixin:
     def show_folder_dedup_menu(self, pos):
         """Show the folder deduplication menu on right-click."""
         # Ensure menu is set up
-        if not hasattr(self, 'folder_dedup_menu'):
+        if not hasattr(self, "folder_dedup_menu"):
             self.setup_folder_dedup_menu()
         # Get the sender button
         sender = self.sender()
@@ -258,7 +274,7 @@ class FilteringMixin:
 
         # Update invert filter checkmark based on current advanced filter settings
         if self.filter_mode == "advanced":
-            is_inverted = self.advanced_filter_settings.get('global_invert', False)
+            is_inverted = self.advanced_filter_settings.get("global_invert", False)
             self.invert_filter_act.setChecked(is_inverted)
         else:
             self.invert_filter_act.setChecked(False)
@@ -269,8 +285,8 @@ class FilteringMixin:
         """Toggle the global filter inversion for advanced filters."""
         if self.filter_mode == "advanced":
             # Toggle the global_invert flag
-            current_invert = self.advanced_filter_settings.get('global_invert', False)
-            self.advanced_filter_settings['global_invert'] = not current_invert
+            current_invert = self.advanced_filter_settings.get("global_invert", False)
+            self.advanced_filter_settings["global_invert"] = not current_invert
 
             # Refresh thumbnails to apply the inverted filter
             self.refresh_thumbnails()
@@ -283,7 +299,7 @@ class FilteringMixin:
                 "Advanced Filters Only",
                 "Filter inversion only applies to Advanced AI Filters.\n\n"
                 "Please activate Advanced AI Filters first by right-clicking "
-                "the filter button and selecting 'Advanced AI Filters...'"
+                "the filter button and selecting 'Advanced AI Filters...'",
             )
 
     def toggle_filter(self):
@@ -338,7 +354,7 @@ class FilteringMixin:
                 filter_name = "Advanced AI Filters"
             self.status_bar.showMessage(f"Filter active: {filter_name}", 3000)
         else:
-            if hasattr(self, '_filter_btn_original_style'):
+            if hasattr(self, "_filter_btn_original_style"):
                 self.filter_btn.setStyleSheet(self._filter_btn_original_style)
             else:
                 self.filter_btn.setStyleSheet("")
@@ -367,8 +383,8 @@ class FilteringMixin:
                 self.filter_active = True
 
                 # Reset debug counter
-                if hasattr(self, '_filter_debug_count'):
-                    delattr(self, '_filter_debug_count')
+                if hasattr(self, "_filter_debug_count"):
+                    delattr(self, "_filter_debug_count")
 
                 # Uncheck simple filter actions
                 for action in self.filter_actions.values():
@@ -376,7 +392,9 @@ class FilteringMixin:
 
                 self.update_filter_visuals()
                 self.refresh_thumbnails()
-                print(f"Applied advanced filters - mode: {self.filter_mode}, active: {self.filter_active}")
+                print(
+                    f"Applied advanced filters - mode: {self.filter_mode}, active: {self.filter_active}"
+                )
             else:
                 # No filters enabled, clear advanced mode
                 self.filter_mode = None
@@ -391,11 +409,11 @@ class FilteringMixin:
     def get_advanced_detectors(self):
         """Lazy-load and return advanced AI detectors."""
         if self._object_detector is None:
-            conf = self.advanced_filter_settings.get('object_confidence', 0.5)
+            conf = self.advanced_filter_settings.get("object_confidence", 0.5)
             self._object_detector = get_object_detector(conf)
 
             # Set custom model if specified
-            custom_model_path = self.advanced_filter_settings.get('custom_model_path')
+            custom_model_path = self.advanced_filter_settings.get("custom_model_path")
             if custom_model_path:
                 try:
                     self._object_detector.set_custom_model(custom_model_path)
@@ -403,14 +421,14 @@ class FilteringMixin:
                     QMessageBox.warning(
                         self,
                         "Custom Model Error",
-                        f"Failed to load custom YOLO model:\n{e}\n\nFalling back to default model."
+                        f"Failed to load custom YOLO model:\n{e}\n\nFalling back to default model.",
                     )
 
         if self._quality_assessor is None:
             self._quality_assessor = get_quality_assessor()
 
         if self._scene_recognizer is None:
-            conf = self.advanced_filter_settings.get('scene_confidence', 0.3)
+            conf = self.advanced_filter_settings.get("scene_confidence", 0.3)
             self._scene_recognizer = get_scene_recognizer(conf)
 
         return self._object_detector, self._quality_assessor, self._scene_recognizer
@@ -423,16 +441,16 @@ class FilteringMixin:
         obj_detector, quality_assessor, scene_recognizer = self.get_advanced_detectors()
 
         # Debug: Track which filters are being evaluated
-        if not hasattr(self, '_filter_debug_count'):
+        if not hasattr(self, "_filter_debug_count"):
             self._filter_debug_count = 0
-            print(f"\n=== Starting advanced filter evaluation ===")
+            print("\n=== Starting advanced filter evaluation ===")
             print(f"Filter settings: {self.advanced_filter_settings}")
 
         # Face detection filter
-        if self.advanced_filter_settings.get('face_detection', False):
-            min_faces = self.advanced_filter_settings.get('face_count_min', 0)
+        if self.advanced_filter_settings.get("face_detection", False):
+            min_faces = self.advanced_filter_settings.get("face_count_min", 0)
             face_count = len(self.face_detector.detect_faces(image_path))
-            inverse = self.advanced_filter_settings.get('face_inverse', False)
+            inverse = self.advanced_filter_settings.get("face_inverse", False)
 
             if inverse:
                 # Does NOT contain: face count must be less than minimum
@@ -444,14 +462,16 @@ class FilteringMixin:
                     return False
 
         # Object detection filter
-        if self.advanced_filter_settings.get('object_detection', False):
-            categories = self.advanced_filter_settings.get('object_categories', [])
-            inverse = self.advanced_filter_settings.get('object_inverse', False)
-            custom_model_path = self.advanced_filter_settings.get('custom_model_path')
+        if self.advanced_filter_settings.get("object_detection", False):
+            categories = self.advanced_filter_settings.get("object_categories", [])
+            inverse = self.advanced_filter_settings.get("object_inverse", False)
+            custom_model_path = self.advanced_filter_settings.get("custom_model_path")
 
             self._filter_debug_count += 1
             if self._filter_debug_count <= 3:  # Debug first 3 images
-                print(f"\n[Image {self._filter_debug_count}] {os.path.basename(image_path)}")
+                print(
+                    f"\n[Image {self._filter_debug_count}] {os.path.basename(image_path)}"
+                )
                 print(f"  Categories: {categories}")
                 print(f"  Inverse: {inverse}")
                 print(f"  Custom model: {custom_model_path}")
@@ -468,13 +488,13 @@ class FilteringMixin:
                     # Does NOT contain: must have no detections
                     if has_detections:
                         if self._filter_debug_count <= 3:
-                            print(f"  REJECTED: has detections (inverse mode)")
+                            print("  REJECTED: has detections (inverse mode)")
                         return False
                 else:
                     # Contains: must have at least one detection
                     if not has_detections:
                         if self._filter_debug_count <= 3:
-                            print(f"  REJECTED: no detections")
+                            print("  REJECTED: no detections")
                         return False
             # For standard models or when categories are selected
             elif categories:
@@ -493,23 +513,23 @@ class FilteringMixin:
                     # Does NOT contain: must not match any category
                     if matches_any:
                         if self._filter_debug_count <= 3:
-                            print(f"  REJECTED: matches category (inverse mode)")
+                            print("  REJECTED: matches category (inverse mode)")
                         return False
                 else:
                     # Contains: must match at least one category
                     if not matches_any:
                         if self._filter_debug_count <= 3:
-                            print(f"  REJECTED: no category match")
+                            print("  REJECTED: no category match")
                         return False
 
             if self._filter_debug_count <= 3:
-                print(f"  PASSED object detection filter")
+                print("  PASSED object detection filter")
             # If no categories selected and no custom model, skip this filter (don't exclude anything)
 
         # Scene recognition filter
-        if self.advanced_filter_settings.get('scene_recognition', False):
-            scene_groups = self.advanced_filter_settings.get('scene_groups', [])
-            inverse = self.advanced_filter_settings.get('scene_inverse', False)
+        if self.advanced_filter_settings.get("scene_recognition", False):
+            scene_groups = self.advanced_filter_settings.get("scene_groups", [])
+            inverse = self.advanced_filter_settings.get("scene_inverse", False)
 
             # Only apply filter if scene groups are selected
             if scene_groups:
@@ -530,23 +550,27 @@ class FilteringMixin:
             # If no scene groups selected, skip this filter (don't exclude anything)
 
         # Quality filter
-        if self.advanced_filter_settings.get('quality_filter', False):
+        if self.advanced_filter_settings.get("quality_filter", False):
             quality = quality_assessor.assess_quality(image_path)
-            inverse = self.advanced_filter_settings.get('quality_inverse', False)
+            inverse = self.advanced_filter_settings.get("quality_inverse", False)
 
             if quality is None:
                 # If we can't assess quality, treat as not meeting criteria
                 return inverse  # Return True if inverse (looking for bad quality), False otherwise
 
-            min_score = self.advanced_filter_settings.get('quality_min_score', 60)
-            min_sharpness = self.advanced_filter_settings.get('quality_sharpness_min', 40)
-            min_bright = self.advanced_filter_settings.get('quality_brightness_min', 50)
-            max_bright = self.advanced_filter_settings.get('quality_brightness_max', 200)
+            min_score = self.advanced_filter_settings.get("quality_min_score", 60)
+            min_sharpness = self.advanced_filter_settings.get(
+                "quality_sharpness_min", 40
+            )
+            min_bright = self.advanced_filter_settings.get("quality_brightness_min", 50)
+            max_bright = self.advanced_filter_settings.get(
+                "quality_brightness_max", 200
+            )
 
             meets_criteria = (
-                quality['overall_score'] >= min_score and
-                quality['sharpness'] >= min_sharpness and
-                min_bright <= quality['brightness'] <= max_bright
+                quality["overall_score"] >= min_score
+                and quality["sharpness"] >= min_sharpness
+                and min_bright <= quality["brightness"] <= max_bright
             )
 
             if inverse:
@@ -559,9 +583,9 @@ class FilteringMixin:
                     return False
 
         # File size filter
-        if self.advanced_filter_settings.get('filesize_filter', False):
-            min_kb = self.advanced_filter_settings.get('filesize_min_kb', 0)
-            max_kb = self.advanced_filter_settings.get('filesize_max_kb', 10240)
+        if self.advanced_filter_settings.get("filesize_filter", False):
+            min_kb = self.advanced_filter_settings.get("filesize_min_kb", 0)
+            max_kb = self.advanced_filter_settings.get("filesize_max_kb", 10240)
 
             try:
                 file_size_bytes = os.path.getsize(image_path)
@@ -576,7 +600,7 @@ class FilteringMixin:
 
         # Apply global invert if enabled
         result = True
-        if self.advanced_filter_settings.get('global_invert', False):
+        if self.advanced_filter_settings.get("global_invert", False):
             result = not result
 
         return result
@@ -607,7 +631,17 @@ class FilteringMixin:
             self.progress_bar.setVisible(False)
             return
 
-        valid = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.tiff', '.bmp')
+        valid = (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp",
+            ".avif",
+            ".tiff",
+            ".bmp",
+            ".tn3",
+        )
         files = [f for f in os.listdir(path) if f.lower().endswith(valid)]
 
         # Apply face filter if active
@@ -653,7 +687,9 @@ class FilteringMixin:
                     filter_name = "without faces"
                 else:
                     filter_name = "matching AI filters"
-                self.status_bar.showMessage(f"No images {filter_name} found in this directory.", 3000)
+                self.status_bar.showMessage(
+                    f"No images {filter_name} found in this directory.", 3000
+                )
             else:
                 self.status_bar.showMessage("No images found in this directory.", 3000)
             return
@@ -698,7 +734,9 @@ class FilteringMixin:
                 filter_name = "without faces"
             else:
                 filter_name = "matching AI filters"
-            self.status_bar.showMessage(f"Showing {total_files} images {filter_name}", 3000)
+            self.status_bar.showMessage(
+                f"Showing {total_files} images {filter_name}", 3000
+            )
         else:
             self.status_bar.showMessage("Ready", 3000)
 
@@ -713,23 +751,41 @@ class FilteringMixin:
         if self.sort_by == "name":
             files = sorted(files, reverse=not self.sort_ascending)
         elif self.sort_by == "modified":
-            files = sorted(files, key=lambda f: os.path.getmtime(os.path.join(path, f)),
-                          reverse=not self.sort_ascending)
+            files = sorted(
+                files,
+                key=lambda f: os.path.getmtime(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
         elif self.sort_by == "resolution":
-            files = sorted(files, key=lambda f: self.get_image_resolution(os.path.join(path, f)),
-                          reverse=not self.sort_ascending)
+            files = sorted(
+                files,
+                key=lambda f: self.get_image_resolution(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
         elif self.sort_by == "width":
-            files = sorted(files, key=lambda f: self.get_image_width(os.path.join(path, f)),
-                          reverse=not self.sort_ascending)
+            files = sorted(
+                files,
+                key=lambda f: self.get_image_width(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
         elif self.sort_by == "height":
-            files = sorted(files, key=lambda f: self.get_image_height(os.path.join(path, f)),
-                          reverse=not self.sort_ascending)
+            files = sorted(
+                files,
+                key=lambda f: self.get_image_height(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
         elif self.sort_by == "quality":
-            files = sorted(files, key=lambda f: self.get_image_quality(os.path.join(path, f)),
-                          reverse=not self.sort_ascending)
+            files = sorted(
+                files,
+                key=lambda f: self.get_image_quality(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
         elif self.sort_by == "filesize":
-            files = sorted(files, key=lambda f: self.get_file_size(os.path.join(path, f)),
-                          reverse=not self.sort_ascending)
+            files = sorted(
+                files,
+                key=lambda f: self.get_file_size(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
         return files
 
     def get_image_resolution(self, file_path):

@@ -20,77 +20,189 @@ OPERATIONS = {
     "sharpen": {
         "name": "Sharpen (Unsharp Mask)",
         "params": [
-            {"key": "amount", "label": "Amount", "type": "float",
-             "min": 0.1, "max": 5.0, "default": 1.0, "step": 0.1},
-            {"key": "radius", "label": "Radius", "type": "float",
-             "min": 0.5, "max": 10.0, "default": 2.0, "step": 0.5},
-            {"key": "threshold", "label": "Threshold", "type": "int",
-             "min": 0, "max": 255, "default": 0, "step": 1},
+            {
+                "key": "amount",
+                "label": "Amount",
+                "type": "float",
+                "min": 0.1,
+                "max": 5.0,
+                "default": 1.0,
+                "step": 0.1,
+            },
+            {
+                "key": "radius",
+                "label": "Radius",
+                "type": "float",
+                "min": 0.5,
+                "max": 10.0,
+                "default": 2.0,
+                "step": 0.5,
+            },
+            {
+                "key": "threshold",
+                "label": "Threshold",
+                "type": "int",
+                "min": 0,
+                "max": 255,
+                "default": 0,
+                "step": 1,
+            },
         ],
     },
     "denoise": {
         "name": "Denoise",
         "params": [
-            {"key": "strength", "label": "Strength", "type": "int",
-             "min": 1, "max": 30, "default": 10, "step": 1},
-            {"key": "color_strength", "label": "Color Strength", "type": "int",
-             "min": 1, "max": 30, "default": 10, "step": 1},
+            {
+                "key": "strength",
+                "label": "Strength",
+                "type": "int",
+                "min": 1,
+                "max": 30,
+                "default": 10,
+                "step": 1,
+            },
+            {
+                "key": "color_strength",
+                "label": "Color Strength",
+                "type": "int",
+                "min": 1,
+                "max": 30,
+                "default": 10,
+                "step": 1,
+            },
         ],
     },
     "brightness_contrast": {
         "name": "Brightness / Contrast",
         "params": [
-            {"key": "brightness", "label": "Brightness", "type": "int",
-             "min": -100, "max": 100, "default": 0, "step": 1},
-            {"key": "contrast", "label": "Contrast", "type": "float",
-             "min": 0.1, "max": 3.0, "default": 1.0, "step": 0.05},
+            {
+                "key": "brightness",
+                "label": "Brightness",
+                "type": "int",
+                "min": -100,
+                "max": 100,
+                "default": 0,
+                "step": 1,
+            },
+            {
+                "key": "contrast",
+                "label": "Contrast",
+                "type": "float",
+                "min": 0.1,
+                "max": 3.0,
+                "default": 1.0,
+                "step": 0.05,
+            },
         ],
     },
     "auto_levels": {
         "name": "Auto Levels (CLAHE)",
         "params": [
-            {"key": "clip_limit", "label": "Clip Limit", "type": "float",
-             "min": 1.0, "max": 10.0, "default": 2.0, "step": 0.5},
-            {"key": "grid_size", "label": "Grid Size", "type": "int",
-             "min": 4, "max": 16, "default": 8, "step": 1},
+            {
+                "key": "clip_limit",
+                "label": "Clip Limit",
+                "type": "float",
+                "min": 1.0,
+                "max": 10.0,
+                "default": 2.0,
+                "step": 0.5,
+            },
+            {
+                "key": "grid_size",
+                "label": "Grid Size",
+                "type": "int",
+                "min": 4,
+                "max": 16,
+                "default": 8,
+                "step": 1,
+            },
         ],
     },
     "saturation": {
         "name": "Color Saturation",
         "params": [
-            {"key": "factor", "label": "Saturation", "type": "float",
-             "min": 0.0, "max": 3.0, "default": 1.0, "step": 0.05},
+            {
+                "key": "factor",
+                "label": "Saturation",
+                "type": "float",
+                "min": 0.0,
+                "max": 3.0,
+                "default": 1.0,
+                "step": 0.05,
+            },
         ],
     },
     "resize": {
         "name": "Resize",
         "params": [
-            {"key": "width", "label": "Width", "type": "int",
-             "min": 1, "max": 16384, "default": 1024, "step": 1},
-            {"key": "height", "label": "Height", "type": "int",
-             "min": 1, "max": 16384, "default": 1024, "step": 1},
-            {"key": "maintain_aspect", "label": "Maintain Aspect Ratio", "type": "bool",
-             "default": True},
-            {"key": "scale_percent", "label": "Scale %", "type": "int",
-             "min": 1, "max": 1000, "default": 100, "step": 1},
-            {"key": "use_scale", "label": "Use Scale Mode", "type": "bool",
-             "default": False},
+            {
+                "key": "width",
+                "label": "Width",
+                "type": "int",
+                "min": 1,
+                "max": 16384,
+                "default": 1024,
+                "step": 1,
+            },
+            {
+                "key": "height",
+                "label": "Height",
+                "type": "int",
+                "min": 1,
+                "max": 16384,
+                "default": 1024,
+                "step": 1,
+            },
+            {
+                "key": "maintain_aspect",
+                "label": "Maintain Aspect Ratio",
+                "type": "bool",
+                "default": True,
+            },
+            {
+                "key": "scale_percent",
+                "label": "Scale %",
+                "type": "int",
+                "min": 1,
+                "max": 1000,
+                "default": 100,
+                "step": 1,
+            },
+            {
+                "key": "use_scale",
+                "label": "Use Scale Mode",
+                "type": "bool",
+                "default": False,
+            },
         ],
     },
     "ai_upscale": {
         "name": "AI Model (Upscale / Denoise / Restore)",
         "params": [
             {"key": "model_path", "label": "Model File", "type": "path", "default": ""},
-            {"key": "tile_size", "label": "Tile Size", "type": "int",
-             "min": 0, "max": 1024, "default": 512, "step": 128},
-            {"key": "device", "label": "Device", "type": "choice",
-             "choices": ["cpu", "cuda"], "default": "cpu"},
+            {
+                "key": "tile_size",
+                "label": "Tile Size",
+                "type": "int",
+                "min": 0,
+                "max": 1024,
+                "default": 512,
+                "step": 128,
+            },
+            {
+                "key": "device",
+                "label": "Device",
+                "type": "choice",
+                "choices": ["cpu", "cuda"],
+                "default": "cpu",
+            },
         ],
     },
 }
 
 
 # --- Tier 1: Built-in enhancement functions ---
+
 
 def sharpen(img_bgr, amount=1.0, radius=2.0, threshold=0):
     """
@@ -112,7 +224,9 @@ def sharpen(img_bgr, amount=1.0, radius=2.0, threshold=0):
     else:
         # Only sharpen where difference exceeds threshold
         diff = cv2.absdiff(img_bgr, blurred)
-        gray_diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY) if len(diff.shape) == 3 else diff
+        gray_diff = (
+            cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY) if len(diff.shape) == 3 else diff
+        )
         mask = (gray_diff > threshold).astype(np.uint8)
         mask_3ch = cv2.merge([mask, mask, mask]) if len(img_bgr.shape) == 3 else mask
 
@@ -133,7 +247,9 @@ def denoise(img_bgr, strength=10, color_strength=10):
     Returns:
         numpy array (BGR, uint8)
     """
-    return cv2.fastNlMeansDenoisingColored(img_bgr, None, strength, color_strength, 7, 21)
+    return cv2.fastNlMeansDenoisingColored(
+        img_bgr, None, strength, color_strength, 7, 21
+    )
 
 
 def adjust_brightness_contrast(img_bgr, brightness=0, contrast=1.0):
@@ -162,10 +278,10 @@ def auto_levels(img_bgr, clip_limit=2.0, grid_size=8):
         numpy array (BGR, uint8)
     """
     lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
+    l_ch, a, b = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(grid_size, grid_size))
-    l = clahe.apply(l)
-    result = cv2.merge([l, a, b])
+    l_ch = clahe.apply(l_ch)
+    result = cv2.merge([l_ch, a, b])
     return cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
 
 
@@ -184,8 +300,14 @@ def adjust_saturation(img_bgr, factor=1.0):
     return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
 
-def resize_image(pil_image, width=1024, height=1024, maintain_aspect=True,
-                 scale_percent=100, use_scale=False):
+def resize_image(
+    pil_image,
+    width=1024,
+    height=1024,
+    maintain_aspect=True,
+    scale_percent=100,
+    use_scale=False,
+):
     """
     Resize image using Lanczos resampling.
 
@@ -215,11 +337,13 @@ def resize_image(pil_image, width=1024, height=1024, maintain_aspect=True,
 
 # --- Tier 2: AI Upscaling (optional) ---
 
+
 def check_spandrel_available():
     """Check if spandrel and torch are available."""
     try:
         import spandrel  # noqa: F401
         import torch  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -229,6 +353,7 @@ def check_cuda_available():
     """Check if CUDA is available for torch."""
     try:
         import torch
+
         return torch.cuda.is_available()
     except ImportError:
         return False
@@ -244,7 +369,7 @@ def scan_model_directory(dir_path):
     if not dir_path or not os.path.isdir(dir_path):
         return []
 
-    valid_exts = {'.pth', '.safetensors', '.pt', '.ckpt'}
+    valid_exts = {".pth", ".safetensors", ".pt", ".ckpt"}
     models = []
 
     for entry in sorted(os.listdir(dir_path)):
@@ -252,16 +377,18 @@ def scan_model_directory(dir_path):
         if ext in valid_exts:
             full_path = os.path.join(dir_path, entry)
             size_mb = os.path.getsize(full_path) / (1024 * 1024)
-            models.append({
-                "name": entry,
-                "path": full_path,
-                "size_mb": round(size_mb, 1),
-            })
+            models.append(
+                {
+                    "name": entry,
+                    "path": full_path,
+                    "size_mb": round(size_mb, 1),
+                }
+            )
 
     return models
 
 
-def load_upscale_model(model_path, device='cpu'):
+def load_upscale_model(model_path, device="cpu"):
     """
     Load a super-resolution model using Spandrel.
 
@@ -282,7 +409,7 @@ def load_upscale_model(model_path, device='cpu'):
     return model
 
 
-def get_model_info(model_path, device='cpu'):
+def get_model_info(model_path, device="cpu"):
     """
     Get info about a model without running inference.
 
@@ -294,23 +421,31 @@ def get_model_info(model_path, device='cpu'):
         import spandrel
         import torch
 
-        model = spandrel.ModelLoader(device=torch.device(device)).load_from_file(model_path)
+        model = spandrel.ModelLoader(device=torch.device(device)).load_from_file(
+            model_path
+        )
 
         info = {
-            "architecture": model.architecture.name if hasattr(model, 'architecture') else "Unknown",
-            "scale": model.scale if hasattr(model, 'scale') else 1,
-            "input_channels": model.input_channels if hasattr(model, 'input_channels') else 3,
-            "output_channels": model.output_channels if hasattr(model, 'output_channels') else 3,
+            "architecture": model.architecture.name
+            if hasattr(model, "architecture")
+            else "Unknown",
+            "scale": model.scale if hasattr(model, "scale") else 1,
+            "input_channels": model.input_channels
+            if hasattr(model, "input_channels")
+            else 3,
+            "output_channels": model.output_channels
+            if hasattr(model, "output_channels")
+            else 3,
         }
 
         # Clean up
         del model
-        if device == 'cuda':
+        if device == "cuda":
             torch.cuda.empty_cache()
 
         return info
     except Exception as e:
-        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+        debug = os.environ.get("IMG_SORT_DEBUG") == "1"
         if debug:
             print(f"[DEBUG] Error getting model info for {model_path}: {e}")
         return None
@@ -331,7 +466,7 @@ def _tile_process(tensor, model, tile_size=512, overlap=32):
     import torch
 
     _, c, h, w = tensor.shape
-    scale = model.scale if hasattr(model, 'scale') else 1
+    scale = model.scale if hasattr(model, "scale") else 1
 
     # Output dimensions
     out_h = h * scale
@@ -400,6 +535,7 @@ def upscale_image(img_bgr, model, tile_size=512):
 
 # --- Unified processing interface ---
 
+
 def apply_enhancement(image_path, operation, params, output_path=None):
     """
     Apply an enhancement operation to an image file.
@@ -415,7 +551,7 @@ def apply_enhancement(image_path, operation, params, output_path=None):
     if output_path is None:
         output_path = image_path
 
-    debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+    debug = os.environ.get("IMG_SORT_DEBUG") == "1"
 
     try:
         if operation == "resize":
@@ -427,6 +563,7 @@ def apply_enhancement(image_path, operation, params, output_path=None):
     except Exception as e:
         if debug:
             import traceback
+
             traceback.print_exc()
         return False, str(e)
 
@@ -438,30 +575,41 @@ def _apply_cv_operation(image_path, operation, params, output_path):
         return False, f"Could not read image: {image_path}"
 
     if operation == "sharpen":
-        result = sharpen(img, **{k: v for k, v in params.items()
-                                 if k in ('amount', 'radius', 'threshold')})
+        result = sharpen(
+            img,
+            **{
+                k: v
+                for k, v in params.items()
+                if k in ("amount", "radius", "threshold")
+            },
+        )
     elif operation == "denoise":
-        result = denoise(img, **{k: v for k, v in params.items()
-                                 if k in ('strength', 'color_strength')})
+        result = denoise(
+            img,
+            **{k: v for k, v in params.items() if k in ("strength", "color_strength")},
+        )
     elif operation == "brightness_contrast":
-        result = adjust_brightness_contrast(img, **{k: v for k, v in params.items()
-                                                     if k in ('brightness', 'contrast')})
+        result = adjust_brightness_contrast(
+            img, **{k: v for k, v in params.items() if k in ("brightness", "contrast")}
+        )
     elif operation == "auto_levels":
-        result = auto_levels(img, **{k: v for k, v in params.items()
-                                     if k in ('clip_limit', 'grid_size')})
+        result = auto_levels(
+            img, **{k: v for k, v in params.items() if k in ("clip_limit", "grid_size")}
+        )
     elif operation == "saturation":
-        result = adjust_saturation(img, **{k: v for k, v in params.items()
-                                           if k in ('factor',)})
+        result = adjust_saturation(
+            img, **{k: v for k, v in params.items() if k in ("factor",)}
+        )
     else:
         return False, f"Unknown operation: {operation}"
 
     # Determine save format from output path extension
     ext = os.path.splitext(output_path)[1].lower()
-    if ext in ('.jpg', '.jpeg'):
+    if ext in (".jpg", ".jpeg"):
         cv2.imwrite(output_path, result, [cv2.IMWRITE_JPEG_QUALITY, 95])
-    elif ext == '.png':
+    elif ext == ".png":
         cv2.imwrite(output_path, result, [cv2.IMWRITE_PNG_COMPRESSION, 6])
-    elif ext == '.webp':
+    elif ext == ".webp":
         cv2.imwrite(output_path, result, [cv2.IMWRITE_WEBP_QUALITY, 95])
     else:
         cv2.imwrite(output_path, result)
@@ -476,33 +624,33 @@ def _apply_resize(image_path, params, output_path):
     # Preserve EXIF if present
     exif_data = None
     try:
-        exif_data = pil_img.info.get('exif')
+        exif_data = pil_img.info.get("exif")
     except Exception:
         pass
 
     result = resize_image(
         pil_img,
-        width=params.get('width', 1024),
-        height=params.get('height', 1024),
-        maintain_aspect=params.get('maintain_aspect', True),
-        scale_percent=params.get('scale_percent', 100),
-        use_scale=params.get('use_scale', False),
+        width=params.get("width", 1024),
+        height=params.get("height", 1024),
+        maintain_aspect=params.get("maintain_aspect", True),
+        scale_percent=params.get("scale_percent", 100),
+        use_scale=params.get("use_scale", False),
     )
 
     # Save with format preservation
     ext = os.path.splitext(output_path)[1].lower()
     save_kwargs = {}
-    if ext in ('.jpg', '.jpeg'):
-        save_kwargs['quality'] = 95
-        if result.mode == 'RGBA':
-            result = result.convert('RGB')
-    elif ext == '.png':
+    if ext in (".jpg", ".jpeg"):
+        save_kwargs["quality"] = 95
+        if result.mode == "RGBA":
+            result = result.convert("RGB")
+    elif ext == ".png":
         pass  # PNG is lossless
-    elif ext == '.webp':
-        save_kwargs['quality'] = 95
+    elif ext == ".webp":
+        save_kwargs["quality"] = 95
 
     if exif_data:
-        save_kwargs['exif'] = exif_data
+        save_kwargs["exif"] = exif_data
 
     result.save(output_path, **save_kwargs)
     pil_img.close()
@@ -513,24 +661,29 @@ def _apply_resize(image_path, params, output_path):
 def _apply_ai_upscale(image_path, params, output_path):
     """Apply AI upscaling using Spandrel model."""
     if not check_spandrel_available():
-        return False, "AI Upscale requires 'spandrel' and 'torch' packages. Install with: pip install spandrel torch"
+        return (
+            False,
+            "AI Upscale requires 'spandrel' and 'torch' packages. Install with: pip install spandrel torch",
+        )
 
-    model_path = params.get('model_path', '')
+    model_path = params.get("model_path", "")
     if not model_path or not os.path.isfile(model_path):
         return False, f"Model file not found: {model_path}"
 
-    device = params.get('device', 'cpu')
-    tile_size = params.get('tile_size', 512)
+    device = params.get("device", "cpu")
+    tile_size = params.get("tile_size", 512)
 
-    debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+    debug = os.environ.get("IMG_SORT_DEBUG") == "1"
     if debug:
-        print(f"[DEBUG] AI Upscale: model={model_path}, device={device}, tile_size={tile_size}")
+        print(
+            f"[DEBUG] AI Upscale: model={model_path}, device={device}, tile_size={tile_size}"
+        )
 
     import torch
 
     # Load model
     model = load_upscale_model(model_path, device)
-    scale = model.scale if hasattr(model, 'scale') else 1
+    scale = model.scale if hasattr(model, "scale") else 1
 
     # Load and process image
     img = cv2.imread(image_path)
@@ -547,18 +700,18 @@ def _apply_ai_upscale(image_path, params, output_path):
 
     # Save
     ext = os.path.splitext(output_path)[1].lower()
-    if ext in ('.jpg', '.jpeg'):
+    if ext in (".jpg", ".jpeg"):
         cv2.imwrite(output_path, result, [cv2.IMWRITE_JPEG_QUALITY, 95])
-    elif ext == '.png':
+    elif ext == ".png":
         cv2.imwrite(output_path, result, [cv2.IMWRITE_PNG_COMPRESSION, 6])
-    elif ext == '.webp':
+    elif ext == ".webp":
         cv2.imwrite(output_path, result, [cv2.IMWRITE_WEBP_QUALITY, 95])
     else:
         cv2.imwrite(output_path, result)
 
     # Clean up GPU memory
     del model
-    if device == 'cuda':
+    if device == "cuda":
         torch.cuda.empty_cache()
 
     return True, f"Upscaled {scale}x to {result.shape[1]}x{result.shape[0]}"

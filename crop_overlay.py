@@ -4,7 +4,7 @@ Crop overlay widget for image cropping functionality.
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QRect, QPoint
-from PySide6.QtGui import QPainter, QPen, QColor, QCursor
+from PySide6.QtGui import QPainter, QPen, QColor
 
 
 class CropOverlay(QWidget):
@@ -35,7 +35,9 @@ class CropOverlay(QWidget):
         # Dragging state
         self.dragging = False
         self.drag_start = QPoint()
-        self.drag_handle = None  # (type, position) - type is HANDLE_CORNER or HANDLE_EDGE
+        self.drag_handle = (
+            None  # (type, position) - type is HANDLE_CORNER or HANDLE_EDGE
+        )
 
         # Original rect for resize operations
         self.original_rect = QRect()
@@ -64,7 +66,7 @@ class CropOverlay(QWidget):
                 height = int(image_size.height() * 0.3)
             else:
                 # Fixed size mode like "1024x1024"
-                parts = mode.split('x')
+                parts = mode.split("x")
                 width = int(parts[0])
                 height = int(parts[1])
 
@@ -88,7 +90,7 @@ class CropOverlay(QWidget):
                 self.crop_rect.x() / self.image_size.width(),
                 self.crop_rect.y() / self.image_size.height(),
                 self.crop_rect.width() / self.image_size.width(),
-                self.crop_rect.height() / self.image_size.height()
+                self.crop_rect.height() / self.image_size.height(),
             )
 
     def _apply_ratios_to_rect(self):
@@ -115,22 +117,38 @@ class CropOverlay(QWidget):
         # Draw semi-transparent dark overlay around crop area (but not inside)
         # Top rectangle
         if self.crop_rect.top() > 0:
-            painter.fillRect(0, 0, self.width(), self.crop_rect.top(), QColor(0, 0, 0, 128))
+            painter.fillRect(
+                0, 0, self.width(), self.crop_rect.top(), QColor(0, 0, 0, 128)
+            )
 
         # Bottom rectangle
         if self.crop_rect.bottom() < self.height():
-            painter.fillRect(0, self.crop_rect.bottom(), self.width(),
-                           self.height() - self.crop_rect.bottom(), QColor(0, 0, 0, 128))
+            painter.fillRect(
+                0,
+                self.crop_rect.bottom(),
+                self.width(),
+                self.height() - self.crop_rect.bottom(),
+                QColor(0, 0, 0, 128),
+            )
 
         # Left rectangle
-        painter.fillRect(0, self.crop_rect.top(), self.crop_rect.left(),
-                        self.crop_rect.height(), QColor(0, 0, 0, 128))
+        painter.fillRect(
+            0,
+            self.crop_rect.top(),
+            self.crop_rect.left(),
+            self.crop_rect.height(),
+            QColor(0, 0, 0, 128),
+        )
 
         # Right rectangle
         if self.crop_rect.right() < self.width():
-            painter.fillRect(self.crop_rect.right(), self.crop_rect.top(),
-                           self.width() - self.crop_rect.right(), self.crop_rect.height(),
-                           QColor(0, 0, 0, 128))
+            painter.fillRect(
+                self.crop_rect.right(),
+                self.crop_rect.top(),
+                self.width() - self.crop_rect.right(),
+                self.crop_rect.height(),
+                QColor(0, 0, 0, 128),
+            )
 
         # Draw red border around crop area
         pen = QPen(QColor(255, 0, 0), 2)
@@ -152,7 +170,7 @@ class CropOverlay(QWidget):
             self.crop_rect.topLeft(),
             self.crop_rect.topRight(),
             self.crop_rect.bottomLeft(),
-            self.crop_rect.bottomRight()
+            self.crop_rect.bottomRight(),
         ]
 
         for corner in corners:
@@ -163,7 +181,7 @@ class CropOverlay(QWidget):
             QPoint(self.crop_rect.center().x(), self.crop_rect.top()),  # Top
             QPoint(self.crop_rect.center().x(), self.crop_rect.bottom()),  # Bottom
             QPoint(self.crop_rect.left(), self.crop_rect.center().y()),  # Left
-            QPoint(self.crop_rect.right(), self.crop_rect.center().y())  # Right
+            QPoint(self.crop_rect.right(), self.crop_rect.center().y()),  # Right
         ]
 
         for edge in edges:
@@ -241,11 +259,13 @@ class CropOverlay(QWidget):
             (self.crop_rect.topLeft(), "top_left"),
             (self.crop_rect.topRight(), "top_right"),
             (self.crop_rect.bottomLeft(), "bottom_left"),
-            (self.crop_rect.bottomRight(), "bottom_right")
+            (self.crop_rect.bottomRight(), "bottom_right"),
         ]
 
         for corner_pos, corner_name in corners:
-            if QRect(corner_pos.x() - size // 2, corner_pos.y() - size // 2, size, size).contains(pos):
+            if QRect(
+                corner_pos.x() - size // 2, corner_pos.y() - size // 2, size, size
+            ).contains(pos):
                 return (self.HANDLE_CORNER, corner_name)
 
         # Check edges
@@ -253,11 +273,13 @@ class CropOverlay(QWidget):
             (QPoint(self.crop_rect.center().x(), self.crop_rect.top()), "top"),
             (QPoint(self.crop_rect.center().x(), self.crop_rect.bottom()), "bottom"),
             (QPoint(self.crop_rect.left(), self.crop_rect.center().y()), "left"),
-            (QPoint(self.crop_rect.right(), self.crop_rect.center().y()), "right")
+            (QPoint(self.crop_rect.right(), self.crop_rect.center().y()), "right"),
         ]
 
         for edge_pos, edge_name in edges:
-            if QRect(edge_pos.x() - size // 2, edge_pos.y() - size // 2, size, size).contains(pos):
+            if QRect(
+                edge_pos.x() - size // 2, edge_pos.y() - size // 2, size, size
+            ).contains(pos):
                 return (self.HANDLE_EDGE, edge_name)
 
         return None

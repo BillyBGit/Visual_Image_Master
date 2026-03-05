@@ -4,8 +4,6 @@ Image quality assessment using BRISQUE and custom metrics.
 
 import cv2
 import numpy as np
-from pathlib import Path
-from PIL import Image
 
 
 class QualityAssessor:
@@ -47,18 +45,18 @@ class QualityAssessor:
             # Overall score (weighted combination)
             # Prioritize sharpness and contrast
             overall = (
-                sharpness * 0.4 +
-                contrast * 0.3 +
-                colorfulness * 0.2 +
-                self._normalize_brightness(brightness) * 0.1
+                sharpness * 0.4
+                + contrast * 0.3
+                + colorfulness * 0.2
+                + self._normalize_brightness(brightness) * 0.1
             )
 
             result = {
-                'sharpness': round(sharpness, 2),
-                'brightness': round(brightness, 2),
-                'contrast': round(contrast, 2),
-                'colorfulness': round(colorfulness, 2),
-                'overall_score': round(overall, 2)
+                "sharpness": round(sharpness, 2),
+                "brightness": round(brightness, 2),
+                "contrast": round(contrast, 2),
+                "colorfulness": round(colorfulness, 2),
+                "overall_score": round(overall, 2),
             }
 
             # Cache results
@@ -118,8 +116,8 @@ class QualityAssessor:
         yb_mean, yb_std = (np.mean(yb), np.std(yb))
 
         # Combine the mean and standard deviations
-        std_root = np.sqrt((rb_std ** 2) + (yb_std ** 2))
-        mean_root = np.sqrt((rb_mean ** 2) + (yb_mean ** 2))
+        std_root = np.sqrt((rb_std**2) + (yb_std**2))
+        mean_root = np.sqrt((rb_mean**2) + (yb_mean**2))
 
         # Colorfulness metric
         colorfulness = std_root + (0.3 * mean_root)
@@ -134,21 +132,21 @@ class QualityAssessor:
         result = self.assess_quality(image_path)
         if result is None:
             return False
-        return result['overall_score'] >= min_score
+        return result["overall_score"] >= min_score
 
     def is_sharp(self, image_path, min_sharpness=40):
         """Check if image is sufficiently sharp."""
         result = self.assess_quality(image_path)
         if result is None:
             return False
-        return result['sharpness'] >= min_sharpness
+        return result["sharpness"] >= min_sharpness
 
     def is_well_exposed(self, image_path, min_brightness=50, max_brightness=200):
         """Check if image is well-exposed (not too dark/bright)."""
         result = self.assess_quality(image_path)
         if result is None:
             return False
-        brightness = result['brightness']
+        brightness = result["brightness"]
         return min_brightness <= brightness <= max_brightness
 
     def clear_cache(self):
@@ -158,6 +156,7 @@ class QualityAssessor:
 
 # Singleton instance
 _assessor = None
+
 
 def get_assessor():
     """Get or create the quality assessor instance."""

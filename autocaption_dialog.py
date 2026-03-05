@@ -3,11 +3,21 @@ Auto Caption dialog for batch captioning from thumbnail context menu.
 """
 
 import os
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
-                                QComboBox, QLabel, QPushButton, QProgressBar,
-                                QDoubleSpinBox, QLineEdit, QCheckBox,
-                                QDialogButtonBox, QMessageBox, QApplication)
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QComboBox,
+    QLabel,
+    QPushButton,
+    QProgressBar,
+    QDoubleSpinBox,
+    QLineEdit,
+    QCheckBox,
+    QMessageBox,
+)
+from PySide6.QtCore import QTimer
 
 from caption_generator import get_caption_generator, CaptionWorker
 
@@ -95,7 +105,9 @@ class AutoCaptionDialog(QDialog):
         self.wd14_threshold.setRange(0.1, 0.9)
         self.wd14_threshold.setSingleStep(0.05)
         self.wd14_threshold.setValue(0.35)
-        self.wd14_threshold.setToolTip("Minimum confidence for tags (lower = more tags)")
+        self.wd14_threshold.setToolTip(
+            "Minimum confidence for tags (lower = more tags)"
+        )
         threshold_row.addWidget(self.wd14_threshold, 1)
         wd14_layout.addLayout(threshold_row)
 
@@ -146,7 +158,9 @@ class AutoCaptionDialog(QDialog):
         self.progress_bar.setValue(0)
         progress_layout.addWidget(self.progress_bar)
 
-        self.progress_label = QLabel(f"Ready to process {len(self.image_paths)} image(s)")
+        self.progress_label = QLabel(
+            f"Ready to process {len(self.image_paths)} image(s)"
+        )
         progress_layout.addWidget(self.progress_label)
 
         layout.addWidget(self.progress_group)
@@ -180,50 +194,52 @@ class AutoCaptionDialog(QDialog):
     def _load_settings(self):
         """Load settings from main app."""
         from utils import find_main_window
+
         main_win = find_main_window()
         if not main_win:
             return
 
         # Load backend
-        backend = getattr(main_win, 'caption_backend', 'florence2')
+        backend = getattr(main_win, "caption_backend", "florence2")
         for i in range(self.backend_combo.count()):
             if self.backend_combo.itemData(i) == backend:
                 self.backend_combo.setCurrentIndex(i)
                 break
 
         # Load Florence2 settings
-        florence_model = getattr(main_win, 'caption_florence_model', 'base')
+        florence_model = getattr(main_win, "caption_florence_model", "base")
         for i in range(self.florence_model_combo.count()):
             if self.florence_model_combo.itemData(i) == florence_model:
                 self.florence_model_combo.setCurrentIndex(i)
                 break
 
-        florence_detail = getattr(main_win, 'caption_florence_detail', 'detailed')
+        florence_detail = getattr(main_win, "caption_florence_detail", "detailed")
         for i in range(self.florence_detail_combo.count()):
             if self.florence_detail_combo.itemData(i) == florence_detail:
                 self.florence_detail_combo.setCurrentIndex(i)
                 break
 
         # Load WD14 settings
-        wd14_model = getattr(main_win, 'caption_wd14_model', 'vit-v2')
+        wd14_model = getattr(main_win, "caption_wd14_model", "vit-v2")
         for i in range(self.wd14_model_combo.count()):
             if self.wd14_model_combo.itemData(i) == wd14_model:
                 self.wd14_model_combo.setCurrentIndex(i)
                 break
 
-        wd14_threshold = getattr(main_win, 'caption_wd14_threshold', 0.35)
+        wd14_threshold = getattr(main_win, "caption_wd14_threshold", 0.35)
         self.wd14_threshold.setValue(wd14_threshold)
 
         # Load Ollama settings
-        ollama_url = getattr(main_win, 'caption_ollama_url', 'http://localhost:11434')
+        ollama_url = getattr(main_win, "caption_ollama_url", "http://localhost:11434")
         self.ollama_url.setText(ollama_url)
 
-        ollama_model = getattr(main_win, 'caption_ollama_model', 'llava')
+        ollama_model = getattr(main_win, "caption_ollama_model", "llava")
         self.ollama_model.setText(ollama_model)
 
     def _save_settings(self):
         """Save settings to main app."""
         from utils import find_main_window
+
         main_win = find_main_window()
         if not main_win:
             return
@@ -236,7 +252,7 @@ class AutoCaptionDialog(QDialog):
         main_win.caption_ollama_url = self.ollama_url.text().strip()
         main_win.caption_ollama_model = self.ollama_model.text().strip()
 
-        if hasattr(main_win, 'write_settings'):
+        if hasattr(main_win, "write_settings"):
             main_win.write_settings()
 
     def _start_generation(self):
@@ -278,7 +294,9 @@ class AutoCaptionDialog(QDialog):
             QTimer.singleShot(10, self._process_next_image)
             return
 
-        self.progress_label.setText(f"Processing {filename}... ({self.current_index + 1}/{len(self.image_paths)})")
+        self.progress_label.setText(
+            f"Processing {filename}... ({self.current_index + 1}/{len(self.image_paths)})"
+        )
 
         # Get settings
         backend = self.backend_combo.currentData()
@@ -291,8 +309,15 @@ class AutoCaptionDialog(QDialog):
 
         # Create worker
         self.caption_worker = CaptionWorker(
-            self.generator, image_path, backend, ollama_url, ollama_model,
-            florence_model, florence_detail, wd14_model, wd14_threshold
+            self.generator,
+            image_path,
+            backend,
+            ollama_url,
+            ollama_model,
+            florence_model,
+            florence_detail,
+            wd14_model,
+            wd14_threshold,
         )
         self.caption_worker.finished.connect(self._on_caption_finished)
         self.caption_worker.error.connect(self._on_caption_error)
@@ -360,23 +385,34 @@ class AutoCaptionDialog(QDialog):
         # Count results
         success_count = sum(1 for _, _, status in self.results if status == "success")
         skip_count = sum(1 for _, _, status in self.results if status == "skipped")
-        error_count = sum(1 for _, _, status in self.results if status.startswith("error"))
+        error_count = sum(
+            1 for _, _, status in self.results if status.startswith("error")
+        )
 
         if cancelled:
-            self.progress_label.setText(f"Cancelled. {success_count} completed, {len(self.image_paths) - self.current_index} remaining.")
+            self.progress_label.setText(
+                f"Cancelled. {success_count} completed, {len(self.image_paths) - self.current_index} remaining."
+            )
         else:
-            self.progress_label.setText(f"Done! {success_count} generated, {skip_count} skipped, {error_count} errors.")
+            self.progress_label.setText(
+                f"Done! {success_count} generated, {skip_count} skipped, {error_count} errors."
+            )
 
         # Show summary if there were errors
         if error_count > 0:
-            errors = [f"- {os.path.basename(p)}: {s}" for p, _, s in self.results if s.startswith("error")]
+            errors = [
+                f"- {os.path.basename(p)}: {s}"
+                for p, _, s in self.results
+                if s.startswith("error")
+            ]
             error_text = "\n".join(errors[:10])
             if error_count > 10:
                 error_text += f"\n... and {error_count - 10} more"
 
             QMessageBox.warning(
-                self, "Some Errors Occurred",
-                f"{error_count} image(s) failed to generate captions:\n\n{error_text}"
+                self,
+                "Some Errors Occurred",
+                f"{error_count} image(s) failed to generate captions:\n\n{error_text}",
             )
 
     def closeEvent(self, event):

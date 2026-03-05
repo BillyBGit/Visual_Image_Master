@@ -21,12 +21,18 @@ class SettingsManager:
             return
 
         # Save toggle states
-        self.settings.setValue("remember_settings", self.app.remember_settings_act.isChecked())
+        self.settings.setValue(
+            "remember_settings", self.app.remember_settings_act.isChecked()
+        )
         self.settings.setValue("preview_fit", self.app.preview_fit_default)
-        self.settings.setValue("preview_autoname_extract", self.app.preview_autoname_extract)
+        self.settings.setValue(
+            "preview_autoname_extract", self.app.preview_autoname_extract
+        )
         self.settings.setValue("confirm_delete", self.app.conf_delete_act.isChecked())
         self.settings.setValue("show_names", self.app.show_names_act.isChecked())
-        self.settings.setValue("show_dimensions", self.app.show_dimensions_act.isChecked())
+        self.settings.setValue(
+            "show_dimensions", self.app.show_dimensions_act.isChecked()
+        )
         self.settings.setValue("show_counts", self.app.show_counts_act.isChecked())
 
         # Save sort settings
@@ -35,7 +41,9 @@ class SettingsManager:
 
         # Save filter settings
         self.settings.setValue("filter_active", self.app.filter_active)
-        self.settings.setValue("filter_mode", self.app.filter_mode if self.app.filter_mode else "")
+        self.settings.setValue(
+            "filter_mode", self.app.filter_mode if self.app.filter_mode else ""
+        )
 
         # Save face detection preset
         self.settings.setValue("face_detection_preset", self.app.face_detection_preset)
@@ -49,97 +57,147 @@ class SettingsManager:
         self.settings.setValue("main_window_state", self.app.saveState())
 
         # Save splitter state (pane dimensions)
-        self.settings.setValue("main_splitter_state", self.app.main_splitter.saveState())
+        self.settings.setValue(
+            "main_splitter_state", self.app.main_splitter.saveState()
+        )
 
         # Save preview window geometry if it exists
-        if hasattr(self.app, 'preview_geometry') and self.app.preview_geometry:
+        if hasattr(self.app, "preview_geometry") and self.app.preview_geometry:
             self.settings.setValue("preview_geometry", self.app.preview_geometry)
 
         # Note: YOLO window geometry not saved - always opens maximized
 
         # Save YOLO labels and output path
-        if hasattr(self.app, 'yolo_labels') and self.app.yolo_labels:
+        if hasattr(self.app, "yolo_labels") and self.app.yolo_labels:
             # Convert QColor to string for storage
             labels_to_save = []
             for label in self.app.yolo_labels:
-                labels_to_save.append({
-                    'class_id': label['class_id'],
-                    'color': label['color'].name() if hasattr(label['color'], 'name') else label['color'],
-                    'name': label['name']
-                })
+                labels_to_save.append(
+                    {
+                        "class_id": label["class_id"],
+                        "color": label["color"].name()
+                        if hasattr(label["color"], "name")
+                        else label["color"],
+                        "name": label["name"],
+                    }
+                )
             self.settings.setValue("yolo_labels", labels_to_save)
 
-        if hasattr(self.app, 'yolo_output_path'):
+        if hasattr(self.app, "yolo_output_path"):
             self.settings.setValue("yolo_output_path", self.app.yolo_output_path or "")
 
-        if hasattr(self.app, 'yolo_resolution_index'):
-            self.settings.setValue("yolo_resolution_index", self.app.yolo_resolution_index)
+        if hasattr(self.app, "yolo_resolution_index"):
+            self.settings.setValue(
+                "yolo_resolution_index", self.app.yolo_resolution_index
+            )
 
-        if hasattr(self.app, 'yolo_size_mode'):
+        if hasattr(self.app, "yolo_size_mode"):
             self.settings.setValue("yolo_size_mode", self.app.yolo_size_mode)
 
         # Save caption settings
-        if hasattr(self.app, 'caption_backend'):
-            self.settings.setValue("caption_backend", self.app.caption_backend or "florence2")
+        if hasattr(self.app, "caption_backend"):
+            self.settings.setValue(
+                "caption_backend", self.app.caption_backend or "florence2"
+            )
 
-        if hasattr(self.app, 'caption_ollama_url'):
-            self.settings.setValue("caption_ollama_url", self.app.caption_ollama_url or "")
+        if hasattr(self.app, "caption_ollama_url"):
+            self.settings.setValue(
+                "caption_ollama_url", self.app.caption_ollama_url or ""
+            )
 
-        if hasattr(self.app, 'caption_ollama_model'):
-            self.settings.setValue("caption_ollama_model", self.app.caption_ollama_model or "")
+        if hasattr(self.app, "caption_ollama_model"):
+            self.settings.setValue(
+                "caption_ollama_model", self.app.caption_ollama_model or ""
+            )
 
-        if hasattr(self.app, 'caption_florence_model'):
-            self.settings.setValue("caption_florence_model", self.app.caption_florence_model or "base")
+        if hasattr(self.app, "caption_florence_model"):
+            self.settings.setValue(
+                "caption_florence_model", self.app.caption_florence_model or "base"
+            )
 
-        if hasattr(self.app, 'caption_florence_detail'):
-            self.settings.setValue("caption_florence_detail", self.app.caption_florence_detail or "detailed")
+        if hasattr(self.app, "caption_florence_detail"):
+            self.settings.setValue(
+                "caption_florence_detail",
+                self.app.caption_florence_detail or "detailed",
+            )
 
-        if hasattr(self.app, 'caption_florence_custom_path'):
-            self.settings.setValue("caption_florence_custom_path", self.app.caption_florence_custom_path or "")
+        if hasattr(self.app, "caption_florence_custom_path"):
+            self.settings.setValue(
+                "caption_florence_custom_path",
+                self.app.caption_florence_custom_path or "",
+            )
 
-        if hasattr(self.app, 'caption_wd14_model'):
-            self.settings.setValue("caption_wd14_model", self.app.caption_wd14_model or "vit-v2")
+        if hasattr(self.app, "caption_wd14_model"):
+            self.settings.setValue(
+                "caption_wd14_model", self.app.caption_wd14_model or "vit-v2"
+            )
 
-        if hasattr(self.app, 'caption_wd14_threshold'):
-            self.settings.setValue("caption_wd14_threshold", self.app.caption_wd14_threshold or 0.55)
+        if hasattr(self.app, "caption_wd14_threshold"):
+            self.settings.setValue(
+                "caption_wd14_threshold", self.app.caption_wd14_threshold or 0.55
+            )
 
-        if hasattr(self.app, 'caption_wd14_custom_paths'):
+        if hasattr(self.app, "caption_wd14_custom_paths"):
             # Convert dict to JSON string for storage
             import json
+
             paths_json = json.dumps(self.app.caption_wd14_custom_paths or {})
             self.settings.setValue("caption_wd14_custom_paths", paths_json)
 
-        if hasattr(self.app, 'caption_blend_instructions'):
-            self.settings.setValue("caption_blend_instructions", self.app.caption_blend_instructions or "")
+        if hasattr(self.app, "caption_blend_instructions"):
+            self.settings.setValue(
+                "caption_blend_instructions", self.app.caption_blend_instructions or ""
+            )
 
-        if hasattr(self.app, 'caption_blend_model'):
-            self.settings.setValue("caption_blend_model", self.app.caption_blend_model or "")
+        if hasattr(self.app, "caption_blend_model"):
+            self.settings.setValue(
+                "caption_blend_model", self.app.caption_blend_model or ""
+            )
 
         # Enhancement settings
-        if hasattr(self.app, 'enhance_model_dir'):
-            self.settings.setValue("enhance_model_dir", self.app.enhance_model_dir or "")
-        if hasattr(self.app, 'enhance_save_mode'):
-            self.settings.setValue("enhance_save_mode", self.app.enhance_save_mode or "overwrite")
-        if hasattr(self.app, 'enhance_copy_suffix'):
-            self.settings.setValue("enhance_copy_suffix", self.app.enhance_copy_suffix or "_enhanced")
-        if hasattr(self.app, 'enhance_last_operation'):
-            self.settings.setValue("enhance_last_operation", self.app.enhance_last_operation or "sharpen")
-        if hasattr(self.app, 'enhance_last_params'):
-            self.settings.setValue("enhance_last_params", json.dumps(self.app.enhance_last_params or {}))
+        if hasattr(self.app, "enhance_model_dir"):
+            self.settings.setValue(
+                "enhance_model_dir", self.app.enhance_model_dir or ""
+            )
+        if hasattr(self.app, "enhance_save_mode"):
+            self.settings.setValue(
+                "enhance_save_mode", self.app.enhance_save_mode or "overwrite"
+            )
+        if hasattr(self.app, "enhance_copy_suffix"):
+            self.settings.setValue(
+                "enhance_copy_suffix", self.app.enhance_copy_suffix or "_enhanced"
+            )
+        if hasattr(self.app, "enhance_last_operation"):
+            self.settings.setValue(
+                "enhance_last_operation", self.app.enhance_last_operation or "sharpen"
+            )
+        if hasattr(self.app, "enhance_last_params"):
+            self.settings.setValue(
+                "enhance_last_params", json.dumps(self.app.enhance_last_params or {})
+            )
 
         # Save current folder paths
-        self.settings.setValue("src_root_path", self.app.src_root_path if self.app.src_root_path else "/")
-        self.settings.setValue("dest_root_path", self.app.dest_root_path if self.app.dest_root_path else "/")
+        self.settings.setValue(
+            "src_root_path", self.app.src_root_path if self.app.src_root_path else "/"
+        )
+        self.settings.setValue(
+            "dest_root_path",
+            self.app.dest_root_path if self.app.dest_root_path else "/",
+        )
 
         # Save the currently selected folder in source tree (for thumbnails)
         current_src_index = self.app.src_tree.currentIndex()
         if current_src_index.isValid():
-            self.settings.setValue("src_selected_path", self.app.src_model.filePath(current_src_index))
+            self.settings.setValue(
+                "src_selected_path", self.app.src_model.filePath(current_src_index)
+            )
 
         # Save the currently selected folder in dest tree
         current_dest_index = self.app.dest_tree.currentIndex()
         if current_dest_index.isValid():
-            self.settings.setValue("dest_selected_path", self.app.dest_model.filePath(current_dest_index))
+            self.settings.setValue(
+                "dest_selected_path", self.app.dest_model.filePath(current_dest_index)
+            )
 
         self.settings.sync()
 
@@ -169,11 +227,21 @@ class SettingsManager:
             self.app.main_splitter.restoreState(main_splitter_state)
 
         # 4. Restore Boolean Settings
-        self.app.conf_delete_act.setChecked(self.settings.value("confirm_delete", True, type=bool))
-        self.app.show_names_act.setChecked(self.settings.value("show_names", False, type=bool))
-        self.app.show_dimensions_act.setChecked(self.settings.value("show_dimensions", False, type=bool))
-        self.app.preview_fit_default = self.settings.value("preview_fit", False, type=bool)
-        self.app.preview_autoname_extract = self.settings.value("preview_autoname_extract", False, type=bool)
+        self.app.conf_delete_act.setChecked(
+            self.settings.value("confirm_delete", True, type=bool)
+        )
+        self.app.show_names_act.setChecked(
+            self.settings.value("show_names", False, type=bool)
+        )
+        self.app.show_dimensions_act.setChecked(
+            self.settings.value("show_dimensions", False, type=bool)
+        )
+        self.app.preview_fit_default = self.settings.value(
+            "preview_fit", False, type=bool
+        )
+        self.app.preview_autoname_extract = self.settings.value(
+            "preview_autoname_extract", False, type=bool
+        )
 
         # Restore folder counts setting
         show_counts = self.settings.value("show_counts", False, type=bool)
@@ -184,7 +252,7 @@ class SettingsManager:
         # Restore sort settings
         self.app.sort_by = self.settings.value("sort_by", "name")
         self.app.sort_ascending = self.settings.value("sort_ascending", True, type=bool)
-        if hasattr(self.app, 'sort_actions'):
+        if hasattr(self.app, "sort_actions"):
             for key, action in self.app.sort_actions.items():
                 action.setChecked(key == (self.app.sort_by, self.app.sort_ascending))
 
@@ -192,15 +260,19 @@ class SettingsManager:
         self.app.filter_active = self.settings.value("filter_active", False, type=bool)
         filter_mode_str = self.settings.value("filter_mode", "")
         self.app.filter_mode = filter_mode_str if filter_mode_str else None
-        if hasattr(self.app, 'filter_actions'):
+        if hasattr(self.app, "filter_actions"):
             for mode, action in self.app.filter_actions.items():
-                action.setChecked(mode == self.app.filter_mode and self.app.filter_active)
+                action.setChecked(
+                    mode == self.app.filter_mode and self.app.filter_active
+                )
         # Update visual indicators
-        if hasattr(self.app, 'filter_btn'):
+        if hasattr(self.app, "filter_btn"):
             self.app.update_filter_visuals()
 
         # Restore face detection preset
-        self.app.face_detection_preset = self.settings.value("face_detection_preset", "balanced")
+        self.app.face_detection_preset = self.settings.value(
+            "face_detection_preset", "balanced"
+        )
 
         # Restore folder tree zoom levels
         src_zoom = self.settings.value("src_tree_zoom", 1.0, type=float)
@@ -218,21 +290,36 @@ class SettingsManager:
         # 5b. Restore YOLO labels and output path
         self.app.yolo_labels = self.settings.value("yolo_labels", [])
         self.app.yolo_output_path = self.settings.value("yolo_output_path", "")
-        self.app.yolo_resolution_index = self.settings.value("yolo_resolution_index", 0, type=int)
+        self.app.yolo_resolution_index = self.settings.value(
+            "yolo_resolution_index", 0, type=int
+        )
         self.app.yolo_size_mode = self.settings.value("yolo_size_mode", "image")
 
         # 5c. Restore Caption settings
         self.app.caption_backend = self.settings.value("caption_backend", "florence2")
-        self.app.caption_ollama_url = self.settings.value("caption_ollama_url", "http://localhost:11434")
-        self.app.caption_ollama_model = self.settings.value("caption_ollama_model", "llava")
-        self.app.caption_florence_model = self.settings.value("caption_florence_model", "base")
-        self.app.caption_florence_detail = self.settings.value("caption_florence_detail", "detailed")
-        self.app.caption_florence_custom_path = self.settings.value("caption_florence_custom_path", "")
-        self.app.caption_wd14_model = self.settings.value("caption_wd14_model", "vit-v2")
-        self.app.caption_wd14_threshold = self.settings.value("caption_wd14_threshold", 0.55, type=float)
+        self.app.caption_ollama_url = self.settings.value(
+            "caption_ollama_url", "http://localhost:11434"
+        )
+        self.app.caption_ollama_model = self.settings.value(
+            "caption_ollama_model", "llava"
+        )
+        self.app.caption_florence_model = self.settings.value(
+            "caption_florence_model", "base"
+        )
+        self.app.caption_florence_detail = self.settings.value(
+            "caption_florence_detail", "detailed"
+        )
+        self.app.caption_florence_custom_path = self.settings.value(
+            "caption_florence_custom_path", ""
+        )
+        self.app.caption_wd14_model = self.settings.value(
+            "caption_wd14_model", "vit-v2"
+        )
+        self.app.caption_wd14_threshold = self.settings.value(
+            "caption_wd14_threshold", 0.55, type=float
+        )
 
         # Load WD14 custom paths from JSON
-        import json
         paths_json = self.settings.value("caption_wd14_custom_paths", "{}")
         try:
             self.app.caption_wd14_custom_paths = json.loads(paths_json)
@@ -240,16 +327,24 @@ class SettingsManager:
             self.app.caption_wd14_custom_paths = {}
 
         # Load blend instructions
-        self.app.caption_blend_instructions = self.settings.value("caption_blend_instructions", "")
+        self.app.caption_blend_instructions = self.settings.value(
+            "caption_blend_instructions", ""
+        )
 
         # Load blend model
         self.app.caption_blend_model = self.settings.value("caption_blend_model", "")
 
         # Load enhancement settings
         self.app.enhance_model_dir = self.settings.value("enhance_model_dir", "")
-        self.app.enhance_save_mode = self.settings.value("enhance_save_mode", "overwrite")
-        self.app.enhance_copy_suffix = self.settings.value("enhance_copy_suffix", "_enhanced")
-        self.app.enhance_last_operation = self.settings.value("enhance_last_operation", "sharpen")
+        self.app.enhance_save_mode = self.settings.value(
+            "enhance_save_mode", "overwrite"
+        )
+        self.app.enhance_copy_suffix = self.settings.value(
+            "enhance_copy_suffix", "_enhanced"
+        )
+        self.app.enhance_last_operation = self.settings.value(
+            "enhance_last_operation", "sharpen"
+        )
         params_json = self.settings.value("enhance_last_params", "{}")
         try:
             self.app.enhance_last_params = json.loads(params_json)

@@ -3,9 +3,20 @@ Image preview window for viewing and navigating images.
 """
 
 import os
-from PySide6.QtWidgets import (QMainWindow, QScrollArea, QLabel, QMessageBox, QApplication,
-                                QStatusBar, QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
-                                QPushButton, QDialogButtonBox, QFileDialog)
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QScrollArea,
+    QLabel,
+    QMessageBox,
+    QApplication,
+    QStatusBar,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QDialogButtonBox,
+    QFileDialog,
+)
 from PySide6.QtCore import Qt, QTimer, QSize, QRect
 from PySide6.QtGui import QAction, QPixmap, QActionGroup, QIcon, QIntValidator
 from PIL import Image
@@ -30,14 +41,22 @@ class ImagePreviewWindow(QMainWindow):
         self.original_pixmap = QPixmap()
 
         # 3. Pull settings from the Parent App (the Source of Truth)
-        self.fit_to_window = getattr(self.parent_app, 'preview_fit_default', False) if self.parent_app else False
+        self.fit_to_window = (
+            getattr(self.parent_app, "preview_fit_default", False)
+            if self.parent_app
+            else False
+        )
 
         # Crop state
         self.crop_mode = None
         self.crop_overlay = None
 
         # Extract crop setting
-        self.autoname_extract = getattr(self.parent_app, 'preview_autoname_extract', False) if self.parent_app else False
+        self.autoname_extract = (
+            getattr(self.parent_app, "preview_autoname_extract", False)
+            if self.parent_app
+            else False
+        )
 
         # 4. UI Setup
         self.scroll_area = QScrollArea()
@@ -64,13 +83,17 @@ class ImagePreviewWindow(QMainWindow):
 
         # 5. Setup Menu and Sync Checkbox
         self.setup_menu()
-        if hasattr(self, 'fit_act'):
+        if hasattr(self, "fit_act"):
             self.fit_act.setChecked(self.fit_to_window)
-        if hasattr(self, 'native_act'):
+        if hasattr(self, "native_act"):
             self.native_act.setChecked(not self.fit_to_window)
 
         # 6. Handle Window Geometry BEFORE loading image
-        saved_geo = getattr(self.parent_app, 'preview_geometry', None) if self.parent_app else None
+        saved_geo = (
+            getattr(self.parent_app, "preview_geometry", None)
+            if self.parent_app
+            else None
+        )
         if saved_geo:
             self.restoreGeometry(saved_geo)
         else:
@@ -120,11 +143,15 @@ class ImagePreviewWindow(QMainWindow):
         enhance_menu.addAction(denoise_act)
 
         brightness_act = QAction("Brightness/Contrast...", self)
-        brightness_act.triggered.connect(lambda: self.open_enhance_dialog("brightness_contrast"))
+        brightness_act.triggered.connect(
+            lambda: self.open_enhance_dialog("brightness_contrast")
+        )
         enhance_menu.addAction(brightness_act)
 
         auto_levels_act = QAction("Auto Levels...", self)
-        auto_levels_act.triggered.connect(lambda: self.open_enhance_dialog("auto_levels"))
+        auto_levels_act.triggered.connect(
+            lambda: self.open_enhance_dialog("auto_levels")
+        )
         enhance_menu.addAction(auto_levels_act)
 
         saturation_act = QAction("Color Saturation...", self)
@@ -173,7 +200,7 @@ class ImagePreviewWindow(QMainWindow):
 
     def toggle_fit_mode(self, checked):
         self.fit_to_window = checked
-        if hasattr(self, 'native_act'):
+        if hasattr(self, "native_act"):
             self.native_act.setChecked(not checked)
         self.update_image()
         self.update_zoom_display()
@@ -187,9 +214,9 @@ class ImagePreviewWindow(QMainWindow):
 
     def set_native_size(self):
         self.fit_to_window = False
-        if hasattr(self, 'fit_act'):
+        if hasattr(self, "fit_act"):
             self.fit_act.setChecked(False)
-        if hasattr(self, 'native_act'):
+        if hasattr(self, "native_act"):
             self.native_act.setChecked(True)
         self.zoom_factor = 1.0
         self.update_image()
@@ -220,9 +247,9 @@ class ImagePreviewWindow(QMainWindow):
         if mode and self.fit_to_window:
             self.fit_to_window = False
             self.zoom_factor = 1.0
-            if hasattr(self, 'fit_act'):
+            if hasattr(self, "fit_act"):
                 self.fit_act.setChecked(False)
-            if hasattr(self, 'native_act'):
+            if hasattr(self, "native_act"):
                 self.native_act.setChecked(True)
             self.update_image()
 
@@ -233,7 +260,7 @@ class ImagePreviewWindow(QMainWindow):
         self.crop_mode = None
 
         # Uncheck all crop actions
-        if hasattr(self, 'crop_action_group'):
+        if hasattr(self, "crop_action_group"):
             for action in self.crop_action_group.actions():
                 action.setChecked(False)
 
@@ -293,7 +320,9 @@ class ImagePreviewWindow(QMainWindow):
         orig_height = int(crop_rect.height() * scale_y)
 
         # Display in status bar label (clickable)
-        self.crop_dimensions_label.setText(f"Crop: {orig_width} × {orig_height} (click to edit)")
+        self.crop_dimensions_label.setText(
+            f"Crop: {orig_width} × {orig_height} (click to edit)"
+        )
 
     def update_zoom_display(self):
         """Update status bar with current zoom percentage."""
@@ -345,12 +374,16 @@ class ImagePreviewWindow(QMainWindow):
         layout.addLayout(height_layout)
 
         # Info label
-        info_label = QLabel(f"Max dimensions: {self.original_pixmap.width()} × {self.original_pixmap.height()}")
+        info_label = QLabel(
+            f"Max dimensions: {self.original_pixmap.width()} × {self.original_pixmap.height()}"
+        )
         info_label.setStyleSheet("color: gray; font-size: 10px;")
         layout.addWidget(info_label)
 
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
@@ -364,12 +397,22 @@ class ImagePreviewWindow(QMainWindow):
 
                 # Validate dimensions
                 if new_width < 1 or new_height < 1:
-                    QMessageBox.warning(self, "Invalid Dimensions", "Width and height must be at least 1 pixel.")
+                    QMessageBox.warning(
+                        self,
+                        "Invalid Dimensions",
+                        "Width and height must be at least 1 pixel.",
+                    )
                     return
 
-                if new_width > self.original_pixmap.width() or new_height > self.original_pixmap.height():
-                    QMessageBox.warning(self, "Invalid Dimensions",
-                        f"Dimensions cannot exceed image size ({self.original_pixmap.width()} × {self.original_pixmap.height()}).")
+                if (
+                    new_width > self.original_pixmap.width()
+                    or new_height > self.original_pixmap.height()
+                ):
+                    QMessageBox.warning(
+                        self,
+                        "Invalid Dimensions",
+                        f"Dimensions cannot exceed image size ({self.original_pixmap.width()} × {self.original_pixmap.height()}).",
+                    )
                     return
 
                 # Convert to displayed coordinates
@@ -378,10 +421,7 @@ class ImagePreviewWindow(QMainWindow):
 
                 # Keep top-left corner fixed, adjust bottom-right
                 new_rect = QRect(
-                    crop_rect.x(),
-                    crop_rect.y(),
-                    new_display_width,
-                    new_display_height
+                    crop_rect.x(), crop_rect.y(), new_display_width, new_display_height
                 )
 
                 # Ensure crop doesn't go outside image bounds
@@ -397,7 +437,9 @@ class ImagePreviewWindow(QMainWindow):
                 self.update_crop_dimensions_display()
 
             except ValueError:
-                QMessageBox.warning(self, "Invalid Input", "Please enter valid integer dimensions.")
+                QMessageBox.warning(
+                    self, "Invalid Input", "Please enter valid integer dimensions."
+                )
                 return
 
     def load_image(self):
@@ -409,7 +451,9 @@ class ImagePreviewWindow(QMainWindow):
             return
 
         path = self.image_list[self.current_index]
-        self.setWindowTitle(f"Preview [{self.current_index + 1}/{len(self.image_list)}]: {os.path.basename(path)}")
+        self.setWindowTitle(
+            f"Preview [{self.current_index + 1}/{len(self.image_list)}]: {os.path.basename(path)}"
+        )
         self.original_pixmap = QPixmap(path)
 
         # Reset zoom when loading new image in non-fit mode
@@ -434,7 +478,7 @@ class ImagePreviewWindow(QMainWindow):
                 scaled = self.original_pixmap.scaled(
                     viewport_size,
                     Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
+                    Qt.TransformationMode.SmoothTransformation,
                 )
                 self.image_label.setPixmap(scaled)
                 self.image_label.adjustSize()
@@ -442,7 +486,9 @@ class ImagePreviewWindow(QMainWindow):
             # Use zoom factor for manual scaling
             new_width = int(self.original_pixmap.width() * self.zoom_factor)
             if new_width > 0:
-                scaled = self.original_pixmap.scaledToWidth(new_width, Qt.TransformationMode.SmoothTransformation)
+                scaled = self.original_pixmap.scaledToWidth(
+                    new_width, Qt.TransformationMode.SmoothTransformation
+                )
                 self.image_label.setPixmap(scaled)
                 self.image_label.adjustSize()
 
@@ -464,23 +510,28 @@ class ImagePreviewWindow(QMainWindow):
 
         # Read the confirmation setting safely
         should_confirm = True  # Default for safety
-        if main_win and hasattr(main_win, 'conf_delete_act'):
+        if main_win and hasattr(main_win, "conf_delete_act"):
             should_confirm = main_win.conf_delete_act.isChecked()
 
         do_delete = True
         if should_confirm:
             delete_type = "permanently delete" if permanent else "delete"
             reply = QMessageBox.question(
-                self, "Delete Image",
+                self,
+                "Delete Image",
                 f"Are you sure you want to {delete_type} {os.path.basename(path_to_delete)}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
-            do_delete = (reply == QMessageBox.StandardButton.Yes)
+            do_delete = reply == QMessageBox.StandardButton.Yes
 
         if do_delete:
             try:
                 # Start a new deletion batch for undo (clears previous undo state)
-                if not permanent and main_win and hasattr(main_win, 'delete_undo_manager'):
+                if (
+                    not permanent
+                    and main_win
+                    and hasattr(main_win, "delete_undo_manager")
+                ):
                     main_win.delete_undo_manager.start_new_deletion()
 
                 # 1. Physical Delete or store for undo
@@ -489,13 +540,13 @@ class ImagePreviewWindow(QMainWindow):
                         os.remove(path_to_delete)
                     else:
                         # Store for undo (moves to temp location)
-                        if main_win and hasattr(main_win, 'delete_undo_manager'):
+                        if main_win and hasattr(main_win, "delete_undo_manager"):
                             main_win.delete_undo_manager.store_for_undo(path_to_delete)
                         else:
                             os.remove(path_to_delete)
 
                 # 2. UI SYNC: Update the main window's thumbnail list
-                if main_win and hasattr(main_win, 'remove_thumbnails_by_path'):
+                if main_win and hasattr(main_win, "remove_thumbnails_by_path"):
                     main_win.remove_thumbnails_by_path([path_to_delete])
 
                 # 3. Update Preview state
@@ -510,11 +561,15 @@ class ImagePreviewWindow(QMainWindow):
                     self.load_image()
 
                 # Show status message
-                if main_win and hasattr(main_win, 'status_bar'):
+                if main_win and hasattr(main_win, "status_bar"):
                     if permanent:
-                        main_win.status_bar.showMessage("Permanently deleted image", 3000)
+                        main_win.status_bar.showMessage(
+                            "Permanently deleted image", 3000
+                        )
                     else:
-                        main_win.status_bar.showMessage("Deleted image - Ctrl+Z to undo", 3000)
+                        main_win.status_bar.showMessage(
+                            "Deleted image - Ctrl+Z to undo", 3000
+                        )
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not delete: {e}")
@@ -538,7 +593,7 @@ class ImagePreviewWindow(QMainWindow):
 
             # Save back to file
             img_format = img.format
-            if img_format in ['JPEG', 'JPG']:
+            if img_format in ["JPEG", "JPG"]:
                 rotated.save(current_path, format=img_format, quality=95, optimize=True)
             else:
                 rotated.save(current_path, format=img_format)
@@ -557,14 +612,19 @@ class ImagePreviewWindow(QMainWindow):
                 new_h_ratio = w_ratio  # old width becomes new height
 
                 # Store transformed ratios
-                self.crop_overlay.crop_ratios = (new_x_ratio, new_y_ratio, new_w_ratio, new_h_ratio)
+                self.crop_overlay.crop_ratios = (
+                    new_x_ratio,
+                    new_y_ratio,
+                    new_w_ratio,
+                    new_h_ratio,
+                )
 
             # Reload the image in preview
             self.load_image()
 
             # Update main window thumbnail if accessible
             main_win = self.parent_app or find_main_window()
-            if main_win and hasattr(main_win, 'thumb_list'):
+            if main_win and hasattr(main_win, "thumb_list"):
                 # Find and update the thumbnail for this image
                 thumb_list = main_win.thumb_list
                 for i in range(thumb_list.count()):
@@ -579,7 +639,7 @@ class ImagePreviewWindow(QMainWindow):
                         break
 
             # Show status
-            if main_win and hasattr(main_win, 'status_bar'):
+            if main_win and hasattr(main_win, "status_bar"):
                 main_win.status_bar.showMessage("Rotated image 90° clockwise", 2000)
 
         except Exception as e:
@@ -653,7 +713,7 @@ class ImagePreviewWindow(QMainWindow):
                 self,
                 "Extract to File",
                 auto_filename,
-                "Images (*.png *.jpg *.jpeg *.gif *.webp *.avif *.tiff *.bmp);;All Files (*)"
+                "Images (*.png *.jpg *.jpeg *.gif *.webp *.avif *.tiff *.bmp *.tn3);;All Files (*)",
             )
 
             if not extract_path:
@@ -664,27 +724,30 @@ class ImagePreviewWindow(QMainWindow):
             # Load original image with PIL
             with Image.open(image_path) as img:
                 # Crop the image
-                cropped = img.crop((orig_x, orig_y, orig_x + orig_width, orig_y + orig_height))
+                cropped = img.crop(
+                    (orig_x, orig_y, orig_x + orig_width, orig_y + orig_height)
+                )
 
                 # Save to new file
                 # Determine format from extension
                 save_format = None
                 ext = os.path.splitext(extract_path)[1].lower()
-                if ext in ['.jpg', '.jpeg']:
-                    save_format = 'JPEG'
-                    cropped.save(extract_path, format=save_format, quality=95, optimize=True)
-                elif ext == '.png':
-                    save_format = 'PNG'
+                if ext in [".jpg", ".jpeg"]:
+                    save_format = "JPEG"
+                    cropped.save(
+                        extract_path, format=save_format, quality=95, optimize=True
+                    )
+                elif ext == ".png":
+                    save_format = "PNG"
                     cropped.save(extract_path, format=save_format)
                 else:
                     # Let PIL auto-detect format
                     cropped.save(extract_path)
 
             # Show success message in preview window's own status bar
-            if hasattr(self, 'status_bar'):
+            if hasattr(self, "status_bar"):
                 self.status_bar.showMessage(
-                    f"Extracted crop to: {os.path.basename(extract_path)}",
-                    5000
+                    f"Extracted crop to: {os.path.basename(extract_path)}", 5000
                 )
 
         except Exception as e:
@@ -733,24 +796,27 @@ class ImagePreviewWindow(QMainWindow):
         # Check confirmation setting
         main_win = self.parent_app or find_main_window()
         should_confirm = True
-        if main_win and hasattr(main_win, 'conf_delete_act'):
+        if main_win and hasattr(main_win, "conf_delete_act"):
             should_confirm = main_win.conf_delete_act.isChecked()
 
         do_save = True
         if should_confirm:
             reply = QMessageBox.question(
-                self, "Confirm Crop",
+                self,
+                "Confirm Crop",
                 f"This will overwrite the original file:\n{os.path.basename(image_path)}\n\nContinue?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
-            do_save = (reply == QMessageBox.StandardButton.Yes)
+            do_save = reply == QMessageBox.StandardButton.Yes
 
         if do_save:
             try:
                 # Load original image with PIL
                 with Image.open(image_path) as img:
                     # Crop the image
-                    cropped = img.crop((orig_x, orig_y, orig_x + orig_width, orig_y + orig_height))
+                    cropped = img.crop(
+                        (orig_x, orig_y, orig_x + orig_width, orig_y + orig_height)
+                    )
 
                     # Save back to original file
                     cropped.save(image_path)
@@ -762,10 +828,14 @@ class ImagePreviewWindow(QMainWindow):
 
                 # Show success message
                 if main_win:
-                    main_win.status_bar.showMessage(f"Cropped and saved: {os.path.basename(image_path)}", 3000)
+                    main_win.status_bar.showMessage(
+                        f"Cropped and saved: {os.path.basename(image_path)}", 3000
+                    )
 
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not save cropped image:\n{e}")
+                QMessageBox.critical(
+                    self, "Error", f"Could not save cropped image:\n{e}"
+                )
 
     def open_enhance_dialog(self, operation=None):
         """Open the enhancement dialog for the current image."""
@@ -783,7 +853,7 @@ class ImagePreviewWindow(QMainWindow):
 
             # Update main window thumbnail
             main_win = self.parent_app or find_main_window()
-            if main_win and hasattr(main_win, 'thumb_list'):
+            if main_win and hasattr(main_win, "thumb_list"):
                 thumb_list = main_win.thumb_list
                 for i in range(thumb_list.count()):
                     item = thumb_list.item(i)
@@ -795,21 +865,35 @@ class ImagePreviewWindow(QMainWindow):
                         thumb_list.viewport().update()
                         break
 
-            if main_win and hasattr(main_win, 'status_bar'):
-                main_win.status_bar.showMessage(f"Enhanced: {os.path.basename(image_path)}", 3000)
+            if main_win and hasattr(main_win, "status_bar"):
+                main_win.status_bar.showMessage(
+                    f"Enhanced: {os.path.basename(image_path)}", 3000
+                )
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape or (event.key() == Qt.Key.Key_W and event.modifiers() == Qt.KeyboardModifier.ControlModifier):
+        if event.key() == Qt.Key.Key_Escape or (
+            event.key() == Qt.Key.Key_W
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             self.close()
-        elif event.key() == Qt.Key.Key_S and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_S
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             # Ctrl+S to save crop
             if self.crop_mode:
                 self.save_crop()
-        elif event.key() == Qt.Key.Key_E and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_E
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             # Ctrl+E to extract crop
             if self.crop_mode:
                 self.extract_crop()
-        elif event.key() == Qt.Key.Key_R and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_R
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             # Ctrl+R to rotate current image
             self.rotate_current_image()
         elif event.key() == Qt.Key.Key_Left:
@@ -840,9 +924,9 @@ class ImagePreviewWindow(QMainWindow):
     def resizeEvent(self, event):
         """Handle preview window resize - triggers image update for fit mode."""
         super().resizeEvent(event)
-        if hasattr(self, 'fit_to_window') and self.fit_to_window:
+        if hasattr(self, "fit_to_window") and self.fit_to_window:
             # Use a timer to debounce resize events
-            if not hasattr(self, '_resize_timer'):
+            if not hasattr(self, "_resize_timer"):
                 self._resize_timer = QTimer()
                 self._resize_timer.setSingleShot(True)
                 self._resize_timer.timeout.connect(self.update_image)
@@ -855,9 +939,9 @@ class ImagePreviewWindow(QMainWindow):
             if self.fit_to_window:
                 self.fit_to_window = False
                 self.zoom_factor = 1.0
-                if hasattr(self, 'fit_act'):
+                if hasattr(self, "fit_act"):
                     self.fit_act.setChecked(False)
-                if hasattr(self, 'native_act'):
+                if hasattr(self, "native_act"):
                     self.native_act.setChecked(True)
 
             # Apply zoom
@@ -876,12 +960,18 @@ class ImagePreviewWindow(QMainWindow):
             self.keyPressEvent(event)
             return True
         # Update crop dimensions when the overlay changes
-        elif source == self.crop_overlay and event.type() in (event.Type.MouseMove, event.Type.MouseButtonRelease, event.Type.Paint):
+        elif source == self.crop_overlay and event.type() in (
+            event.Type.MouseMove,
+            event.Type.MouseButtonRelease,
+            event.Type.Paint,
+        ):
             # Use a timer to debounce updates during drag operations
-            if not hasattr(self, '_crop_update_timer'):
+            if not hasattr(self, "_crop_update_timer"):
                 self._crop_update_timer = QTimer()
                 self._crop_update_timer.setSingleShot(True)
-                self._crop_update_timer.timeout.connect(self.update_crop_dimensions_display)
+                self._crop_update_timer.timeout.connect(
+                    self.update_crop_dimensions_display
+                )
             self._crop_update_timer.start(10)
         return super().eventFilter(source, event)
 
@@ -895,7 +985,9 @@ class ImagePreviewWindow(QMainWindow):
         current_path = os.path.normpath(self.image_list[self.current_index])
 
         # 1. Update the internal image_list by removing all deleted paths
-        self.image_list = [p for p in self.image_list if os.path.normpath(p) not in deleted_set]
+        self.image_list = [
+            p for p in self.image_list if os.path.normpath(p) not in deleted_set
+        ]
 
         # 2. If the current image was deleted, we need to refresh the view
         if current_path in deleted_set:
@@ -910,11 +1002,17 @@ class ImagePreviewWindow(QMainWindow):
             # Current image still exists, but its index in the list might have changed
             # Find its new position to keep navigation working correctly
             try:
-                self.current_index = self.image_list.index(next(
-                    p for p in self.image_list if os.path.normpath(p) == current_path
-                ))
+                self.current_index = self.image_list.index(
+                    next(
+                        p
+                        for p in self.image_list
+                        if os.path.normpath(p) == current_path
+                    )
+                )
                 # Update title only (index counts will have changed)
-                self.setWindowTitle(f"Preview [{self.current_index + 1}/{len(self.image_list)}]: {os.path.basename(current_path)}")
+                self.setWindowTitle(
+                    f"Preview [{self.current_index + 1}/{len(self.image_list)}]: {os.path.basename(current_path)}"
+                )
             except StopIteration:
                 pass
 

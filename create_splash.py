@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 # Create image (800x400 pixels)
 width, height = 800, 400
-img = Image.new('RGB', (width, height))
+img = Image.new("RGB", (width, height))
 draw = ImageDraw.Draw(img)
 
 # Gradient background (blue to purple)
@@ -19,10 +19,16 @@ for y in range(height):
 
 # Try to use a nice font, fall back to default
 try:
-    title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-    subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-    loading_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-except:
+    title_font = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48
+    )
+    subtitle_font = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24
+    )
+    loading_font = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20
+    )
+except Exception:
     title_font = ImageFont.load_default()
     subtitle_font = ImageFont.load_default()
     loading_font = ImageFont.load_default()
@@ -56,16 +62,22 @@ colors = [
 
 for i, color in enumerate(colors):
     x = icon_start_x + i * (icon_size + icon_spacing)
-    draw.rectangle([(x, icon_start_y), (x + icon_size, icon_start_y + icon_size)],
-                   fill=color, outline=(255, 255, 255), width=2)
+    draw.rectangle(
+        [(x, icon_start_y), (x + icon_size, icon_start_y + icon_size)],
+        fill=color,
+        outline=(255, 255, 255),
+        width=2,
+    )
 
 # Draw loading text at bottom
 loading_text = "Loading..."
 loading_bbox = draw.textbbox((0, 0), loading_text, font=loading_font)
 loading_width = loading_bbox[2] - loading_bbox[0]
 loading_x = (width - loading_width) // 2
-draw.text((loading_x, height - 60), loading_text, fill=(255, 255, 255), font=loading_font)
+draw.text(
+    (loading_x, height - 60), loading_text, fill=(255, 255, 255), font=loading_font
+)
 
 # Save image
-img.save('splash.png')
+img.save("splash.png")
 print("Splash screen created: splash.png")

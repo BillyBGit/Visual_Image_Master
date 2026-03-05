@@ -3,10 +3,25 @@ YOLO labeling window for creating training datasets.
 """
 
 import os
-from PySide6.QtWidgets import (QMainWindow, QScrollArea, QLabel, QSplitter, QWidget,
-                                QVBoxLayout, QHBoxLayout, QStatusBar, QApplication,
-                                QComboBox, QGroupBox, QPushButton, QRadioButton,
-                                QButtonGroup, QInputDialog, QMessageBox, QMenu)
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QScrollArea,
+    QLabel,
+    QSplitter,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QStatusBar,
+    QApplication,
+    QComboBox,
+    QGroupBox,
+    QPushButton,
+    QRadioButton,
+    QButtonGroup,
+    QInputDialog,
+    QMessageBox,
+    QMenu,
+)
 from PySide6.QtCore import Qt, QTimer, QSize, QPoint, QRect
 from PySide6.QtGui import QAction, QPixmap, QKeySequence
 
@@ -30,8 +45,8 @@ class YoloWindow(QMainWindow):
     """Window for YOLO dataset labeling with image display and annotation tools."""
 
     # Size mode constants
-    SIZE_MODE_IMAGE = "image"      # Selection size scales with image zoom
-    SIZE_MODE_SCREEN = "screen"    # Selection size stays fixed on screen
+    SIZE_MODE_IMAGE = "image"  # Selection size scales with image zoom
+    SIZE_MODE_SCREEN = "screen"  # Selection size stays fixed on screen
 
     def __init__(self, image_list, current_index, parent=None):
         super().__init__(parent)
@@ -117,13 +132,17 @@ class YoloWindow(QMainWindow):
         self.size_mode_group = QButtonGroup(self)
 
         self.image_mode_radio = QRadioButton("Image")
-        self.image_mode_radio.setToolTip("Selection size is in image pixels (scales with zoom)")
+        self.image_mode_radio.setToolTip(
+            "Selection size is in image pixels (scales with zoom)"
+        )
         self.image_mode_radio.setChecked(True)
         self.size_mode_group.addButton(self.image_mode_radio)
         mode_layout.addWidget(self.image_mode_radio)
 
         self.screen_mode_radio = QRadioButton("Screen")
-        self.screen_mode_radio.setToolTip("Selection size is in screen pixels (fixed on screen)")
+        self.screen_mode_radio.setToolTip(
+            "Selection size is in screen pixels (fixed on screen)"
+        )
         self.size_mode_group.addButton(self.screen_mode_radio)
         mode_layout.addWidget(self.screen_mode_radio)
 
@@ -154,10 +173,16 @@ class YoloWindow(QMainWindow):
 
         # Dropdown for existing extractions
         self.extractions_combo = QComboBox()
-        self.extractions_combo.setToolTip("Select a previously extracted image to load its annotations")
+        self.extractions_combo.setToolTip(
+            "Select a previously extracted image to load its annotations"
+        )
         self.extractions_combo.currentIndexChanged.connect(self._on_extraction_selected)
-        self.extractions_combo.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.extractions_combo.customContextMenuRequested.connect(self._show_extractions_context_menu)
+        self.extractions_combo.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.extractions_combo.customContextMenuRequested.connect(
+            self._show_extractions_context_menu
+        )
         extractions_layout.addWidget(self.extractions_combo)
 
         self.right_panel_layout.addWidget(self.extractions_group)
@@ -170,8 +195,12 @@ class YoloWindow(QMainWindow):
         self.label_panel.labels_changed.connect(self._on_labels_changed)
         self.label_panel.output_path_changed.connect(self._on_output_path_changed)
         self.label_panel.save_requested.connect(self._on_save_requested)
-        self.label_panel.load_directory_requested.connect(self._on_load_directory_requested)
-        self.label_panel.refresh_files_requested.connect(self._on_refresh_files_requested)
+        self.label_panel.load_directory_requested.connect(
+            self._on_load_directory_requested
+        )
+        self.label_panel.refresh_files_requested.connect(
+            self._on_refresh_files_requested
+        )
         self.right_panel_layout.addWidget(self.label_panel, 1)  # Stretch to fill
 
         self.splitter.addWidget(self.right_panel)
@@ -229,7 +258,9 @@ class YoloWindow(QMainWindow):
         for level in zoom_levels:
             action = QAction(f"{level}%", self)
             action.setData(level)
-            action.triggered.connect(lambda checked, l=level: self._set_zoom_level(l))
+            action.triggered.connect(
+                lambda checked, lvl=level: self._set_zoom_level(lvl)
+            )
             zoom_menu.addAction(action)
             self.zoom_actions[level] = action
 
@@ -288,9 +319,9 @@ class YoloWindow(QMainWindow):
             "Custom Zoom",
             "Enter zoom percentage (10-1000):",
             current_percent,
-            10,    # minimum
+            10,  # minimum
             1000,  # maximum
-            1      # step
+            1,  # step
         )
 
         if ok:
@@ -333,7 +364,9 @@ class YoloWindow(QMainWindow):
                 self.native_act.setChecked(True)
                 self.update_image()
 
-            self.status_bar.showMessage(f"Selection size: {size.width()} × {size.height()}", 3000)
+            self.status_bar.showMessage(
+                f"Selection size: {size.width()} × {size.height()}", 3000
+            )
         else:
             self.set_btn.setEnabled(False)
             self.status_bar.showMessage("Please select a resolution", 3000)
@@ -373,7 +406,7 @@ class YoloWindow(QMainWindow):
         self.status_bar.showMessage(
             f"Selection {size.width()}×{size.height()} > image {img_w}×{img_h}: "
             f"Switched to Screen mode, zoomed to {int(required_zoom * 100)}%",
-            5000
+            5000,
         )
 
         self._update_overlay()
@@ -402,7 +435,8 @@ class YoloWindow(QMainWindow):
                 self.overlay.selection_ratios = None
                 self.overlay.selection_position_ratios = None
                 self.overlay.set_size_mode(
-                    YoloOverlay.SIZE_MODE_IMAGE if self.size_mode == self.SIZE_MODE_IMAGE
+                    YoloOverlay.SIZE_MODE_IMAGE
+                    if self.size_mode == self.SIZE_MODE_IMAGE
                     else YoloOverlay.SIZE_MODE_SCREEN
                 )
             self._update_overlay()
@@ -434,7 +468,7 @@ class YoloWindow(QMainWindow):
         mode_name = "image" if self.size_mode == self.SIZE_MODE_IMAGE else "screen"
         self.status_bar.showMessage(
             f"Selection locked: {self.selection_size.width()} × {self.selection_size.height()} ({mode_name} pixels)",
-            5000
+            5000,
         )
 
     def _on_clear_clicked(self):
@@ -458,7 +492,9 @@ class YoloWindow(QMainWindow):
     def _update_selection_display(self):
         """Update status bar with selection info."""
         if self.selection_size:
-            mode_suffix = " (img)" if self.size_mode == self.SIZE_MODE_IMAGE else " (scr)"
+            mode_suffix = (
+                " (img)" if self.size_mode == self.SIZE_MODE_IMAGE else " (scr)"
+            )
             lock_suffix = " [SET]" if self.selection_locked else ""
             self.selection_label.setText(
                 f"Selection: {self.selection_size.width()} × {self.selection_size.height()}{mode_suffix}{lock_suffix}"
@@ -474,7 +510,8 @@ class YoloWindow(QMainWindow):
             self.overlay.annotations_changed.connect(self._on_annotations_changed)
             # Set initial size mode
             self.overlay.set_size_mode(
-                YoloOverlay.SIZE_MODE_IMAGE if self.size_mode == self.SIZE_MODE_IMAGE
+                YoloOverlay.SIZE_MODE_IMAGE
+                if self.size_mode == self.SIZE_MODE_IMAGE
                 else YoloOverlay.SIZE_MODE_SCREEN
             )
             # Set selection locked state (drawing only allowed when locked)
@@ -526,7 +563,7 @@ class YoloWindow(QMainWindow):
             scale = displayed_pixmap.width() / self.original_pixmap.width()
             display_selection_size = QSize(
                 int(self.selection_size.width() * scale),
-                int(self.selection_size.height() * scale)
+                int(self.selection_size.height() * scale),
             )
         else:
             # Screen mode: selection_size is in screen pixels (fixed)
@@ -537,7 +574,9 @@ class YoloWindow(QMainWindow):
 
         # Update overlay geometry to match image label
         self.overlay.setGeometry(self.image_label.rect())
-        self.overlay.set_selection_size(display_selection_size, displayed_pixmap.size(), image_offset)
+        self.overlay.set_selection_size(
+            display_selection_size, displayed_pixmap.size(), image_offset
+        )
         self.overlay.raise_()
 
     def _on_selection_changed(self):
@@ -547,14 +586,14 @@ class YoloWindow(QMainWindow):
 
     def _on_label_selected(self, class_id, color, name):
         """Handle label selection from the label panel."""
-        self.status_bar.showMessage(f"Selected label: {name} (class {class_id}) - Draw mode active", 3000)
+        self.status_bar.showMessage(
+            f"Selected label: {name} (class {class_id}) - Draw mode active", 3000
+        )
         # Update overlay with selected label for drawing
         if self.overlay:
-            self.overlay.set_draw_label({
-                'class_id': class_id,
-                'color': color,
-                'name': name
-            })
+            self.overlay.set_draw_label(
+                {"class_id": class_id, "color": color, "name": name}
+            )
 
     def _on_label_deleted(self, class_id):
         """Handle label deletion - remove corresponding annotations."""
@@ -562,7 +601,9 @@ class YoloWindow(QMainWindow):
             return
 
         if self.overlay.delete_annotations_by_class(class_id):
-            self.status_bar.showMessage(f"Removed annotations for deleted label (class {class_id})", 3000)
+            self.status_bar.showMessage(
+                f"Removed annotations for deleted label (class {class_id})", 3000
+            )
             self._set_unsaved_changes(True)
 
     def _on_labels_renumbered(self, id_mapping):
@@ -577,9 +618,9 @@ class YoloWindow(QMainWindow):
         # Update current overlay annotations
         if self.overlay:
             for annotation in self.overlay.annotations:
-                old_id = annotation['class_id']
+                old_id = annotation["class_id"]
                 if old_id in id_mapping:
-                    annotation['class_id'] = id_mapping[old_id]
+                    annotation["class_id"] = id_mapping[old_id]
             self.overlay.update()
 
         # Update all label files in the output directory
@@ -588,7 +629,8 @@ class YoloWindow(QMainWindow):
             updated_count = self._update_all_label_files(output_path, id_mapping)
             if updated_count > 0:
                 self.status_bar.showMessage(
-                    f"Updated {updated_count} label file(s) with renumbered classes", 3000
+                    f"Updated {updated_count} label file(s) with renumbered classes",
+                    3000,
                 )
 
             # Also update the YAML file
@@ -613,17 +655,20 @@ class YoloWindow(QMainWindow):
             self.overlay.set_draw_label(None)
 
         # Update colors/names of existing annotations to match label panel
-        all_labels = {l['class_id']: l for l in self.label_panel.get_all_labels()}
+        all_labels = {lbl["class_id"]: lbl for lbl in self.label_panel.get_all_labels()}
         annotations_updated = False
 
         for annotation in self.overlay.annotations:
-            class_id = annotation['class_id']
+            class_id = annotation["class_id"]
             if class_id in all_labels:
                 label_info = all_labels[class_id]
                 # Update color and name if they changed
-                if annotation['color'] != label_info['color'] or annotation['name'] != label_info['name']:
-                    annotation['color'] = label_info['color']
-                    annotation['name'] = label_info['name']
+                if (
+                    annotation["color"] != label_info["color"]
+                    or annotation["name"] != label_info["name"]
+                ):
+                    annotation["color"] = label_info["color"]
+                    annotation["name"] = label_info["name"]
                     annotations_updated = True
 
         if annotations_updated:
@@ -663,10 +708,10 @@ class YoloWindow(QMainWindow):
             self,
             "Unsaved Changes",
             "You have unsaved changes. Do you want to save them before continuing?",
-            QMessageBox.StandardButton.Save |
-            QMessageBox.StandardButton.Discard |
-            QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
         )
 
         if reply == QMessageBox.StandardButton.Save:
@@ -730,7 +775,7 @@ class YoloWindow(QMainWindow):
 
         try:
             for filename in os.listdir(labels_dir):
-                if not filename.endswith('.txt'):
+                if not filename.endswith(".txt"):
                     continue
 
                 label_path = os.path.join(labels_dir, filename)
@@ -738,7 +783,7 @@ class YoloWindow(QMainWindow):
                     # Read, update class IDs, and rewrite the file
                     if self._refresh_single_label_file(label_path, all_labels):
                         updated_count += 1
-                except Exception as e:
+                except Exception:
                     error_count += 1
 
             # Also update the YAML file
@@ -773,7 +818,9 @@ class YoloWindow(QMainWindow):
             return False
 
         # Rewrite with current class mappings
-        YoloFileHandler.save_annotations(label_path, annotations, all_labels, source_info)
+        YoloFileHandler.save_annotations(
+            label_path, annotations, all_labels, source_info
+        )
         return True
 
     def _load_classes_from_yaml(self, output_path):
@@ -833,6 +880,7 @@ class YoloWindow(QMainWindow):
         if os.path.isdir(images_dir):
             # Find all matching images
             import re
+
             pattern = re.compile(rf"^{re.escape(base_name)}_(\d+)\.jpg$", re.IGNORECASE)
 
             try:
@@ -855,7 +903,9 @@ class YoloWindow(QMainWindow):
             for suffix_num, filename in extractions:
                 self.extractions_combo.addItem(filename, filename)
             # Add option to create a new extraction at the end
-            self.extractions_combo.addItem("Save new extraction", self.SAVE_NEW_EXTRACTION)
+            self.extractions_combo.addItem(
+                "Save new extraction", self.SAVE_NEW_EXTRACTION
+            )
 
         # Update group box title with count
         extraction_count = len(extractions)
@@ -893,9 +943,10 @@ class YoloWindow(QMainWindow):
 
         # Confirm deletion
         reply = QMessageBox.question(
-            self, "Delete Extraction",
+            self,
+            "Delete Extraction",
             f"Delete {filename} and its annotations?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply != QMessageBox.StandardButton.Yes:
@@ -937,7 +988,9 @@ class YoloWindow(QMainWindow):
             if self.overlay:
                 self.overlay.clear_annotations()
             self._set_unsaved_changes(True)
-            self.status_bar.showMessage("Ready to save new extraction - press Ctrl+S", 3000)
+            self.status_bar.showMessage(
+                "Ready to save new extraction - press Ctrl+S", 3000
+            )
             return
 
         # data is a filename - load that extraction
@@ -958,10 +1011,10 @@ class YoloWindow(QMainWindow):
 
             # Restore selection box position if source info is available
             if source_info and not self.original_pixmap.isNull():
-                sel_x = source_info.get('sel_x', 0)
-                sel_y = source_info.get('sel_y', 0)
-                sel_w = source_info.get('sel_w', 0)
-                sel_h = source_info.get('sel_h', 0)
+                sel_x = source_info.get("sel_x", 0)
+                sel_y = source_info.get("sel_y", 0)
+                sel_w = source_info.get("sel_w", 0)
+                sel_h = source_info.get("sel_h", 0)
 
                 if sel_w > 0 and sel_h > 0:
                     # Compute selection size in original image pixels
@@ -993,7 +1046,7 @@ class YoloWindow(QMainWindow):
                     self.overlay.selection_ratios = (sel_x, sel_y, sel_w, sel_h)
                     self.overlay.selection_position_ratios = (
                         sel_x + sel_w / 2,
-                        sel_y + sel_h / 2
+                        sel_y + sel_h / 2,
                     )
                     self.overlay.set_size_mode(YoloOverlay.SIZE_MODE_IMAGE)
                     self.overlay.set_selection_locked(True)
@@ -1010,7 +1063,8 @@ class YoloWindow(QMainWindow):
 
             self._set_unsaved_changes(False)
             self.status_bar.showMessage(
-                f"Loaded extraction: {filename} ({len(annotations)} annotation(s))", 3000
+                f"Loaded extraction: {filename} ({len(annotations)} annotation(s))",
+                3000,
             )
 
         except Exception as e:
@@ -1035,6 +1089,7 @@ class YoloWindow(QMainWindow):
 
         # Find the highest existing suffix
         import re
+
         pattern = re.compile(rf"^{re.escape(base_name)}_(\d+)\.jpg$", re.IGNORECASE)
         max_suffix = -1
 
@@ -1071,7 +1126,11 @@ class YoloWindow(QMainWindow):
 
         # Get selection rect in original image coordinates
         selection_rect_orig = self._get_selection_rect_original()
-        if selection_rect_orig.isNull() or selection_rect_orig.width() <= 0 or selection_rect_orig.height() <= 0:
+        if (
+            selection_rect_orig.isNull()
+            or selection_rect_orig.width() <= 0
+            or selection_rect_orig.height() <= 0
+        ):
             self.status_bar.showMessage("Invalid selection area", 3000)
             return
 
@@ -1097,7 +1156,7 @@ class YoloWindow(QMainWindow):
                 cropped_pixmap = cropped_pixmap.scaled(
                     self.selection_size,
                     Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
+                    Qt.TransformationMode.SmoothTransformation,
                 )
 
             # Determine save name based on dropdown selection
@@ -1116,7 +1175,9 @@ class YoloWindow(QMainWindow):
             # Save image
             image_path = os.path.join(images_dir, f"{save_name}.jpg")
             if not cropped_pixmap.save(image_path, "JPEG", 95):
-                self.status_bar.showMessage(f"Failed to save image to {image_path}", 3000)
+                self.status_bar.showMessage(
+                    f"Failed to save image to {image_path}", 3000
+                )
                 return
 
             # Save YOLO annotations
@@ -1131,7 +1192,7 @@ class YoloWindow(QMainWindow):
             self._set_unsaved_changes(False)
 
             # Update the extractions list
-            old_index = self.extractions_combo.currentIndex()
+            _old_index = self.extractions_combo.currentIndex()
             self._update_extractions_list()
 
             # Select the saved extraction in the dropdown
@@ -1159,9 +1220,7 @@ class YoloWindow(QMainWindow):
             if self.auto_advance_act.isChecked() and self.image_list:
                 self.current_index = (self.current_index + 1) % len(self.image_list)
                 self.load_image()
-                self.status_bar.showMessage(
-                    f"Saved and advanced to next image", 3000
-                )
+                self.status_bar.showMessage("Saved and advanced to next image", 3000)
 
         except Exception as e:
             self.status_bar.showMessage(f"Save error: {str(e)}", 5000)
@@ -1245,7 +1304,9 @@ class YoloWindow(QMainWindow):
                         cx, cy = self.overlay.selection_position_ratios
                         display_pixmap = self.image_label.pixmap()
                         if display_pixmap and not display_pixmap.isNull():
-                            scale = self.original_pixmap.width() / display_pixmap.width()
+                            scale = (
+                                self.original_pixmap.width() / display_pixmap.width()
+                            )
                             w = self.selection_size.width() * scale
                             h = self.selection_size.height() * scale
                             sel_w = w / self.original_pixmap.width()
@@ -1254,13 +1315,13 @@ class YoloWindow(QMainWindow):
                             sel_y = cy - sel_h / 2
 
             source_info = {
-                'filename': os.path.basename(current_path),
-                'width': self.original_pixmap.width(),
-                'height': self.original_pixmap.height(),
-                'sel_x': sel_x,
-                'sel_y': sel_y,
-                'sel_w': sel_w,
-                'sel_h': sel_h
+                "filename": os.path.basename(current_path),
+                "width": self.original_pixmap.width(),
+                "height": self.original_pixmap.height(),
+                "sel_x": sel_x,
+                "sel_y": sel_y,
+                "sel_w": sel_w,
+                "sel_h": sel_h,
             }
 
         YoloFileHandler.save_annotations(path, annotations, all_labels, source_info)
@@ -1328,13 +1389,16 @@ class YoloWindow(QMainWindow):
             img_w = self.original_pixmap.width()
             img_h = self.original_pixmap.height()
 
-            if self.selection_size.width() > img_w or self.selection_size.height() > img_h:
+            if (
+                self.selection_size.width() > img_w
+                or self.selection_size.height() > img_h
+            ):
                 # Selection is larger than image - switch to screen mode and zoom
                 self._handle_oversized_selection(self.selection_size, img_w, img_h)
                 self._update_selection_display()
                 self.status_bar.showMessage(
                     f"Selection restored: {self.selection_size.width()} × {self.selection_size.height()} (not set - position and click Set)",
-                    4000
+                    4000,
                 )
                 return
 
@@ -1352,7 +1416,8 @@ class YoloWindow(QMainWindow):
         self._create_overlay()
         if self.overlay:
             self.overlay.set_size_mode(
-                YoloOverlay.SIZE_MODE_IMAGE if self.size_mode == self.SIZE_MODE_IMAGE
+                YoloOverlay.SIZE_MODE_IMAGE
+                if self.size_mode == self.SIZE_MODE_IMAGE
                 else YoloOverlay.SIZE_MODE_SCREEN
             )
             self.overlay.set_selection_locked(False)
@@ -1371,7 +1436,7 @@ class YoloWindow(QMainWindow):
 
         self.status_bar.showMessage(
             f"Selection restored: {self.selection_size.width()} × {self.selection_size.height()} (not set - position and click Set)",
-            4000
+            4000,
         )
 
     def toggle_fit_mode(self, checked):
@@ -1451,7 +1516,7 @@ class YoloWindow(QMainWindow):
                 scaled = self.original_pixmap.scaled(
                     viewport_size,
                     Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
+                    Qt.TransformationMode.SmoothTransformation,
                 )
                 self.image_label.setPixmap(scaled)
                 self.image_label.adjustSize()
@@ -1459,7 +1524,9 @@ class YoloWindow(QMainWindow):
             # Use zoom factor for manual scaling
             new_width = int(self.original_pixmap.width() * self.zoom_factor)
             if new_width > 0:
-                scaled = self.original_pixmap.scaledToWidth(new_width, Qt.TransformationMode.SmoothTransformation)
+                scaled = self.original_pixmap.scaledToWidth(
+                    new_width, Qt.TransformationMode.SmoothTransformation
+                )
                 self.image_label.setPixmap(scaled)
                 self.image_label.adjustSize()
 
@@ -1489,7 +1556,10 @@ class YoloWindow(QMainWindow):
                 if self._check_unsaved_changes():
                     self.current_index = (self.current_index + 1) % len(self.image_list)
                     self.load_image()
-        elif event.key() == Qt.Key.Key_S and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_S
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             # Ctrl+S to save (Phase 5)
             self._on_save_requested()
         elif event.key() >= Qt.Key.Key_0 and event.key() <= Qt.Key.Key_9:
@@ -1535,8 +1605,8 @@ class YoloWindow(QMainWindow):
     def resizeEvent(self, event):
         """Handle window resize - triggers image update for fit mode."""
         super().resizeEvent(event)
-        if hasattr(self, 'fit_to_window') and self.fit_to_window:
-            if not hasattr(self, '_resize_timer'):
+        if hasattr(self, "fit_to_window") and self.fit_to_window:
+            if not hasattr(self, "_resize_timer"):
                 self._resize_timer = QTimer()
                 self._resize_timer.setSingleShot(True)
                 self._resize_timer.timeout.connect(self.update_image)
@@ -1589,7 +1659,7 @@ class YoloWindow(QMainWindow):
             return
 
         # Load output path first
-        saved_path = getattr(main_win, 'yolo_output_path', '')
+        saved_path = getattr(main_win, "yolo_output_path", "")
         if saved_path:
             self.label_panel.set_output_path(saved_path)
 
@@ -1601,18 +1671,18 @@ class YoloWindow(QMainWindow):
 
         # Fall back to app settings if no YAML found
         if not loaded_from_yaml:
-            saved_labels = getattr(main_win, 'yolo_labels', [])
+            saved_labels = getattr(main_win, "yolo_labels", [])
             if saved_labels:
                 self.label_panel.set_labels(saved_labels)
 
         # Load resolution index
-        saved_res_index = getattr(main_win, 'yolo_resolution_index', 0)
+        saved_res_index = getattr(main_win, "yolo_resolution_index", 0)
         if 0 <= saved_res_index < self.resolution_combo.count():
             self.resolution_combo.setCurrentIndex(saved_res_index)
 
         # Load size mode
-        saved_mode = getattr(main_win, 'yolo_size_mode', 'image')
-        if saved_mode == 'screen':
+        saved_mode = getattr(main_win, "yolo_size_mode", "image")
+        if saved_mode == "screen":
             self.size_mode = self.SIZE_MODE_SCREEN
             self.screen_mode_radio.setChecked(True)
             if self.overlay:

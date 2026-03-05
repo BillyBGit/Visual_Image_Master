@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "sessionId": "fc7b1fd0-eba3-45a8-9e88-c25cdccc222a",
+  "status": "running",
+  "startedAt": "2026-03-05T20:02:34.409Z",
+  "updatedAt": "2026-03-05T20:45:40.196Z",
+  "currentIteration": 2,
+  "maxIterations": 50,
+  "tasksCompleted": 1,
+  "isPaused": false,
+  "agentPlugin": "ollama-bridge",
+  "trackerState": {
+    "plugin": "json",
+    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog___init__.json",
+    "totalTasks": 2,
+    "tasks": [
+      {
+        "id": "US-001",
+        "title": "Test AdvancedFilterDialog initialization and default settings",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-002",
+        "title": "Run all tests and fix failures",
+        "status": "open",
+        "completedInSession": false
+      }
+    ]
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test AdvancedFilterDialog initialization and default settings",
+      "taskCompleted": false,
+      "durationMs": 2582319,
+      "startedAt": "2026-03-05T20:02:34.424Z",
+      "endedAt": "2026-03-05T20:45:36.743Z"
+    },
+    {
+      "iteration": 2,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test AdvancedFilterDialog initialization and default settings",
+      "taskCompleted": true,
+      "durationMs": 663,
+      "startedAt": "2026-03-05T20:45:37.751Z",
+      "endedAt": "2026-03-05T20:45:38.414Z"
+    }
+  ],
+  "skippedTaskIds": [],
+  "cwd": "/home/hephaestus/Documents/scripts/img_sort",
+  "activeTaskIds": [],
+  "subagentPanelVisible": false
+}

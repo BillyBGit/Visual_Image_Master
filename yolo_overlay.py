@@ -3,20 +3,20 @@ YOLO overlay widget for selection box and annotation boxes.
 """
 
 from PySide6.QtWidgets import QWidget
-from PySide6.QtCore import Qt, QRect, QPoint, QSize, Signal, QRectF
-from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QFont
+from PySide6.QtCore import Qt, QRect, QPoint, QSize, Signal
+from PySide6.QtGui import QPainter, QPen, QColor
 
 
 class YoloOverlay(QWidget):
     """Overlay widget for YOLO labeling with selection box and annotation boxes."""
 
     # Size mode constants
-    SIZE_MODE_IMAGE = "image"    # Size scales with image zoom (ratios)
+    SIZE_MODE_IMAGE = "image"  # Size scales with image zoom (ratios)
     SIZE_MODE_SCREEN = "screen"  # Size stays fixed on screen (pixels)
 
     # Interaction modes
-    MODE_SELECT = "select"       # Select/move selection box or annotations
-    MODE_DRAW = "draw"           # Draw new annotation boxes
+    MODE_SELECT = "select"  # Select/move selection box or annotations
+    MODE_DRAW = "draw"  # Draw new annotation boxes
 
     # Handle types for resizing
     HANDLE_NONE = None
@@ -171,7 +171,10 @@ class YoloOverlay(QWidget):
             return QRect(x, y, w, h)
         else:
             # Screen mode: fixed size, position from ratios
-            if self.selection_position_ratios is None or self.selection_fixed_size is None:
+            if (
+                self.selection_position_ratios is None
+                or self.selection_fixed_size is None
+            ):
                 return QRect()
 
             center_x_ratio, center_y_ratio = self.selection_position_ratios
@@ -179,8 +182,12 @@ class YoloOverlay(QWidget):
             h = self.selection_fixed_size.height()
 
             # Center position in display coordinates
-            center_x = int(center_x_ratio * self.image_size.width()) + self.image_offset.x()
-            center_y = int(center_y_ratio * self.image_size.height()) + self.image_offset.y()
+            center_x = (
+                int(center_x_ratio * self.image_size.width()) + self.image_offset.x()
+            )
+            center_y = (
+                int(center_y_ratio * self.image_size.height()) + self.image_offset.y()
+            )
 
             # Top-left from center
             x = center_x - w // 2
@@ -192,8 +199,12 @@ class YoloOverlay(QWidget):
         """Get the image rectangle in display (widget) coordinates."""
         if self.image_size is None:
             return QRect()
-        return QRect(self.image_offset.x(), self.image_offset.y(),
-                    self.image_size.width(), self.image_size.height())
+        return QRect(
+            self.image_offset.x(),
+            self.image_offset.y(),
+            self.image_size.width(),
+            self.image_size.height(),
+        )
 
     def get_selection_rect(self):
         """Get the current selection rectangle in display coordinates."""
@@ -225,19 +236,23 @@ class YoloOverlay(QWidget):
             name: String label name
             ratios: Tuple (x, y, w, h) as ratios relative to selection box
         """
-        self.annotations.append({
-            'class_id': class_id,
-            'color': QColor(color) if isinstance(color, str) else color,
-            'name': name,
-            'ratios': ratios
-        })
+        self.annotations.append(
+            {
+                "class_id": class_id,
+                "color": QColor(color) if isinstance(color, str) else color,
+                "name": name,
+                "ratios": ratios,
+            }
+        )
         self.selected_annotation = len(self.annotations) - 1
         self.update()
         self.annotations_changed.emit()
 
     def delete_selected_annotation(self):
         """Delete the currently selected annotation."""
-        if self.selected_annotation is not None and 0 <= self.selected_annotation < len(self.annotations):
+        if self.selected_annotation is not None and 0 <= self.selected_annotation < len(
+            self.annotations
+        ):
             del self.annotations[self.selected_annotation]
             self.selected_annotation = None
             self.update()
@@ -248,7 +263,9 @@ class YoloOverlay(QWidget):
     def delete_annotations_by_class(self, class_id):
         """Delete all annotations with the given class ID."""
         original_count = len(self.annotations)
-        self.annotations = [ann for ann in self.annotations if ann['class_id'] != class_id]
+        self.annotations = [
+            ann for ann in self.annotations if ann["class_id"] != class_id
+        ]
 
         # Clear selection if selected annotation was deleted
         if self.selected_annotation is not None:
@@ -269,12 +286,16 @@ class YoloOverlay(QWidget):
         """Set annotations from saved data."""
         self.annotations = []
         for ann in annotations:
-            self.annotations.append({
-                'class_id': ann['class_id'],
-                'color': QColor(ann['color']) if isinstance(ann['color'], str) else ann['color'],
-                'name': ann.get('name', ''),
-                'ratios': tuple(ann['ratios'])
-            })
+            self.annotations.append(
+                {
+                    "class_id": ann["class_id"],
+                    "color": QColor(ann["color"])
+                    if isinstance(ann["color"], str)
+                    else ann["color"],
+                    "name": ann.get("name", ""),
+                    "ratios": tuple(ann["ratios"]),
+                }
+            )
         self.selected_annotation = None
         self.update()
 
@@ -284,7 +305,7 @@ class YoloOverlay(QWidget):
         if selection_rect.isNull():
             return QRect()
 
-        ratios = annotation.get('ratios', (0, 0, 0, 0))
+        ratios = annotation.get("ratios", (0, 0, 0, 0))
         x = selection_rect.x() + int(ratios[0] * selection_rect.width())
         y = selection_rect.y() + int(ratios[1] * selection_rect.height())
         w = int(ratios[2] * selection_rect.width())
@@ -295,7 +316,11 @@ class YoloOverlay(QWidget):
     def _display_to_selection_ratios(self, rect):
         """Convert display rect to ratios relative to selection box."""
         selection_rect = self._get_selection_rect_display()
-        if selection_rect.isNull() or selection_rect.width() == 0 or selection_rect.height() == 0:
+        if (
+            selection_rect.isNull()
+            or selection_rect.width() == 0
+            or selection_rect.height() == 0
+        ):
             return (0, 0, 0, 0)
 
         x_ratio = (rect.x() - selection_rect.x()) / selection_rect.width()
@@ -310,25 +335,25 @@ class YoloOverlay(QWidget):
         hs = self.handle_size
 
         # Corner handles
-        if QRect(rect.left() - hs//2, rect.top() - hs//2, hs, hs).contains(pos):
+        if QRect(rect.left() - hs // 2, rect.top() - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_TL
-        if QRect(rect.right() - hs//2, rect.top() - hs//2, hs, hs).contains(pos):
+        if QRect(rect.right() - hs // 2, rect.top() - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_TR
-        if QRect(rect.left() - hs//2, rect.bottom() - hs//2, hs, hs).contains(pos):
+        if QRect(rect.left() - hs // 2, rect.bottom() - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_BL
-        if QRect(rect.right() - hs//2, rect.bottom() - hs//2, hs, hs).contains(pos):
+        if QRect(rect.right() - hs // 2, rect.bottom() - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_BR
 
         # Edge handles
         mid_x = rect.center().x()
         mid_y = rect.center().y()
-        if QRect(mid_x - hs//2, rect.top() - hs//2, hs, hs).contains(pos):
+        if QRect(mid_x - hs // 2, rect.top() - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_T
-        if QRect(mid_x - hs//2, rect.bottom() - hs//2, hs, hs).contains(pos):
+        if QRect(mid_x - hs // 2, rect.bottom() - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_B
-        if QRect(rect.left() - hs//2, mid_y - hs//2, hs, hs).contains(pos):
+        if QRect(rect.left() - hs // 2, mid_y - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_L
-        if QRect(rect.right() - hs//2, mid_y - hs//2, hs, hs).contains(pos):
+        if QRect(rect.right() - hs // 2, mid_y - hs // 2, hs, hs).contains(pos):
             return self.HANDLE_R
 
         return self.HANDLE_NONE
@@ -347,8 +372,12 @@ class YoloOverlay(QWidget):
 
     def paintEvent(self, event):
         """Draw the selection box and annotation boxes."""
-        has_selection = (self.size_mode == self.SIZE_MODE_IMAGE and self.selection_ratios is not None) or \
-                       (self.size_mode == self.SIZE_MODE_SCREEN and self.selection_position_ratios is not None)
+        has_selection = (
+            self.size_mode == self.SIZE_MODE_IMAGE and self.selection_ratios is not None
+        ) or (
+            self.size_mode == self.SIZE_MODE_SCREEN
+            and self.selection_position_ratios is not None
+        )
 
         if not has_selection and not self.annotations and not self.drawing_annotation:
             return
@@ -363,7 +392,9 @@ class YoloOverlay(QWidget):
         # Draw annotation boxes
         selection_rect = self._get_selection_rect_display()
         for i, annotation in enumerate(self.annotations):
-            self._draw_annotation_box(painter, annotation, selection_rect, i == self.selected_annotation)
+            self._draw_annotation_box(
+                painter, annotation, selection_rect, i == self.selected_annotation
+            )
 
         # Draw annotation being created
         if self.drawing_annotation and self.current_draw_label:
@@ -385,33 +416,41 @@ class YoloOverlay(QWidget):
             # Top rectangle (within image)
             if selection_rect.top() > image_rect.top():
                 painter.fillRect(
-                    image_rect.left(), image_rect.top(),
-                    image_rect.width(), selection_rect.top() - image_rect.top(),
-                    overlay_color
+                    image_rect.left(),
+                    image_rect.top(),
+                    image_rect.width(),
+                    selection_rect.top() - image_rect.top(),
+                    overlay_color,
                 )
 
             # Bottom rectangle (within image)
             if selection_rect.bottom() < image_rect.bottom():
                 painter.fillRect(
-                    image_rect.left(), selection_rect.bottom(),
-                    image_rect.width(), image_rect.bottom() - selection_rect.bottom(),
-                    overlay_color
+                    image_rect.left(),
+                    selection_rect.bottom(),
+                    image_rect.width(),
+                    image_rect.bottom() - selection_rect.bottom(),
+                    overlay_color,
                 )
 
             # Left rectangle (within image, between top and bottom overlays)
             if selection_rect.left() > image_rect.left():
                 painter.fillRect(
-                    image_rect.left(), selection_rect.top(),
-                    selection_rect.left() - image_rect.left(), selection_rect.height(),
-                    overlay_color
+                    image_rect.left(),
+                    selection_rect.top(),
+                    selection_rect.left() - image_rect.left(),
+                    selection_rect.height(),
+                    overlay_color,
                 )
 
             # Right rectangle (within image, between top and bottom overlays)
             if selection_rect.right() < image_rect.right():
                 painter.fillRect(
-                    selection_rect.right(), selection_rect.top(),
-                    image_rect.right() - selection_rect.right(), selection_rect.height(),
-                    overlay_color
+                    selection_rect.right(),
+                    selection_rect.top(),
+                    image_rect.right() - selection_rect.right(),
+                    selection_rect.height(),
+                    overlay_color,
                 )
 
         # Draw red border around selection area
@@ -427,11 +466,15 @@ class YoloOverlay(QWidget):
             selection_rect.topLeft(),
             selection_rect.topRight(),
             selection_rect.bottomLeft(),
-            selection_rect.bottomRight()
+            selection_rect.bottomRight(),
         ]
         for corner in corners:
-            painter.drawRect(corner.x() - corner_size // 2, corner.y() - corner_size // 2,
-                           corner_size, corner_size)
+            painter.drawRect(
+                corner.x() - corner_size // 2,
+                corner.y() - corner_size // 2,
+                corner_size,
+                corner_size,
+            )
 
     def _draw_annotation_box(self, painter, annotation, selection_rect, is_selected):
         """Draw a single annotation box."""
@@ -439,8 +482,8 @@ class YoloOverlay(QWidget):
             return
 
         box_rect = self._get_annotation_rect_display(annotation)
-        color = annotation.get('color', QColor(0, 255, 0))
-        name = annotation.get('name', '')
+        color = annotation.get("color", QColor(0, 255, 0))
+        name = annotation.get("name", "")
 
         # Draw filled rectangle with transparency
         fill_color = QColor(color)
@@ -461,12 +504,19 @@ class YoloOverlay(QWidget):
             font.setPointSize(10)
             painter.setFont(font)
             text_rect = painter.fontMetrics().boundingRect(name)
-            text_bg = QRect(box_rect.x() + 2, box_rect.y() + 2, text_rect.width() + 6, text_rect.height() + 4)
+            text_bg = QRect(
+                box_rect.x() + 2,
+                box_rect.y() + 2,
+                text_rect.width() + 6,
+                text_rect.height() + 4,
+            )
             painter.fillRect(text_bg, color)
 
             # Text
             painter.setPen(QColor(255, 255, 255))
-            painter.drawText(box_rect.x() + 5, box_rect.y() + 2 + text_rect.height(), name)
+            painter.drawText(
+                box_rect.x() + 5, box_rect.y() + 2 + text_rect.height(), name
+            )
 
         # Draw resize handles if selected
         if is_selected:
@@ -479,10 +529,19 @@ class YoloOverlay(QWidget):
         painter.setPen(QPen(Qt.GlobalColor.white, 1))
 
         # Corner handles
-        corners = [rect.topLeft(), rect.topRight(), rect.bottomLeft(), rect.bottomRight()]
+        corners = [
+            rect.topLeft(),
+            rect.topRight(),
+            rect.bottomLeft(),
+            rect.bottomRight(),
+        ]
         for corner in corners:
-            painter.drawRect(corner.x() - handle_size // 2, corner.y() - handle_size // 2,
-                           handle_size, handle_size)
+            painter.drawRect(
+                corner.x() - handle_size // 2,
+                corner.y() - handle_size // 2,
+                handle_size,
+                handle_size,
+            )
 
         # Edge handles
         mid_x = rect.center().x()
@@ -491,19 +550,23 @@ class YoloOverlay(QWidget):
             QPoint(mid_x, rect.top()),
             QPoint(mid_x, rect.bottom()),
             QPoint(rect.left(), mid_y),
-            QPoint(rect.right(), mid_y)
+            QPoint(rect.right(), mid_y),
         ]
         for edge in edges:
-            painter.drawRect(edge.x() - handle_size // 2, edge.y() - handle_size // 2,
-                           handle_size, handle_size)
+            painter.drawRect(
+                edge.x() - handle_size // 2,
+                edge.y() - handle_size // 2,
+                handle_size,
+                handle_size,
+            )
 
     def _draw_drawing_box(self, painter, selection_rect):
         """Draw the box currently being drawn."""
         if not self.current_draw_label:
             return
 
-        color = self.current_draw_label.get('color', QColor(0, 255, 0))
-        name = self.current_draw_label.get('name', '')
+        color = self.current_draw_label.get("color", QColor(0, 255, 0))
+        name = self.current_draw_label.get("name", "")
 
         # Calculate rect from draw points
         x1, y1 = self.draw_start.x(), self.draw_start.y()
@@ -515,7 +578,9 @@ class YoloOverlay(QWidget):
         x2 = max(selection_rect.left(), min(selection_rect.right(), x2))
         y2 = max(selection_rect.top(), min(selection_rect.bottom(), y2))
 
-        box_rect = QRect(QPoint(min(x1, x2), min(y1, y2)), QPoint(max(x1, x2), max(y1, y2)))
+        box_rect = QRect(
+            QPoint(min(x1, x2), min(y1, y2)), QPoint(max(x1, x2), max(y1, y2))
+        )
 
         # Draw with dashed line to indicate it's being created
         fill_color = QColor(color)
@@ -533,10 +598,17 @@ class YoloOverlay(QWidget):
             font.setPointSize(10)
             painter.setFont(font)
             text_rect = painter.fontMetrics().boundingRect(name)
-            text_bg = QRect(box_rect.x() + 2, box_rect.y() + 2, text_rect.width() + 6, text_rect.height() + 4)
+            text_bg = QRect(
+                box_rect.x() + 2,
+                box_rect.y() + 2,
+                text_rect.width() + 6,
+                text_rect.height() + 4,
+            )
             painter.fillRect(text_bg, color)
             painter.setPen(QColor(255, 255, 255))
-            painter.drawText(box_rect.x() + 5, box_rect.y() + 2 + text_rect.height(), name)
+            painter.drawText(
+                box_rect.x() + 5, box_rect.y() + 2 + text_rect.height(), name
+            )
 
     def mousePressEvent(self, event):
         """Handle mouse press for various interactions."""
@@ -549,26 +621,34 @@ class YoloOverlay(QWidget):
 
         # ALWAYS check for existing annotations first (for selection/moving/resizing)
         # Check if clicking on a selected annotation's handle
-        if self.selected_annotation is not None and 0 <= self.selected_annotation < len(self.annotations):
-            ann_rect = self._get_annotation_rect_display(self.annotations[self.selected_annotation])
+        if self.selected_annotation is not None and 0 <= self.selected_annotation < len(
+            self.annotations
+        ):
+            ann_rect = self._get_annotation_rect_display(
+                self.annotations[self.selected_annotation]
+            )
             handle = self._get_handle_at_pos(pos, ann_rect)
             if handle != self.HANDLE_NONE:
                 self.resizing_annotation = True
                 self.resize_handle = handle
                 self.annotation_drag_start = pos
-                self.annotation_original_ratios = self.annotations[self.selected_annotation]['ratios']
+                self.annotation_original_ratios = self.annotations[
+                    self.selected_annotation
+                ]["ratios"]
                 self.setCursor(self._get_cursor_for_handle(handle))
                 event.accept()
                 return
 
         # Check if clicking inside an annotation (for selection/moving)
-        for i in range(len(self.annotations) - 1, -1, -1):  # Check top-to-bottom (latest first)
+        for i in range(
+            len(self.annotations) - 1, -1, -1
+        ):  # Check top-to-bottom (latest first)
             ann_rect = self._get_annotation_rect_display(self.annotations[i])
             if ann_rect.contains(pos):
                 self.selected_annotation = i
                 self.dragging_annotation = True
                 self.annotation_drag_start = pos
-                self.annotation_original_ratios = self.annotations[i]['ratios']
+                self.annotation_original_ratios = self.annotations[i]["ratios"]
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
                 self.update()
                 event.accept()
@@ -581,7 +661,11 @@ class YoloOverlay(QWidget):
 
         # Check if in draw mode and clicking inside selection rect (only if not on an annotation)
         # Drawing is only allowed when selection is locked (set)
-        if self.interaction_mode == self.MODE_DRAW and self.current_draw_label and self.selection_locked:
+        if (
+            self.interaction_mode == self.MODE_DRAW
+            and self.current_draw_label
+            and self.selection_locked
+        ):
             if not selection_rect.isNull() and selection_rect.contains(pos):
                 self.drawing_annotation = True
                 self.draw_start = pos
@@ -643,8 +727,12 @@ class YoloOverlay(QWidget):
         cursor = Qt.CursorShape.ArrowCursor
 
         # Check annotation handles first
-        if self.selected_annotation is not None and 0 <= self.selected_annotation < len(self.annotations):
-            ann_rect = self._get_annotation_rect_display(self.annotations[self.selected_annotation])
+        if self.selected_annotation is not None and 0 <= self.selected_annotation < len(
+            self.annotations
+        ):
+            ann_rect = self._get_annotation_rect_display(
+                self.annotations[self.selected_annotation]
+            )
             handle = self._get_handle_at_pos(pos, ann_rect)
             if handle != self.HANDLE_NONE:
                 cursor = self._get_cursor_for_handle(handle)
@@ -658,7 +746,10 @@ class YoloOverlay(QWidget):
                     break
 
         # Check if in draw mode inside selection
-        if cursor == Qt.CursorShape.ArrowCursor and self.interaction_mode == self.MODE_DRAW:
+        if (
+            cursor == Qt.CursorShape.ArrowCursor
+            and self.interaction_mode == self.MODE_DRAW
+        ):
             if not selection_rect.isNull() and selection_rect.contains(pos):
                 cursor = Qt.CursorShape.CrossCursor
 
@@ -727,7 +818,9 @@ class YoloOverlay(QWidget):
         x2 = max(selection_rect.left(), min(selection_rect.right(), x2))
         y2 = max(selection_rect.top(), min(selection_rect.bottom(), y2))
 
-        box_rect = QRect(QPoint(min(x1, x2), min(y1, y2)), QPoint(max(x1, x2), max(y1, y2)))
+        box_rect = QRect(
+            QPoint(min(x1, x2), min(y1, y2)), QPoint(max(x1, x2), max(y1, y2))
+        )
 
         # Minimum size check
         if box_rect.width() < 10 or box_rect.height() < 10:
@@ -739,10 +832,10 @@ class YoloOverlay(QWidget):
 
         # Add annotation
         self.add_annotation(
-            self.current_draw_label['class_id'],
-            self.current_draw_label['color'],
-            self.current_draw_label['name'],
-            ratios
+            self.current_draw_label["class_id"],
+            self.current_draw_label["color"],
+            self.current_draw_label["name"],
+            ratios,
         )
 
     def _move_annotation(self, pos):
@@ -751,7 +844,11 @@ class YoloOverlay(QWidget):
             return
 
         selection_rect = self._get_selection_rect_display()
-        if selection_rect.isNull() or selection_rect.width() == 0 or selection_rect.height() == 0:
+        if (
+            selection_rect.isNull()
+            or selection_rect.width() == 0
+            or selection_rect.height() == 0
+        ):
             return
 
         # Calculate delta in selection ratios
@@ -766,7 +863,12 @@ class YoloOverlay(QWidget):
         new_x = max(0.0, min(1.0 - orig[2], new_x))
         new_y = max(0.0, min(1.0 - orig[3], new_y))
 
-        self.annotations[self.selected_annotation]['ratios'] = (new_x, new_y, orig[2], orig[3])
+        self.annotations[self.selected_annotation]["ratios"] = (
+            new_x,
+            new_y,
+            orig[2],
+            orig[3],
+        )
 
     def _resize_annotation(self, pos):
         """Resize the selected annotation based on mouse position and handle."""
@@ -774,7 +876,11 @@ class YoloOverlay(QWidget):
             return
 
         selection_rect = self._get_selection_rect_display()
-        if selection_rect.isNull() or selection_rect.width() == 0 or selection_rect.height() == 0:
+        if (
+            selection_rect.isNull()
+            or selection_rect.width() == 0
+            or selection_rect.height() == 0
+        ):
             return
 
         orig = self.annotation_original_ratios
@@ -782,7 +888,7 @@ class YoloOverlay(QWidget):
             int(orig[0] * selection_rect.width()),
             int(orig[1] * selection_rect.height()),
             int(orig[2] * selection_rect.width()),
-            int(orig[3] * selection_rect.height())
+            int(orig[3] * selection_rect.height()),
         )
 
         # Calculate delta
@@ -825,10 +931,10 @@ class YoloOverlay(QWidget):
             new_rect.x() / selection_rect.width(),
             new_rect.y() / selection_rect.height(),
             new_rect.width() / selection_rect.width(),
-            new_rect.height() / selection_rect.height()
+            new_rect.height() / selection_rect.height(),
         )
 
-        self.annotations[self.selected_annotation]['ratios'] = new_ratios
+        self.annotations[self.selected_annotation]["ratios"] = new_ratios
 
     def _move_selection(self, pos):
         """Move selection box based on mouse position.
@@ -864,7 +970,10 @@ class YoloOverlay(QWidget):
             self.selection_ratios = (x_ratio, y_ratio, w_ratio, h_ratio)
         else:
             # Screen mode: move center position
-            if self.drag_start_position_ratios is None or self.selection_fixed_size is None:
+            if (
+                self.drag_start_position_ratios is None
+                or self.selection_fixed_size is None
+            ):
                 return
 
             # Apply delta to center position
@@ -872,12 +981,20 @@ class YoloOverlay(QWidget):
             center_y_ratio = self.drag_start_position_ratios[1] + delta_y_ratio
 
             # Calculate half-size as ratios
-            half_w_ratio = (self.selection_fixed_size.width() / 2) / self.image_size.width()
-            half_h_ratio = (self.selection_fixed_size.height() / 2) / self.image_size.height()
+            half_w_ratio = (
+                self.selection_fixed_size.width() / 2
+            ) / self.image_size.width()
+            half_h_ratio = (
+                self.selection_fixed_size.height() / 2
+            ) / self.image_size.height()
 
             # Check if selection is larger than image in each dimension
-            selection_wider = self.selection_fixed_size.width() >= self.image_size.width()
-            selection_taller = self.selection_fixed_size.height() >= self.image_size.height()
+            selection_wider = (
+                self.selection_fixed_size.width() >= self.image_size.width()
+            )
+            selection_taller = (
+                self.selection_fixed_size.height() >= self.image_size.height()
+            )
 
             if selection_wider:
                 # Selection is wider than image: image must stay inside selection
@@ -886,7 +1003,9 @@ class YoloOverlay(QWidget):
                 center_x_ratio = max(min_x, min(max_x, center_x_ratio))
             else:
                 # Selection is narrower than image: selection must stay inside image
-                center_x_ratio = max(half_w_ratio, min(1.0 - half_w_ratio, center_x_ratio))
+                center_x_ratio = max(
+                    half_w_ratio, min(1.0 - half_w_ratio, center_x_ratio)
+                )
 
             if selection_taller:
                 # Selection is taller than image: image must stay inside selection
@@ -895,6 +1014,8 @@ class YoloOverlay(QWidget):
                 center_y_ratio = max(min_y, min(max_y, center_y_ratio))
             else:
                 # Selection is shorter than image: selection must stay inside image
-                center_y_ratio = max(half_h_ratio, min(1.0 - half_h_ratio, center_y_ratio))
+                center_y_ratio = max(
+                    half_h_ratio, min(1.0 - half_h_ratio, center_y_ratio)
+                )
 
             self.selection_position_ratios = (center_x_ratio, center_y_ratio)

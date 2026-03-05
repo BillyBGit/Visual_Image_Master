@@ -7,21 +7,44 @@ live before/after preview (single-image mode), and batch processing (multi-image
 
 import os
 import cv2
-import numpy as np
 from PySide6.QtCore import Qt, QTimer, Signal, QThread, QRectF
 from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QCursor
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-    QComboBox, QSlider, QDoubleSpinBox, QSpinBox, QCheckBox,
-    QLabel, QPushButton, QRadioButton, QButtonGroup, QLineEdit,
-    QFileDialog, QProgressDialog, QMessageBox, QApplication,
-    QSizePolicy, QWidget, QScrollArea,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QGroupBox,
+    QComboBox,
+    QSlider,
+    QDoubleSpinBox,
+    QSpinBox,
+    QCheckBox,
+    QLabel,
+    QPushButton,
+    QRadioButton,
+    QButtonGroup,
+    QLineEdit,
+    QFileDialog,
+    QProgressDialog,
+    QMessageBox,
+    QApplication,
+    QSizePolicy,
+    QWidget,
+    QScrollArea,
 )
 
 from image_enhance import (
-    OPERATIONS, apply_enhancement, check_spandrel_available,
-    check_cuda_available, scan_model_directory, get_model_info,
-    sharpen, denoise, adjust_brightness_contrast, auto_levels,
+    OPERATIONS,
+    apply_enhancement,
+    check_spandrel_available,
+    check_cuda_available,
+    scan_model_directory,
+    get_model_info,
+    sharpen,
+    denoise,
+    adjust_brightness_contrast,
+    auto_levels,
     adjust_saturation,
 )
 
@@ -29,6 +52,7 @@ from image_enhance import (
 def find_main_window():
     """Find the main ImageSorter window."""
     from utils import find_main_window as _find
+
     return _find()
 
 
@@ -75,13 +99,15 @@ class PreviewWidget(QLabel):
         disp_h = int(img_h * scale)
 
         # Resize original
-        orig_resized = cv2.resize(self._original_img, (disp_w, disp_h),
-                                  interpolation=cv2.INTER_AREA)
+        orig_resized = cv2.resize(
+            self._original_img, (disp_w, disp_h), interpolation=cv2.INTER_AREA
+        )
 
         # If we have an enhanced image, create split view
         if self._enhanced_img is not None:
-            enh_resized = cv2.resize(self._enhanced_img, (disp_w, disp_h),
-                                     interpolation=cv2.INTER_AREA)
+            enh_resized = cv2.resize(
+                self._enhanced_img, (disp_w, disp_h), interpolation=cv2.INTER_AREA
+            )
             split_x = int(disp_w * self._split_pos)
 
             # Composite: left = original, right = enhanced
@@ -140,7 +166,9 @@ class PreviewWidget(QLabel):
         if self._enhanced_img is not None:
             enh_text = "Enhanced"
             enh_rect = fm.boundingRect(enh_text)
-            enh_bg = QRectF(split_x + 4, 4, enh_rect.width() + 12, enh_rect.height() + 6)
+            enh_bg = QRectF(
+                split_x + 4, 4, enh_rect.width() + 12, enh_rect.height() + 6
+            )
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(0, 0, 0, 160))
             painter.drawRoundedRect(enh_bg, 4, 4)
@@ -196,6 +224,7 @@ class PreviewWidget(QLabel):
 
 class EnhanceWorker(QThread):
     """Background worker for batch enhancement processing."""
+
     progress = Signal(int, str)  # (index, status_message)
     finished = Signal(int, int, list)  # (success_count, error_count, error_list)
 
@@ -264,11 +293,17 @@ class EnhanceDialog(QDialog):
 
         # Set preset operation if specified
         if preset_operation:
-            idx = self._operation_keys.index(preset_operation) if preset_operation in self._operation_keys else 0
+            idx = (
+                self._operation_keys.index(preset_operation)
+                if preset_operation in self._operation_keys
+                else 0
+            )
             self.operation_combo.setCurrentIndex(idx)
 
         self.setMinimumSize(750, 550)
-        self.setWindowTitle("Image Enhance" + (f" ({len(image_paths)} images)" if self.is_batch else ""))
+        self.setWindowTitle(
+            "Image Enhance" + (f" ({len(image_paths)} images)" if self.is_batch else "")
+        )
 
         # Initial preview
         if not self.is_batch:
@@ -284,19 +319,34 @@ class EnhanceDialog(QDialog):
                 scale = max_dim / max(h, w)
                 new_w = int(w * scale)
                 new_h = int(h * scale)
-                self._preview_img = cv2.resize(self._original_img, (new_w, new_h),
-                                               interpolation=cv2.INTER_AREA)
+                self._preview_img = cv2.resize(
+                    self._original_img, (new_w, new_h), interpolation=cv2.INTER_AREA
+                )
             else:
                 self._preview_img = self._original_img.copy()
 
     def _load_settings(self):
         """Load last-used settings from main window."""
         main_win = self.parent() or find_main_window()
-        self._save_mode = getattr(main_win, 'enhance_save_mode', 'overwrite') if main_win else 'overwrite'
-        self._copy_suffix = getattr(main_win, 'enhance_copy_suffix', '_enhanced') if main_win else '_enhanced'
-        self._last_operation = getattr(main_win, 'enhance_last_operation', 'sharpen') if main_win else 'sharpen'
-        self._last_params = getattr(main_win, 'enhance_last_params', {}) if main_win else {}
-        self._model_dir = getattr(main_win, 'enhance_model_dir', '') if main_win else ''
+        self._save_mode = (
+            getattr(main_win, "enhance_save_mode", "overwrite")
+            if main_win
+            else "overwrite"
+        )
+        self._copy_suffix = (
+            getattr(main_win, "enhance_copy_suffix", "_enhanced")
+            if main_win
+            else "_enhanced"
+        )
+        self._last_operation = (
+            getattr(main_win, "enhance_last_operation", "sharpen")
+            if main_win
+            else "sharpen"
+        )
+        self._last_params = (
+            getattr(main_win, "enhance_last_params", {}) if main_win else {}
+        )
+        self._model_dir = getattr(main_win, "enhance_model_dir", "") if main_win else ""
 
     def _save_settings(self):
         """Save current settings to main window."""
@@ -310,7 +360,7 @@ class EnhanceDialog(QDialog):
         main_win.enhance_last_params = self._last_params
         main_win.enhance_model_dir = self._model_dir
 
-        if hasattr(main_win, '_settings_loaded') and main_win._settings_loaded:
+        if hasattr(main_win, "_settings_loaded") and main_win._settings_loaded:
             main_win.write_settings()
 
     def _setup_ui(self):
@@ -330,7 +380,9 @@ class EnhanceDialog(QDialog):
 
         # Set to last used operation
         if self._last_operation in self._operation_keys:
-            self.operation_combo.setCurrentIndex(self._operation_keys.index(self._last_operation))
+            self.operation_combo.setCurrentIndex(
+                self._operation_keys.index(self._last_operation)
+            )
 
         self.operation_combo.currentIndexChanged.connect(self._on_operation_changed)
         op_layout.addWidget(self.operation_combo, 1)
@@ -362,8 +414,10 @@ class EnhanceDialog(QDialog):
             content_layout.addWidget(self.preview_widget, 1)
         else:
             # In batch mode, show info label
-            batch_label = QLabel(f"Batch mode: {len(self.image_paths)} images will be processed.\n\n"
-                                 f"Adjust parameters, then click 'Apply to All'.")
+            batch_label = QLabel(
+                f"Batch mode: {len(self.image_paths)} images will be processed.\n\n"
+                f"Adjust parameters, then click 'Apply to All'."
+            )
             batch_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             batch_label.setStyleSheet("color: #aaa; font-size: 14px; padding: 20px;")
             content_layout.addWidget(batch_label, 1)
@@ -435,7 +489,9 @@ class EnhanceDialog(QDialog):
 
         # Default model directory to project's models/ folder if not set
         if not self._model_dir:
-            default_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+            default_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "models"
+            )
             if os.path.isdir(default_dir):
                 self._model_dir = default_dir
 
@@ -504,7 +560,8 @@ class EnhanceDialog(QDialog):
     def _browse_model_dir(self):
         """Open directory browser for model files."""
         dir_path = QFileDialog.getExistingDirectory(
-            self, "Select Model Directory", self._model_dir or "")
+            self, "Select Model Directory", self._model_dir or ""
+        )
         if dir_path:
             self.model_dir_edit.setText(dir_path)
             self._model_dir = dir_path
@@ -525,7 +582,7 @@ class EnhanceDialog(QDialog):
             return
 
         for m in models:
-            self.model_combo.addItem(f"{m['name']} ({m['size_mb']} MB)", m['path'])
+            self.model_combo.addItem(f"{m['name']} ({m['size_mb']} MB)", m["path"])
 
     def _on_model_selected(self, index):
         """Show info about the selected model."""
@@ -537,7 +594,7 @@ class EnhanceDialog(QDialog):
         self.model_info_label.setText("Loading model info...")
         QApplication.processEvents()
 
-        device = self.device_combo.currentData() or 'cpu'
+        device = self.device_combo.currentData() or "cpu"
         info = get_model_info(model_path, device)
 
         if info:
@@ -611,7 +668,9 @@ class EnhanceDialog(QDialog):
             default = saved_params.get(key, p["default"])
 
             if p_type == "float":
-                self._add_float_param(key, label, p["min"], p["max"], default, p["step"])
+                self._add_float_param(
+                    key, label, p["min"], p["max"], default, p["step"]
+                )
             elif p_type == "int":
                 self._add_int_param(key, label, p["min"], p["max"], default, p["step"])
             elif p_type == "bool":
@@ -640,12 +699,16 @@ class EnhanceDialog(QDialog):
         self._add_int_param("height", "Height", 1, 16384, saved.get("height", img_h), 1)
 
         # Aspect ratio
-        self._add_bool_param("maintain_aspect", "Maintain Aspect Ratio",
-                             saved.get("maintain_aspect", True))
+        self._add_bool_param(
+            "maintain_aspect",
+            "Maintain Aspect Ratio",
+            saved.get("maintain_aspect", True),
+        )
 
         # Scale percentage
-        self._add_int_param("scale_percent", "Scale %", 1, 1000,
-                            saved.get("scale_percent", 100), 5)
+        self._add_int_param(
+            "scale_percent", "Scale %", 1, 1000, saved.get("scale_percent", 100), 5
+        )
 
         self._on_resize_mode_changed(self.resize_mode_check.isChecked())
 
@@ -757,7 +820,9 @@ class EnhanceDialog(QDialog):
         """Add a boolean parameter with checkbox."""
         checkbox = QCheckBox()
         checkbox.setChecked(default)
-        checkbox.toggled.connect(lambda: self._schedule_preview() if not self.is_batch else None)
+        checkbox.toggled.connect(
+            lambda: self._schedule_preview() if not self.is_batch else None
+        )
 
         self.params_layout.addRow(f"{label}:", checkbox)
         self._param_widgets[key] = [checkbox]
@@ -795,7 +860,7 @@ class EnhanceDialog(QDialog):
 
         # Handle resize special case
         if op_key == "resize":
-            if hasattr(self, 'resize_mode_check'):
+            if hasattr(self, "resize_mode_check"):
                 params["use_scale"] = self.resize_mode_check.isChecked()
 
         return params
@@ -809,7 +874,7 @@ class EnhanceDialog(QDialog):
         """Apply current operation to preview image and display."""
         if self.is_batch or self._preview_img is None:
             return
-        if not hasattr(self, 'preview_widget'):
+        if not hasattr(self, "preview_widget"):
             return
 
         op_key = self._current_operation_key()
@@ -828,32 +893,41 @@ class EnhanceDialog(QDialog):
 
             # Apply operation to preview image
             if op_key == "sharpen":
-                enhanced = sharpen(self._preview_img,
-                                   amount=params.get('amount', 1.0),
-                                   radius=params.get('radius', 2.0),
-                                   threshold=params.get('threshold', 0))
+                enhanced = sharpen(
+                    self._preview_img,
+                    amount=params.get("amount", 1.0),
+                    radius=params.get("radius", 2.0),
+                    threshold=params.get("threshold", 0),
+                )
             elif op_key == "denoise":
-                enhanced = denoise(self._preview_img,
-                                   strength=params.get('strength', 10),
-                                   color_strength=params.get('color_strength', 10))
+                enhanced = denoise(
+                    self._preview_img,
+                    strength=params.get("strength", 10),
+                    color_strength=params.get("color_strength", 10),
+                )
             elif op_key == "brightness_contrast":
-                enhanced = adjust_brightness_contrast(self._preview_img,
-                                                       brightness=params.get('brightness', 0),
-                                                       contrast=params.get('contrast', 1.0))
+                enhanced = adjust_brightness_contrast(
+                    self._preview_img,
+                    brightness=params.get("brightness", 0),
+                    contrast=params.get("contrast", 1.0),
+                )
             elif op_key == "auto_levels":
-                enhanced = auto_levels(self._preview_img,
-                                       clip_limit=params.get('clip_limit', 2.0),
-                                       grid_size=params.get('grid_size', 8))
+                enhanced = auto_levels(
+                    self._preview_img,
+                    clip_limit=params.get("clip_limit", 2.0),
+                    grid_size=params.get("grid_size", 8),
+                )
             elif op_key == "saturation":
-                enhanced = adjust_saturation(self._preview_img,
-                                             factor=params.get('factor', 1.0))
+                enhanced = adjust_saturation(
+                    self._preview_img, factor=params.get("factor", 1.0)
+                )
             else:
                 enhanced = self._preview_img.copy()
 
             self.preview_widget.set_images(self._preview_img, enhanced)
 
         except Exception as e:
-            debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+            debug = os.environ.get("IMG_SORT_DEBUG") == "1"
             if debug:
                 print(f"[DEBUG] Preview error: {e}")
 
@@ -898,12 +972,14 @@ class EnhanceDialog(QDialog):
         suffix = self._copy_suffix if self._save_mode == "copy" else ""
 
         progress = QProgressDialog(
-            "Applying enhancement...", "Cancel", 0, len(self.image_paths), self)
+            "Applying enhancement...", "Cancel", 0, len(self.image_paths), self
+        )
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
 
         self._worker = EnhanceWorker(
-            self.image_paths, op_key, params, self._save_mode, suffix)
+            self.image_paths, op_key, params, self._save_mode, suffix
+        )
 
         def on_progress(idx, msg):
             progress.setValue(idx)

@@ -9,50 +9,147 @@ from pathlib import Path
 # Subset of Places365 scene categories (most useful for photo organization)
 SCENE_CATEGORIES = {
     # Outdoor nature
-    "beach", "coast", "lake", "ocean", "river", "waterfall",
-    "forest", "mountain", "valley", "canyon", "desert", "field",
-    "sky", "sunset", "sunrise",
-
+    "beach",
+    "coast",
+    "lake",
+    "ocean",
+    "river",
+    "waterfall",
+    "forest",
+    "mountain",
+    "valley",
+    "canyon",
+    "desert",
+    "field",
+    "sky",
+    "sunset",
+    "sunrise",
     # Urban outdoor
-    "street", "alley", "highway", "bridge", "parking_lot",
-    "plaza", "park", "garden", "yard", "patio",
-
+    "street",
+    "alley",
+    "highway",
+    "bridge",
+    "parking_lot",
+    "plaza",
+    "park",
+    "garden",
+    "yard",
+    "patio",
     # Buildings
-    "building", "skyscraper", "tower", "castle", "house",
-    "apartment_building", "barn", "church", "temple", "mosque",
-
+    "building",
+    "skyscraper",
+    "tower",
+    "castle",
+    "house",
+    "apartment_building",
+    "barn",
+    "church",
+    "temple",
+    "mosque",
     # Indoor residential
-    "bedroom", "living_room", "dining_room", "kitchen",
-    "bathroom", "closet", "garage", "basement", "attic",
-
+    "bedroom",
+    "living_room",
+    "dining_room",
+    "kitchen",
+    "bathroom",
+    "closet",
+    "garage",
+    "basement",
+    "attic",
     # Indoor commercial
-    "restaurant", "cafe", "bar", "store", "shop",
-    "office", "lobby", "corridor", "elevator",
-
+    "restaurant",
+    "cafe",
+    "bar",
+    "store",
+    "shop",
+    "office",
+    "lobby",
+    "corridor",
+    "elevator",
     # Entertainment/Leisure
-    "gym", "stadium", "theater", "museum", "gallery",
-    "playground", "poolroom", "bowling_alley",
-
+    "gym",
+    "stadium",
+    "theater",
+    "museum",
+    "gallery",
+    "playground",
+    "poolroom",
+    "bowling_alley",
     # Transportation
-    "airport", "train_station", "subway", "bus_station",
-
+    "airport",
+    "train_station",
+    "subway",
+    "bus_station",
     # Special
-    "underwater", "snowfield", "ice", "rainforest"
+    "underwater",
+    "snowfield",
+    "ice",
+    "rainforest",
 }
 
 # Categorize scenes for easier filtering
 SCENE_GROUPS = {
-    "outdoor_nature": ["beach", "coast", "lake", "ocean", "river", "waterfall",
-                       "forest", "mountain", "valley", "canyon", "desert", "field",
-                       "sky", "sunset", "sunrise"],
-    "outdoor_urban": ["street", "alley", "highway", "bridge", "parking_lot",
-                      "plaza", "park", "garden", "yard", "patio"],
-    "indoor_home": ["bedroom", "living_room", "dining_room", "kitchen",
-                    "bathroom", "closet", "garage", "basement", "attic"],
-    "indoor_commercial": ["restaurant", "cafe", "bar", "store", "shop",
-                          "office", "lobby", "corridor", "elevator"],
-    "entertainment": ["gym", "stadium", "theater", "museum", "gallery",
-                     "playground", "poolroom", "bowling_alley"],
+    "outdoor_nature": [
+        "beach",
+        "coast",
+        "lake",
+        "ocean",
+        "river",
+        "waterfall",
+        "forest",
+        "mountain",
+        "valley",
+        "canyon",
+        "desert",
+        "field",
+        "sky",
+        "sunset",
+        "sunrise",
+    ],
+    "outdoor_urban": [
+        "street",
+        "alley",
+        "highway",
+        "bridge",
+        "parking_lot",
+        "plaza",
+        "park",
+        "garden",
+        "yard",
+        "patio",
+    ],
+    "indoor_home": [
+        "bedroom",
+        "living_room",
+        "dining_room",
+        "kitchen",
+        "bathroom",
+        "closet",
+        "garage",
+        "basement",
+        "attic",
+    ],
+    "indoor_commercial": [
+        "restaurant",
+        "cafe",
+        "bar",
+        "store",
+        "shop",
+        "office",
+        "lobby",
+        "corridor",
+        "elevator",
+    ],
+    "entertainment": [
+        "gym",
+        "stadium",
+        "theater",
+        "museum",
+        "gallery",
+        "playground",
+        "poolroom",
+        "bowling_alley",
+    ],
     "transportation": ["airport", "train_station", "subway", "bus_station"],
 }
 
@@ -80,19 +177,23 @@ class SceneRecognizer:
 
         if not model_path.exists():
             if pth_model.exists():
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print("NOTE: Places365 PyTorch model found but ONNX needed")
                 print(f"Location: {models_dir}")
                 print("\nScene recognition requires ONNX format for OpenCV.")
-                print("The PyTorch model would need conversion (requires torch/torchvision).")
+                print(
+                    "The PyTorch model would need conversion (requires torch/torchvision)."
+                )
                 print("\nFor now, scene recognition filtering is disabled.")
-                print(f"{'='*60}\n")
+                print(f"{'=' * 60}\n")
             else:
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print("NOTE: Places365 model not found")
                 print(f"Location: {models_dir}")
-                print("\nTo enable scene recognition filtering, download the ONNX model.")
-                print(f"{'='*60}\n")
+                print(
+                    "\nTo enable scene recognition filtering, download the ONNX model."
+                )
+                print(f"{'=' * 60}\n")
             self.net = None
             return
 
@@ -104,13 +205,13 @@ class SceneRecognizer:
             # Load scene names from IO_places365.txt format
             # Format: /indoor/bedroom 0 ... (we just need the first part)
             if labels_path.exists():
-                with open(labels_path, 'r') as f:
+                with open(labels_path, "r") as f:
                     self.scene_names = []
                     for line in f.readlines():
                         line = line.strip()
                         if line:
                             # Extract scene name from format: /category/scene_name
-                            scene = line.split()[0].strip('/').split('/')[-1]
+                            scene = line.split()[0].strip("/").split("/")[-1]
                             self.scene_names.append(scene)
             else:
                 # Fallback to subset
@@ -145,11 +246,11 @@ class SceneRecognizer:
             # Resize to 224x224 (standard for ResNet)
             blob = cv2.dnn.blobFromImage(
                 img,
-                scalefactor=1.0/255.0,
+                scalefactor=1.0 / 255.0,
                 size=(224, 224),
                 mean=(0.485, 0.456, 0.406),
                 swapRB=True,
-                crop=False
+                crop=False,
             )
 
             # Set input and forward pass
@@ -194,14 +295,17 @@ class SceneRecognizer:
 
     def is_outdoor(self, image_path):
         """Check if image is an outdoor scene."""
-        return (self.has_scene_group(image_path, "outdoor_nature") or
-                self.has_scene_group(image_path, "outdoor_urban"))
+        return self.has_scene_group(
+            image_path, "outdoor_nature"
+        ) or self.has_scene_group(image_path, "outdoor_urban")
 
     def is_indoor(self, image_path):
         """Check if image is an indoor scene."""
-        return (self.has_scene_group(image_path, "indoor_home") or
-                self.has_scene_group(image_path, "indoor_commercial") or
-                self.has_scene_group(image_path, "entertainment"))
+        return (
+            self.has_scene_group(image_path, "indoor_home")
+            or self.has_scene_group(image_path, "indoor_commercial")
+            or self.has_scene_group(image_path, "entertainment")
+        )
 
     def clear_cache(self):
         """Clear recognition cache."""
@@ -215,6 +319,7 @@ class SceneRecognizer:
 
 # Singleton instance
 _recognizer = None
+
 
 def get_recognizer(confidence_threshold=0.3):
     """Get or create the scene recognizer instance."""

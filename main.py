@@ -9,15 +9,15 @@ import sys
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Visual Image Master 2026")
-    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument("--debug", action="store_true", help="Enable debug output")
     args = parser.parse_args()
 
     # Set debug mode as environment variable for other modules to check
     if args.debug:
-        os.environ['IMG_SORT_DEBUG'] = '1'
+        os.environ["IMG_SORT_DEBUG"] = "1"
 
     # Suppress Qt ICC profile warnings
-    os.environ['QT_LOGGING_RULES'] = 'qt.gui.icc=false'
+    os.environ["QT_LOGGING_RULES"] = "qt.gui.icc=false"
 
     # Import Qt ASAP to show splash before heavy imports
     from PySide6.QtWidgets import QApplication, QSplashScreen
@@ -27,13 +27,16 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     # Show splash screen IMMEDIATELY before any other imports
-    splash_path = os.path.join(os.path.dirname(__file__), 'splash.jpg')
+    splash_path = os.path.join(os.path.dirname(__file__), "splash.jpg")
     splash = None
     if os.path.exists(splash_path):
         splash_pix = QPixmap(splash_path)
         splash = QSplashScreen(splash_pix, Qt.WindowType.WindowStaysOnTopHint)
         splash.show()
-        splash.showMessage("Loading modules...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter)
+        splash.showMessage(
+            "Loading modules...",
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter,
+        )
         app.processEvents()
 
     # NOW do the heavy imports after splash is visible
@@ -41,13 +44,18 @@ if __name__ == "__main__":
 
     # Create main window
     if splash:
-        splash.showMessage("Initializing application...", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter)
+        splash.showMessage(
+            "Initializing application...",
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter,
+        )
         app.processEvents()
 
     window = ImageSorter()
 
     if splash:
-        splash.showMessage("Ready!", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter)
+        splash.showMessage(
+            "Ready!", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter
+        )
         app.processEvents()
 
     # Close splash and show main window

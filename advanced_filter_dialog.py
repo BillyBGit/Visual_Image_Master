@@ -3,13 +3,24 @@ Advanced filtering dialog for AI-powered image filtering.
 Combines face detection, object detection, scene recognition, and quality assessment.
 """
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
-                               QCheckBox, QLabel, QPushButton, QSlider, QComboBox,
-                               QScrollArea, QWidget, QRadioButton, QButtonGroup,
-                               QFileDialog, QLineEdit)
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QCheckBox,
+    QLabel,
+    QPushButton,
+    QSlider,
+    QScrollArea,
+    QWidget,
+    QRadioButton,
+    QFileDialog,
+    QLineEdit,
+)
 from PySide6.QtCore import Qt
 
-from object_detection import OBJECT_CATEGORIES, COCO_CLASSES
+from object_detection import OBJECT_CATEGORIES
 from scene_recognition import SCENE_GROUPS
 
 
@@ -23,33 +34,28 @@ class AdvancedFilterDialog(QDialog):
 
         # Store filter settings
         self.filter_settings = {
-            'global_invert': False,  # Invert entire filter result
-
-            'face_detection': False,
-            'face_count_min': 0,
-            'face_inverse': False,  # True = does NOT contain
-
-            'object_detection': False,
-            'object_categories': [],
-            'object_confidence': 0.5,
-            'object_inverse': False,  # True = does NOT contain
-            'custom_model_path': None,  # Path to custom YOLO model
-
-            'scene_recognition': False,
-            'scene_groups': [],
-            'scene_confidence': 0.3,
-            'scene_inverse': False,  # True = does NOT contain
-
-            'quality_filter': False,
-            'quality_min_score': 60,
-            'quality_sharpness_min': 40,
-            'quality_brightness_min': 50,
-            'quality_brightness_max': 200,
-            'quality_inverse': False,  # True = does NOT meet criteria
-
-            'filesize_filter': False,
-            'filesize_min_kb': 0,  # Minimum file size in KB
-            'filesize_max_kb': 10240,  # Maximum file size in KB (10MB default)
+            "global_invert": False,  # Invert entire filter result
+            "face_detection": False,
+            "face_count_min": 0,
+            "face_inverse": False,  # True = does NOT contain
+            "object_detection": False,
+            "object_categories": [],
+            "object_confidence": 0.5,
+            "object_inverse": False,  # True = does NOT contain
+            "custom_model_path": None,  # Path to custom YOLO model
+            "scene_recognition": False,
+            "scene_groups": [],
+            "scene_confidence": 0.3,
+            "scene_inverse": False,  # True = does NOT contain
+            "quality_filter": False,
+            "quality_min_score": 60,
+            "quality_sharpness_min": 40,
+            "quality_brightness_min": 50,
+            "quality_brightness_max": 200,
+            "quality_inverse": False,  # True = does NOT meet criteria
+            "filesize_filter": False,
+            "filesize_min_kb": 0,  # Minimum file size in KB
+            "filesize_max_kb": 10240,  # Maximum file size in KB (10MB default)
         }
 
         self.setup_ui()
@@ -75,7 +81,9 @@ class AdvancedFilterDialog(QDialog):
         main_layout.addWidget(scroll)
 
         # Global invert option
-        self.global_invert_cb = QCheckBox("Invert entire filter (show what does NOT match)")
+        self.global_invert_cb = QCheckBox(
+            "Invert entire filter (show what does NOT match)"
+        )
         self.global_invert_cb.setStyleSheet("font-weight: bold; color: #FF5722;")
         self.global_invert_cb.stateChanged.connect(self.update_filter_settings)
         main_layout.addWidget(self.global_invert_cb)
@@ -162,7 +170,7 @@ class AdvancedFilterDialog(QDialog):
         layout.addWidget(QLabel("Select object categories:"))
         self.object_category_cbs = {}
         for category in OBJECT_CATEGORIES.keys():
-            cb = QCheckBox(category.replace('_', ' ').title())
+            cb = QCheckBox(category.replace("_", " ").title())
             cb.stateChanged.connect(self.on_object_category_changed)
             self.object_category_cbs[category] = cb
             layout.addWidget(cb)
@@ -180,17 +188,21 @@ class AdvancedFilterDialog(QDialog):
         layout.addLayout(conf_layout)
 
         self.object_conf_slider.valueChanged.connect(
-            lambda v: self.object_conf_label.setText(f"{v/100:.2f}")
+            lambda v: self.object_conf_label.setText(f"{v / 100:.2f}")
         )
 
         # Custom model path
         layout.addWidget(QLabel("Custom YOLO Model (optional):"))
-        help_label = QLabel("Leave categories unchecked to detect ANY object from custom model")
+        help_label = QLabel(
+            "Leave categories unchecked to detect ANY object from custom model"
+        )
         help_label.setStyleSheet("color: gray; font-size: 10px;")
         layout.addWidget(help_label)
         model_layout = QHBoxLayout()
         self.custom_model_path_edit = QLineEdit()
-        self.custom_model_path_edit.setPlaceholderText("Path to .pt, .pth, .safetensors, .weights, or .onnx model")
+        self.custom_model_path_edit.setPlaceholderText(
+            "Path to .pt, .pth, .safetensors, .weights, or .onnx model"
+        )
         self.custom_model_path_edit.textChanged.connect(self.update_filter_settings)
         model_layout.addWidget(self.custom_model_path_edit)
 
@@ -231,7 +243,7 @@ class AdvancedFilterDialog(QDialog):
         layout.addWidget(QLabel("Select scene types:"))
         self.scene_group_cbs = {}
         for group_name in SCENE_GROUPS.keys():
-            cb = QCheckBox(group_name.replace('_', ' ').title())
+            cb = QCheckBox(group_name.replace("_", " ").title())
             cb.stateChanged.connect(self.on_scene_group_changed)
             self.scene_group_cbs[group_name] = cb
             layout.addWidget(cb)
@@ -260,7 +272,7 @@ class AdvancedFilterDialog(QDialog):
         layout.addLayout(conf_layout)
 
         self.scene_conf_slider.valueChanged.connect(
-            lambda v: self.scene_conf_label.setText(f"{v/100:.2f}")
+            lambda v: self.scene_conf_label.setText(f"{v / 100:.2f}")
         )
 
         group.setLayout(layout)
@@ -408,7 +420,7 @@ class AdvancedFilterDialog(QDialog):
             self,
             "Select Custom YOLO Model",
             "",
-            "YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx);;All Files (*)"
+            "YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx);;All Files (*)",
         )
         if file_path:
             self.custom_model_path_edit.setText(file_path)
@@ -444,43 +456,51 @@ class AdvancedFilterDialog(QDialog):
     def update_filter_settings(self):
         """Update filter settings from UI."""
         # Global invert
-        self.filter_settings['global_invert'] = self.global_invert_cb.isChecked()
+        self.filter_settings["global_invert"] = self.global_invert_cb.isChecked()
 
         # Face detection
-        self.filter_settings['face_detection'] = self.face_enable_cb.isChecked()
-        self.filter_settings['face_count_min'] = self.face_count_slider.value()
-        self.filter_settings['face_inverse'] = self.face_not_contains_rb.isChecked()
+        self.filter_settings["face_detection"] = self.face_enable_cb.isChecked()
+        self.filter_settings["face_count_min"] = self.face_count_slider.value()
+        self.filter_settings["face_inverse"] = self.face_not_contains_rb.isChecked()
 
         # Object detection
-        self.filter_settings['object_detection'] = self.object_enable_cb.isChecked()
-        self.filter_settings['object_categories'] = [
+        self.filter_settings["object_detection"] = self.object_enable_cb.isChecked()
+        self.filter_settings["object_categories"] = [
             cat for cat, cb in self.object_category_cbs.items() if cb.isChecked()
         ]
-        self.filter_settings['object_confidence'] = self.object_conf_slider.value() / 100
-        self.filter_settings['object_inverse'] = self.object_not_contains_rb.isChecked()
+        self.filter_settings["object_confidence"] = (
+            self.object_conf_slider.value() / 100
+        )
+        self.filter_settings["object_inverse"] = self.object_not_contains_rb.isChecked()
         custom_path = self.custom_model_path_edit.text().strip()
-        self.filter_settings['custom_model_path'] = custom_path if custom_path else None
+        self.filter_settings["custom_model_path"] = custom_path if custom_path else None
 
         # Scene recognition
-        self.filter_settings['scene_recognition'] = self.scene_enable_cb.isChecked()
-        self.filter_settings['scene_groups'] = [
+        self.filter_settings["scene_recognition"] = self.scene_enable_cb.isChecked()
+        self.filter_settings["scene_groups"] = [
             group for group, cb in self.scene_group_cbs.items() if cb.isChecked()
         ]
-        self.filter_settings['scene_confidence'] = self.scene_conf_slider.value() / 100
-        self.filter_settings['scene_inverse'] = self.scene_not_contains_rb.isChecked()
+        self.filter_settings["scene_confidence"] = self.scene_conf_slider.value() / 100
+        self.filter_settings["scene_inverse"] = self.scene_not_contains_rb.isChecked()
 
         # Quality
-        self.filter_settings['quality_filter'] = self.quality_enable_cb.isChecked()
-        self.filter_settings['quality_min_score'] = self.quality_score_slider.value()
-        self.filter_settings['quality_sharpness_min'] = self.quality_sharp_slider.value()
-        self.filter_settings['quality_brightness_min'] = self.quality_bright_min_slider.value()
-        self.filter_settings['quality_brightness_max'] = self.quality_bright_max_slider.value()
-        self.filter_settings['quality_inverse'] = self.quality_not_meets_rb.isChecked()
+        self.filter_settings["quality_filter"] = self.quality_enable_cb.isChecked()
+        self.filter_settings["quality_min_score"] = self.quality_score_slider.value()
+        self.filter_settings["quality_sharpness_min"] = (
+            self.quality_sharp_slider.value()
+        )
+        self.filter_settings["quality_brightness_min"] = (
+            self.quality_bright_min_slider.value()
+        )
+        self.filter_settings["quality_brightness_max"] = (
+            self.quality_bright_max_slider.value()
+        )
+        self.filter_settings["quality_inverse"] = self.quality_not_meets_rb.isChecked()
 
         # File size
-        self.filter_settings['filesize_filter'] = self.filesize_enable_cb.isChecked()
-        self.filter_settings['filesize_min_kb'] = self.filesize_min_slider.value()
-        self.filter_settings['filesize_max_kb'] = self.filesize_max_slider.value()
+        self.filter_settings["filesize_filter"] = self.filesize_enable_cb.isChecked()
+        self.filter_settings["filesize_min_kb"] = self.filesize_min_slider.value()
+        self.filter_settings["filesize_max_kb"] = self.filesize_max_slider.value()
 
     def clear_all_filters(self):
         """Clear all filter selections."""
@@ -520,11 +540,13 @@ class AdvancedFilterDialog(QDialog):
 
     def has_active_filters(self):
         """Check if any filters are enabled."""
-        return (self.filter_settings['face_detection'] or
-                self.filter_settings['object_detection'] or
-                self.filter_settings['scene_recognition'] or
-                self.filter_settings['quality_filter'] or
-                self.filter_settings['filesize_filter'])
+        return (
+            self.filter_settings["face_detection"]
+            or self.filter_settings["object_detection"]
+            or self.filter_settings["scene_recognition"]
+            or self.filter_settings["quality_filter"]
+            or self.filter_settings["filesize_filter"]
+        )
 
     def set_filter_settings(self, settings):
         """Restore filter settings from a previous session."""
@@ -532,63 +554,69 @@ class AdvancedFilterDialog(QDialog):
             return
 
         # Global invert
-        self.global_invert_cb.setChecked(settings.get('global_invert', False))
+        self.global_invert_cb.setChecked(settings.get("global_invert", False))
 
         # Face detection
-        if settings.get('face_detection', False):
+        if settings.get("face_detection", False):
             self.face_enable_cb.setChecked(True)
-            self.face_count_slider.setValue(settings.get('face_count_min', 0))
-            if settings.get('face_inverse', False):
+            self.face_count_slider.setValue(settings.get("face_count_min", 0))
+            if settings.get("face_inverse", False):
                 self.face_not_contains_rb.setChecked(True)
             else:
                 self.face_contains_rb.setChecked(True)
 
         # Object detection
-        if settings.get('object_detection', False):
+        if settings.get("object_detection", False):
             self.object_enable_cb.setChecked(True)
-            categories = settings.get('object_categories', [])
+            categories = settings.get("object_categories", [])
             for category, cb in self.object_category_cbs.items():
                 cb.setChecked(category in categories)
-            conf = int(settings.get('object_confidence', 0.5) * 100)
+            conf = int(settings.get("object_confidence", 0.5) * 100)
             self.object_conf_slider.setValue(conf)
-            if settings.get('object_inverse', False):
+            if settings.get("object_inverse", False):
                 self.object_not_contains_rb.setChecked(True)
             else:
                 self.object_contains_rb.setChecked(True)
-            custom_path = settings.get('custom_model_path')
+            custom_path = settings.get("custom_model_path")
             if custom_path:
                 self.custom_model_path_edit.setText(custom_path)
 
         # Scene recognition
-        if settings.get('scene_recognition', False):
+        if settings.get("scene_recognition", False):
             self.scene_enable_cb.setChecked(True)
-            groups = settings.get('scene_groups', [])
+            groups = settings.get("scene_groups", [])
             for group, cb in self.scene_group_cbs.items():
                 cb.setChecked(group in groups)
-            conf = int(settings.get('scene_confidence', 0.3) * 100)
+            conf = int(settings.get("scene_confidence", 0.3) * 100)
             self.scene_conf_slider.setValue(conf)
-            if settings.get('scene_inverse', False):
+            if settings.get("scene_inverse", False):
                 self.scene_not_contains_rb.setChecked(True)
             else:
                 self.scene_contains_rb.setChecked(True)
 
         # Quality
-        if settings.get('quality_filter', False):
+        if settings.get("quality_filter", False):
             self.quality_enable_cb.setChecked(True)
-            self.quality_score_slider.setValue(settings.get('quality_min_score', 60))
-            self.quality_sharp_slider.setValue(settings.get('quality_sharpness_min', 40))
-            self.quality_bright_min_slider.setValue(settings.get('quality_brightness_min', 50))
-            self.quality_bright_max_slider.setValue(settings.get('quality_brightness_max', 200))
-            if settings.get('quality_inverse', False):
+            self.quality_score_slider.setValue(settings.get("quality_min_score", 60))
+            self.quality_sharp_slider.setValue(
+                settings.get("quality_sharpness_min", 40)
+            )
+            self.quality_bright_min_slider.setValue(
+                settings.get("quality_brightness_min", 50)
+            )
+            self.quality_bright_max_slider.setValue(
+                settings.get("quality_brightness_max", 200)
+            )
+            if settings.get("quality_inverse", False):
                 self.quality_not_meets_rb.setChecked(True)
             else:
                 self.quality_meets_rb.setChecked(True)
 
         # File size
-        if settings.get('filesize_filter', False):
+        if settings.get("filesize_filter", False):
             self.filesize_enable_cb.setChecked(True)
-            self.filesize_min_slider.setValue(settings.get('filesize_min_kb', 0))
-            self.filesize_max_slider.setValue(settings.get('filesize_max_kb', 10240))
+            self.filesize_min_slider.setValue(settings.get("filesize_min_kb", 0))
+            self.filesize_max_slider.setValue(settings.get("filesize_max_kb", 10240))
 
         # Trigger update to sync filter_settings dict
         self.update_filter_settings()

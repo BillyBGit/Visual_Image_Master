@@ -5,9 +5,17 @@ and help/about dialogs for ImageSorter.
 
 import os
 import shutil
-from PySide6.QtWidgets import (QMessageBox, QApplication, QDialog, QProgressDialog,
-                               QMenu, QLabel, QVBoxLayout, QTextBrowser,
-                               QDialogButtonBox)
+from PySide6.QtWidgets import (
+    QMessageBox,
+    QApplication,
+    QDialog,
+    QProgressDialog,
+    QMenu,
+    QLabel,
+    QVBoxLayout,
+    QTextBrowser,
+    QDialogButtonBox,
+)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup
 
@@ -50,7 +58,7 @@ class FileOperationsMixin:
 
     def start_operation_batch(self, operation_type):
         """Start a new operation batch for undo tracking."""
-        self.last_operation = {'type': operation_type, 'files': []}
+        self.last_operation = {"type": operation_type, "files": []}
 
     def smart_transfer(self, src, dst_folder, is_copy):
         """Handles file transfer with automatic renaming to avoid conflicts."""
@@ -64,51 +72,55 @@ class FileOperationsMixin:
             if is_copy:
                 shutil.copy2(src, dest)
                 # Track copy operation for undo (only if operation batch is active)
-                if self.last_operation and self.last_operation['type'] == 'copy':
-                    self.last_operation['files'].append((src, dest))
+                if self.last_operation and self.last_operation["type"] == "copy":
+                    self.last_operation["files"].append((src, dest))
             else:
                 shutil.move(src, dest)
                 # Track move operation for undo (only if operation batch is active)
-                if self.last_operation and self.last_operation['type'] == 'move':
-                    self.last_operation['files'].append((src, dest))
+                if self.last_operation and self.last_operation["type"] == "move":
+                    self.last_operation["files"].append((src, dest))
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not transfer file: {e}")
 
     def remove_duplicates(self):
         """Remove duplicate images based on the selected deduplication mode."""
-        import hashlib
-        import subprocess
 
         # Get files to process
         selected_items = self.thumb_list.selectedItems()
         if selected_items:
             # Use selected files
-            file_paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+            file_paths = [
+                item.data(Qt.ItemDataRole.UserRole) for item in selected_items
+            ]
             scope_msg = f"{len(file_paths)} selected file(s)"
         else:
             # Use all files in thumbnail list
-            file_paths = [self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
-                         for i in range(self.thumb_list.count())]
+            file_paths = [
+                self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+                for i in range(self.thumb_list.count())
+            ]
             scope_msg = f"all {len(file_paths)} file(s) in directory"
 
         if len(file_paths) < 2:
-            QMessageBox.information(self, "Remove Duplicates",
-                                   "Need at least 2 images to find duplicates.")
+            QMessageBox.information(
+                self, "Remove Duplicates", "Need at least 2 images to find duplicates."
+            )
             return
 
         # Confirm operation
         mode_descriptions = {
             "exact": "MD5 checksum comparison",
             "visual_largest": "visual similarity (retain largest)",
-            "visual_smallest": "visual similarity (retain smallest)"
+            "visual_smallest": "visual similarity (retain smallest)",
         }
         mode_desc = mode_descriptions.get(self.dedup_mode, self.dedup_mode)
 
         reply = QMessageBox.question(
-            self, "Remove Duplicates",
+            self,
+            "Remove Duplicates",
             f"Find and remove duplicates from {scope_msg} using {mode_desc}?\n\n"
             "This will permanently delete duplicate files.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply != QMessageBox.StandardButton.Yes:
@@ -126,7 +138,9 @@ class FileOperationsMixin:
 
             if not duplicates:
                 self.status_bar.showMessage("No duplicates found", 3000)
-                QMessageBox.information(self, "Remove Duplicates", "No duplicate images found.")
+                QMessageBox.information(
+                    self, "Remove Duplicates", "No duplicate images found."
+                )
                 return
 
             # Delete duplicates
@@ -135,9 +149,14 @@ class FileOperationsMixin:
             # Refresh thumbnail view
             self.refresh_thumbnails()
 
-            self.status_bar.showMessage(f"Removed {deleted_count} duplicate file(s)", 3000)
-            QMessageBox.information(self, "Remove Duplicates",
-                                   f"Successfully removed {deleted_count} duplicate file(s).")
+            self.status_bar.showMessage(
+                f"Removed {deleted_count} duplicate file(s)", 3000
+            )
+            QMessageBox.information(
+                self,
+                "Remove Duplicates",
+                f"Successfully removed {deleted_count} duplicate file(s).",
+            )
 
         except Exception as e:
             self.status_bar.showMessage("Error during deduplication", 3000)
@@ -150,7 +169,7 @@ class FileOperationsMixin:
         hash_dict = {}
         for path in file_paths:
             try:
-                with open(path, 'rb') as f:
+                with open(path, "rb") as f:
                     file_hash = hashlib.md5(f.read()).hexdigest()
                     if file_hash not in hash_dict:
                         hash_dict[file_hash] = []
@@ -169,17 +188,19 @@ class FileOperationsMixin:
 
         # Check if findimagedupes is available
         try:
-            subprocess.run(['findimagedupes', '--version'],
-                          capture_output=True, check=True)
+            subprocess.run(
+                ["findimagedupes", "--version"], capture_output=True, check=True
+            )
         except (subprocess.CalledProcessError, FileNotFoundError):
             QMessageBox.warning(
-                self, "Tool Not Found",
+                self,
+                "Tool Not Found",
                 "The 'findimagedupes' tool is not installed.\n\n"
                 "Install it with:\n"
                 "  Ubuntu/Debian: sudo apt install findimagedupes\n"
                 "  Fedora: sudo dnf install findimagedupes\n"
                 "  Arch: sudo pacman -S findimagedupes\n\n"
-                "Or from source: https://github.com/jhnc/findimagedupes"
+                "Or from source: https://github.com/jhnc/findimagedupes",
             )
             raise RuntimeError("findimagedupes not found")
 
@@ -198,24 +219,26 @@ class FileOperationsMixin:
             # Run findimagedupes on the directories
             # -f is for fingerprint database, -i is for custom view hook
             result = subprocess.run(
-                ['findimagedupes', '-f', db_file, '-i', custom_hook] + directories,
+                ["findimagedupes", "-f", db_file, "-i", custom_hook] + directories,
                 capture_output=True,
-                text=True
+                text=True,
             )
 
             # Parse output - each line has files separated by |||
             duplicates = {}
             group_id = 0
 
-            for line in result.stdout.strip().split('\n'):
+            for line in result.stdout.strip().split("\n"):
                 if not line.strip():
                     continue
 
                 # Split by ||| delimiter
-                files = [f.strip() for f in line.strip().split('|||') if f.strip()]
+                files = [f.strip() for f in line.strip().split("|||") if f.strip()]
 
                 # Filter to only include files from our input set
-                valid_files = [f for f in files if f in file_paths_set and os.path.isfile(f)]
+                valid_files = [
+                    f for f in files if f in file_paths_set and os.path.isfile(f)
+                ]
 
                 if len(valid_files) > 1:
                     duplicates[group_id] = valid_files
@@ -246,19 +269,19 @@ class FileOperationsMixin:
             # Determine which file to keep
             if self.dedup_mode == "exact":
                 # For exact duplicates, keep the first one (arbitrary)
-                keep_file = files[0]
+                _keep_file = files[0]
                 delete_files = files[1:]
             elif self.dedup_mode == "visual_largest":
                 # Keep the largest file
                 files_with_size = [(f, os.path.getsize(f)) for f in files]
                 files_with_size.sort(key=lambda x: x[1], reverse=True)
-                keep_file = files_with_size[0][0]
+                _keep_file = files_with_size[0][0]
                 delete_files = [f for f, _ in files_with_size[1:]]
             elif self.dedup_mode == "visual_smallest":
                 # Keep the smallest file
                 files_with_size = [(f, os.path.getsize(f)) for f in files]
                 files_with_size.sort(key=lambda x: x[1])
-                keep_file = files_with_size[0][0]
+                _keep_file = files_with_size[0][0]
                 delete_files = [f for f, _ in files_with_size[1:]]
             else:
                 continue
@@ -279,11 +302,9 @@ class FileOperationsMixin:
         Args:
             tree: The FolderTree widget (source or destination)
         """
-        import hashlib
-        import subprocess
 
         # Ensure folder dedup menu is set up
-        if not hasattr(self, 'folder_dedup_menu'):
+        if not hasattr(self, "folder_dedup_menu"):
             self.setup_folder_dedup_menu()
 
         # Get selected folder paths
@@ -306,12 +327,23 @@ class FileOperationsMixin:
                 selected_paths = [self.dest_root_path]
 
         if not selected_paths or not selected_paths[0]:
-            QMessageBox.information(self, "Remove Duplicates",
-                                   "Please select one or more folders first.")
+            QMessageBox.information(
+                self, "Remove Duplicates", "Please select one or more folders first."
+            )
             return
 
         # Collect all image files from selected folders
-        valid_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.tiff', '.bmp')
+        valid_extensions = (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp",
+            ".avif",
+            ".tiff",
+            ".bmp",
+            ".tn3",
+        )
         file_paths = []
 
         for folder_path in selected_paths:
@@ -333,8 +365,9 @@ class FileOperationsMixin:
                     print(f"Error accessing {folder_path}: {e}")
 
         if len(file_paths) < 2:
-            QMessageBox.information(self, "Remove Duplicates",
-                                   "Need at least 2 images to find duplicates.")
+            QMessageBox.information(
+                self, "Remove Duplicates", "Need at least 2 images to find duplicates."
+            )
             return
 
         # Build scope message
@@ -352,15 +385,18 @@ class FileOperationsMixin:
             "visual_largest": "visual similarity (retain largest)",
             "visual_smallest": "visual similarity (retain smallest)",
             "visual_deepest": "visual similarity (retain deepest path)",
-            "visual_shallow": "visual similarity (retain shallowest path)"
+            "visual_shallow": "visual similarity (retain shallowest path)",
         }
-        mode_desc = mode_descriptions.get(self.folder_dedup_mode, self.folder_dedup_mode)
+        mode_desc = mode_descriptions.get(
+            self.folder_dedup_mode, self.folder_dedup_mode
+        )
 
         reply = QMessageBox.question(
-            self, "Remove Duplicates",
+            self,
+            "Remove Duplicates",
             f"Find and remove duplicates from {scope_msg} ({len(file_paths)} files) using {mode_desc}?\n\n"
             "This will permanently delete duplicate files.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply != QMessageBox.StandardButton.Yes:
@@ -378,7 +414,9 @@ class FileOperationsMixin:
 
             if not duplicates:
                 self.status_bar.showMessage("No duplicates found", 3000)
-                QMessageBox.information(self, "Remove Duplicates", "No duplicate images found.")
+                QMessageBox.information(
+                    self, "Remove Duplicates", "No duplicate images found."
+                )
                 return
 
             # Delete duplicates using folder-specific mode
@@ -394,9 +432,14 @@ class FileOperationsMixin:
                 self.src_tree.viewport().update()
                 self.dest_tree.viewport().update()
 
-            self.status_bar.showMessage(f"Removed {deleted_count} duplicate file(s)", 3000)
-            QMessageBox.information(self, "Remove Duplicates",
-                                   f"Successfully removed {deleted_count} duplicate file(s).")
+            self.status_bar.showMessage(
+                f"Removed {deleted_count} duplicate file(s)", 3000
+            )
+            QMessageBox.information(
+                self,
+                "Remove Duplicates",
+                f"Successfully removed {deleted_count} duplicate file(s).",
+            )
 
         except Exception as e:
             self.status_bar.showMessage("Error during deduplication", 3000)
@@ -420,31 +463,31 @@ class FileOperationsMixin:
             # Determine which file to keep based on folder_dedup_mode
             if self.folder_dedup_mode == "exact":
                 # For exact duplicates, keep the first one (arbitrary)
-                keep_file = files[0]
+                _keep_file = files[0]
                 delete_files = files[1:]
             elif self.folder_dedup_mode == "visual_largest":
                 # Keep the largest file
                 files_with_size = [(f, os.path.getsize(f)) for f in files]
                 files_with_size.sort(key=lambda x: x[1], reverse=True)
-                keep_file = files_with_size[0][0]
+                _keep_file = files_with_size[0][0]
                 delete_files = [f for f, _ in files_with_size[1:]]
             elif self.folder_dedup_mode == "visual_smallest":
                 # Keep the smallest file
                 files_with_size = [(f, os.path.getsize(f)) for f in files]
                 files_with_size.sort(key=lambda x: x[1])
-                keep_file = files_with_size[0][0]
+                _keep_file = files_with_size[0][0]
                 delete_files = [f for f, _ in files_with_size[1:]]
             elif self.folder_dedup_mode == "visual_deepest":
                 # Keep the file with the deepest path (most directory separators)
                 files_with_depth = [(f, f.count(os.sep)) for f in files]
                 files_with_depth.sort(key=lambda x: x[1], reverse=True)
-                keep_file = files_with_depth[0][0]
+                _keep_file = files_with_depth[0][0]
                 delete_files = [f for f, _ in files_with_depth[1:]]
             elif self.folder_dedup_mode == "visual_shallow":
                 # Keep the file with the shallowest path (fewest directory separators)
                 files_with_depth = [(f, f.count(os.sep)) for f in files]
                 files_with_depth.sort(key=lambda x: x[1])
-                keep_file = files_with_depth[0][0]
+                _keep_file = files_with_depth[0][0]
                 delete_files = [f for f, _ in files_with_depth[1:]]
             else:
                 continue
@@ -462,7 +505,7 @@ class FileOperationsMixin:
     def undo_last_operation(self):
         """Undo the last move, copy, or delete operation."""
         # First check if there's a delete to undo (takes priority as it's the most recent)
-        if hasattr(self, 'delete_undo_manager') and self.delete_undo_manager.can_undo():
+        if hasattr(self, "delete_undo_manager") and self.delete_undo_manager.can_undo():
             self.undo_delete()
             return
 
@@ -470,8 +513,8 @@ class FileOperationsMixin:
             self.status_bar.showMessage("Nothing to undo", 3000)
             return
 
-        operation_type = self.last_operation['type']
-        files = self.last_operation['files']
+        operation_type = self.last_operation["type"]
+        files = self.last_operation["files"]
 
         if not files:
             self.last_operation = None
@@ -502,7 +545,9 @@ class FileOperationsMixin:
                         failed_count += 1
             except Exception as e:
                 failed_count += 1
-                QMessageBox.warning(self, "Undo Error", f"Could not undo {os.path.basename(dest)}:\n{e}")
+                QMessageBox.warning(
+                    self, "Undo Error", f"Could not undo {os.path.basename(dest)}:\n{e}"
+                )
 
         # Clear the operation history after undo
         self.last_operation = None
@@ -514,17 +559,24 @@ class FileOperationsMixin:
         QTimer.singleShot(100, lambda: scroll_bar.setValue(saved_scroll_pos))
 
         # Update folder count caches
-        if hasattr(self.src_tree, 'count_delegate') and hasattr(self.dest_tree, 'count_delegate'):
+        if hasattr(self.src_tree, "count_delegate") and hasattr(
+            self.dest_tree, "count_delegate"
+        ):
             self.src_tree.count_delegate._count_cache.clear()
             self.dest_tree.count_delegate._count_cache.clear()
             self.src_tree.viewport().update()
             self.dest_tree.viewport().update()
 
-        self.status_bar.showMessage(f"Undid {operation_type}: {success_count} file(s)", 3000)
+        self.status_bar.showMessage(
+            f"Undid {operation_type}: {success_count} file(s)", 3000
+        )
 
     def undo_delete(self):
         """Undo the last file deletion."""
-        if not hasattr(self, 'delete_undo_manager') or not self.delete_undo_manager.can_undo():
+        if (
+            not hasattr(self, "delete_undo_manager")
+            or not self.delete_undo_manager.can_undo()
+        ):
             self.status_bar.showMessage("Nothing to undo", 3000)
             return
 
@@ -543,7 +595,9 @@ class FileOperationsMixin:
             QTimer.singleShot(100, lambda: scroll_bar.setValue(saved_scroll_pos))
 
             # Update folder count caches
-            if hasattr(self.src_tree, 'count_delegate') and hasattr(self.dest_tree, 'count_delegate'):
+            if hasattr(self.src_tree, "count_delegate") and hasattr(
+                self.dest_tree, "count_delegate"
+            ):
                 self.src_tree.count_delegate._count_cache.clear()
                 self.dest_tree.count_delegate._count_cache.clear()
                 self.src_tree.viewport().update()
@@ -567,8 +621,7 @@ class FileOperationsMixin:
 
         if not image_list:
             QMessageBox.information(
-                self, "No Images",
-                "Please select a source folder with images first."
+                self, "No Images", "Please select a source folder with images first."
             )
             return
 
@@ -596,8 +649,7 @@ class FileOperationsMixin:
 
         if not image_list:
             QMessageBox.information(
-                self, "No Images",
-                "Please select a source folder with images first."
+                self, "No Images", "Please select a source folder with images first."
             )
             return
 
@@ -618,8 +670,11 @@ class FileOperationsMixin:
         # Get selected image paths
         selected_items = self.thumb_list.selectedItems()
         if selected_items:
-            image_paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items
-                           if item.data(Qt.ItemDataRole.UserRole)]
+            image_paths = [
+                item.data(Qt.ItemDataRole.UserRole)
+                for item in selected_items
+                if item.data(Qt.ItemDataRole.UserRole)
+            ]
         else:
             # No selection - gather all and ask
             image_paths = []
@@ -631,15 +686,17 @@ class FileOperationsMixin:
 
             if not image_paths:
                 QMessageBox.information(
-                    self, "No Images",
-                    "Please select a source folder with images first."
+                    self,
+                    "No Images",
+                    "Please select a source folder with images first.",
                 )
                 return
 
             reply = QMessageBox.question(
-                self, "Enhance All?",
+                self,
+                "Enhance All?",
                 f"No images selected. Enhance all {len(image_paths)} images in the current folder?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
@@ -653,7 +710,7 @@ class FileOperationsMixin:
         menu = QMenu(self)
 
         # Current settings
-        current_backend = getattr(self, 'caption_backend', 'florence2')
+        current_backend = getattr(self, "caption_backend", "florence2")
 
         # --- Backend selection ---
         backend_label = QAction("Caption Backend:", self)
@@ -686,7 +743,7 @@ class FileOperationsMixin:
             model_label.setEnabled(False)
             menu.addAction(model_label)
 
-            current_model = getattr(self, 'caption_florence_model', 'base')
+            current_model = getattr(self, "caption_florence_model", "base")
             model_group = QActionGroup(self)
             model_group.setExclusive(True)
 
@@ -713,7 +770,7 @@ class FileOperationsMixin:
             detail_label.setEnabled(False)
             menu.addAction(detail_label)
 
-            current_detail = getattr(self, 'caption_florence_detail', 'detailed')
+            current_detail = getattr(self, "caption_florence_detail", "detailed")
             detail_group = QActionGroup(self)
             detail_group.setExclusive(True)
 
@@ -737,7 +794,7 @@ class FileOperationsMixin:
             model_label.setEnabled(False)
             menu.addAction(model_label)
 
-            current_model = getattr(self, 'caption_wd14_model', 'vit-v2')
+            current_model = getattr(self, "caption_wd14_model", "vit-v2")
             model_group = QActionGroup(self)
             model_group.setExclusive(True)
 
@@ -763,18 +820,21 @@ class FileOperationsMixin:
             model_label.setEnabled(False)
             menu.addAction(model_label)
 
-            current_model = getattr(self, 'caption_ollama_model', 'llava')
-            current_url = getattr(self, 'caption_ollama_url', 'http://localhost:11434')
+            current_model = getattr(self, "caption_ollama_model", "llava")
+            current_url = getattr(self, "caption_ollama_url", "http://localhost:11434")
 
             # Try to fetch available models
             try:
                 import urllib.request
                 import json
+
                 api_url = f"{current_url.rstrip('/')}/api/tags"
                 request = urllib.request.Request(api_url)
                 with urllib.request.urlopen(request, timeout=2) as response:
                     result = json.loads(response.read().decode("utf-8"))
-                    models = sorted([m.get("name", "") for m in result.get("models", [])])
+                    models = sorted(
+                        [m.get("name", "") for m in result.get("models", [])]
+                    )
             except Exception:
                 models = []
 
@@ -837,7 +897,7 @@ class FileOperationsMixin:
 
     def batch_generate_captions(self):
         """Generate captions for selected or all thumbnail images."""
-        from caption_generator import get_caption_generator, CaptionWorker
+        from caption_generator import get_caption_generator
 
         # Get images to process - selected items or all if none selected
         selected_items = self.thumb_list.selectedItems()
@@ -858,8 +918,7 @@ class FileOperationsMixin:
 
         if not image_paths:
             QMessageBox.information(
-                self, "No Images",
-                "No images available to caption."
+                self, "No Images", "No images available to caption."
             )
             return
 
@@ -882,8 +941,12 @@ class FileOperationsMixin:
                 f"{len(images_without_captions)} need captions.\n\n"
                 "What would you like to do?"
             )
-            skip_btn = msg_box.addButton("Skip existing", QMessageBox.ButtonRole.AcceptRole)
-            overwrite_btn = msg_box.addButton("Overwrite all", QMessageBox.ButtonRole.DestructiveRole)
+            skip_btn = msg_box.addButton(
+                "Skip existing", QMessageBox.ButtonRole.AcceptRole
+            )
+            overwrite_btn = msg_box.addButton(
+                "Overwrite all", QMessageBox.ButtonRole.DestructiveRole
+            )
             cancel_btn = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
             msg_box.setDefaultButton(skip_btn)
             msg_box.exec()
@@ -903,7 +966,9 @@ class FileOperationsMixin:
                 f"All {len(images_with_captions)} image(s) already have captions.\n"
                 "Do you want to regenerate them?"
             )
-            overwrite_btn = msg_box.addButton("Overwrite", QMessageBox.ButtonRole.AcceptRole)
+            overwrite_btn = msg_box.addButton(
+                "Overwrite", QMessageBox.ButtonRole.AcceptRole
+            )
             cancel_btn = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
             msg_box.setDefaultButton(cancel_btn)
             msg_box.exec()
@@ -925,13 +990,13 @@ class FileOperationsMixin:
         progress.setValue(0)
 
         # Get caption settings
-        backend = getattr(self, 'caption_backend', 'florence2')
-        ollama_url = getattr(self, 'caption_ollama_url', 'http://localhost:11434')
-        ollama_model = getattr(self, 'caption_ollama_model', 'llava')
-        florence_model = getattr(self, 'caption_florence_model', 'base')
-        florence_detail = getattr(self, 'caption_florence_detail', 'detailed')
-        wd14_model = getattr(self, 'caption_wd14_model', 'vit-v2')
-        wd14_threshold = getattr(self, 'caption_wd14_threshold', 0.55)
+        backend = getattr(self, "caption_backend", "florence2")
+        ollama_url = getattr(self, "caption_ollama_url", "http://localhost:11434")
+        ollama_model = getattr(self, "caption_ollama_model", "llava")
+        florence_model = getattr(self, "caption_florence_model", "base")
+        florence_detail = getattr(self, "caption_florence_detail", "detailed")
+        wd14_model = getattr(self, "caption_wd14_model", "vit-v2")
+        wd14_threshold = getattr(self, "caption_wd14_threshold", 0.55)
 
         # Get generator instance
         generator = get_caption_generator()
@@ -947,7 +1012,9 @@ class FileOperationsMixin:
 
             # Update progress
             filename = os.path.basename(image_path)
-            progress.setLabelText(f"Generating caption for:\n{filename}\n\n({i+1} of {len(image_paths)})")
+            progress.setLabelText(
+                f"Generating caption for:\n{filename}\n\n({i + 1} of {len(image_paths)})"
+            )
             progress.setValue(i)
             QApplication.processEvents()
 
@@ -957,13 +1024,11 @@ class FileOperationsMixin:
                     caption = generator.generate_florence(
                         image_path,
                         model_key=florence_model,
-                        detail_level=florence_detail
+                        detail_level=florence_detail,
                     )
                 elif backend == "wd14":
                     caption = generator.generate_wd14(
-                        image_path,
-                        model_key=wd14_model,
-                        threshold=wd14_threshold
+                        image_path, model_key=wd14_model, threshold=wd14_threshold
                     )
                 else:  # ollama
                     caption = generator.generate_ollama(
@@ -972,7 +1037,7 @@ class FileOperationsMixin:
 
                 # Save caption to txt file
                 caption_path = os.path.splitext(image_path)[0] + ".txt"
-                with open(caption_path, 'w', encoding='utf-8') as f:
+                with open(caption_path, "w", encoding="utf-8") as f:
                     f.write(caption)
 
                 successful += 1
@@ -993,9 +1058,9 @@ class FileOperationsMixin:
             msg = f"Batch captioning complete.\n\nSuccessful: {successful}\nFailed: {failed}"
 
         if errors and len(errors) <= 5:
-            msg += f"\n\nErrors:\n" + "\n".join(errors)
+            msg += "\n\nErrors:\n" + "\n".join(errors)
         elif errors:
-            msg += f"\n\nFirst 5 errors:\n" + "\n".join(errors[:5])
+            msg += "\n\nFirst 5 errors:\n" + "\n".join(errors[:5])
             msg += f"\n... and {len(errors) - 5} more"
 
         QMessageBox.information(self, "Batch Caption Results", msg)

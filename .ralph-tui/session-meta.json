@@ -1,0 +1,14 @@
+{
+  "id": "fc7b1fd0-eba3-45a8-9e88-c25cdccc222a",
+  "status": "running",
+  "startedAt": "2026-03-05T20:02:34.062Z",
+  "updatedAt": "2026-03-05T20:45:38.554Z",
+  "agentPlugin": "ollama-bridge",
+  "trackerPlugin": "json",
+  "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog___init__.json",
+  "currentIteration": 2,
+  "maxIterations": 50,
+  "totalTasks": 0,
+  "tasksCompleted": 1,
+  "cwd": "/home/hephaestus/Documents/scripts/img_sort"
+}

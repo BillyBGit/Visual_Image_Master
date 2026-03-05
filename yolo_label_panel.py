@@ -3,25 +3,35 @@ YOLO label panel widget for managing class labels and output settings.
 """
 
 import os
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-                                QPushButton, QLabel, QLineEdit, QScrollArea,
-                                QColorDialog, QFileDialog, QFrame, QSizePolicy)
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QPushButton,
+    QLabel,
+    QLineEdit,
+    QScrollArea,
+    QColorDialog,
+    QFileDialog,
+    QFrame,
+)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
 
 # Default colors for new labels (will cycle through these)
 DEFAULT_COLORS = [
-    QColor(255, 0, 0),      # Red
-    QColor(0, 255, 0),      # Green
-    QColor(0, 0, 255),      # Blue
-    QColor(255, 255, 0),    # Yellow
-    QColor(255, 0, 255),    # Magenta
-    QColor(0, 255, 255),    # Cyan
-    QColor(255, 128, 0),    # Orange
-    QColor(128, 0, 255),    # Purple
-    QColor(0, 128, 255),    # Sky Blue
-    QColor(255, 0, 128),    # Pink
+    QColor(255, 0, 0),  # Red
+    QColor(0, 255, 0),  # Green
+    QColor(0, 0, 255),  # Blue
+    QColor(255, 255, 0),  # Yellow
+    QColor(255, 0, 255),  # Magenta
+    QColor(0, 255, 255),  # Cyan
+    QColor(255, 128, 0),  # Orange
+    QColor(128, 0, 255),  # Purple
+    QColor(0, 128, 255),  # Sky Blue
+    QColor(255, 0, 128),  # Pink
 ]
 
 
@@ -86,7 +96,9 @@ class LabelRow(QFrame):
             "QPushButton { color: #cc0000; font-weight: bold; font-size: 14px; }"
             "QPushButton:hover { background-color: #ffcccc; color: #990000; }"
         )
-        self.delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.class_id))
+        self.delete_btn.clicked.connect(
+            lambda: self.delete_requested.emit(self.class_id)
+        )
         layout.addWidget(self.delete_btn)
 
     def _update_color_box(self):
@@ -137,7 +149,7 @@ class LabelRow(QFrame):
             self.color,
             self.window(),
             f"Choose color for {self.get_name()}",
-            QColorDialog.ColorDialogOption.DontUseNativeDialog
+            QColorDialog.ColorDialogOption.DontUseNativeDialog,
         )
         if new_color.isValid():
             self.color = new_color
@@ -196,7 +208,9 @@ class YoloLabelPanel(QWidget):
         # Scroll area for label rows
         self.labels_scroll = QScrollArea()
         self.labels_scroll.setWidgetResizable(True)
-        self.labels_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.labels_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.labels_scroll.setMinimumHeight(150)
 
         # Container for label rows
@@ -280,7 +294,7 @@ class YoloLabelPanel(QWidget):
             name = ""
 
         # Find next available class ID
-        existing_ids = set(label['class_id'] for label in self.labels)
+        existing_ids = set(label["class_id"] for label in self.labels)
         class_id = 0
         while class_id in existing_ids:
             class_id += 1
@@ -294,7 +308,7 @@ class YoloLabelPanel(QWidget):
                 default_color,
                 self.window(),
                 f"Choose color for new label (class {class_id})",
-                QColorDialog.ColorDialogOption.DontUseNativeDialog
+                QColorDialog.ColorDialogOption.DontUseNativeDialog,
             )
             if not color.isValid():
                 # User cancelled - don't add the label
@@ -303,11 +317,7 @@ class YoloLabelPanel(QWidget):
             color = default_color
 
         # Create label data
-        label_data = {
-            'class_id': class_id,
-            'color': color,
-            'name': name
-        }
+        label_data = {"class_id": class_id, "color": color, "name": name}
         self.labels.append(label_data)
 
         # Create and add row widget
@@ -338,7 +348,7 @@ class YoloLabelPanel(QWidget):
     def delete_label(self, class_id):
         """Delete a label by class ID and renumber remaining labels."""
         # Remove from labels list
-        self.labels = [l for l in self.labels if l['class_id'] != class_id]
+        self.labels = [lbl for lbl in self.labels if lbl["class_id"] != class_id]
 
         # Remove widget
         if class_id in self.label_rows:
@@ -358,7 +368,7 @@ class YoloLabelPanel(QWidget):
 
         # Select first label if available
         if self.labels and self.selected_class_id is None:
-            self._on_label_selected(self.labels[0]['class_id'])
+            self._on_label_selected(self.labels[0]["class_id"])
 
         self.labels_changed.emit()
 
@@ -369,12 +379,12 @@ class YoloLabelPanel(QWidget):
             dict mapping old_class_id -> new_class_id for any IDs that changed
         """
         # Sort labels by current class_id
-        sorted_labels = sorted(self.labels, key=lambda x: x['class_id'])
+        sorted_labels = sorted(self.labels, key=lambda x: x["class_id"])
 
         # Build mapping of old -> new IDs
         id_mapping = {}
         for new_id, label in enumerate(sorted_labels):
-            old_id = label['class_id']
+            old_id = label["class_id"]
             if old_id != new_id:
                 id_mapping[old_id] = new_id
 
@@ -383,7 +393,7 @@ class YoloLabelPanel(QWidget):
 
         # Update labels list
         for new_id, label in enumerate(sorted_labels):
-            label['class_id'] = new_id
+            label["class_id"] = new_id
 
         self.labels = sorted_labels
 
@@ -392,7 +402,7 @@ class YoloLabelPanel(QWidget):
         self.label_rows = {}
 
         for label in self.labels:
-            new_id = label['class_id']
+            new_id = label["class_id"]
             # Find the row that had the original ID for this label
             old_id = None
             for oid, nid in id_mapping.items():
@@ -428,10 +438,10 @@ class YoloLabelPanel(QWidget):
         Returns:
             dict mapping old_class_id -> new_class_id
         """
-        sorted_labels = sorted(self.labels, key=lambda x: x['class_id'])
+        sorted_labels = sorted(self.labels, key=lambda x: x["class_id"])
         id_mapping = {}
         for new_id, label in enumerate(sorted_labels):
-            old_id = label['class_id']
+            old_id = label["class_id"]
             if old_id != new_id:
                 id_mapping[old_id] = new_id
         return id_mapping
@@ -455,7 +465,10 @@ class YoloLabelPanel(QWidget):
     def _on_label_selected(self, class_id):
         """Handle label selection."""
         # Deselect previous
-        if self.selected_class_id is not None and self.selected_class_id in self.label_rows:
+        if (
+            self.selected_class_id is not None
+            and self.selected_class_id in self.label_rows
+        ):
             self.label_rows[self.selected_class_id].set_selected(False)
 
         # Select new
@@ -466,15 +479,15 @@ class YoloLabelPanel(QWidget):
 
             # Find label data
             for label in self.labels:
-                if label['class_id'] == class_id:
-                    self.label_selected.emit(class_id, label['color'], row.get_name())
+                if label["class_id"] == class_id:
+                    self.label_selected.emit(class_id, label["color"], row.get_name())
                     break
 
     def _on_label_color_changed(self, class_id, color):
         """Handle label color change."""
         for label in self.labels:
-            if label['class_id'] == class_id:
-                label['color'] = color
+            if label["class_id"] == class_id:
+                label["color"] = color
                 break
 
         # Re-emit selected signal if this is the selected label
@@ -487,8 +500,8 @@ class YoloLabelPanel(QWidget):
     def _on_label_name_changed(self, class_id, name):
         """Handle label name change."""
         for label in self.labels:
-            if label['class_id'] == class_id:
-                label['name'] = name
+            if label["class_id"] == class_id:
+                label["name"] = name
                 break
 
         self.labels_changed.emit()
@@ -502,8 +515,9 @@ class YoloLabelPanel(QWidget):
     def _browse_output_path(self):
         """Open directory browser for output path."""
         path = QFileDialog.getExistingDirectory(
-            self, "Select YOLO Output Directory",
-            self.output_path or os.path.expanduser("~")
+            self,
+            "Select YOLO Output Directory",
+            self.output_path or os.path.expanduser("~"),
         )
         if path:
             self.path_edit.setText(path)
@@ -544,12 +558,12 @@ class YoloLabelPanel(QWidget):
             return None
 
         for label in self.labels:
-            if label['class_id'] == self.selected_class_id:
+            if label["class_id"] == self.selected_class_id:
                 row = self.label_rows.get(self.selected_class_id)
                 return {
-                    'class_id': label['class_id'],
-                    'color': label['color'],
-                    'name': row.get_name() if row else label.get('name', '')
+                    "class_id": label["class_id"],
+                    "color": label["color"],
+                    "name": row.get_name() if row else label.get("name", ""),
                 }
         return None
 
@@ -557,12 +571,14 @@ class YoloLabelPanel(QWidget):
         """Get all labels with their current names."""
         result = []
         for label in self.labels:
-            row = self.label_rows.get(label['class_id'])
-            result.append({
-                'class_id': label['class_id'],
-                'color': label['color'],
-                'name': row.get_name() if row else label.get('name', '')
-            })
+            row = self.label_rows.get(label["class_id"])
+            result.append(
+                {
+                    "class_id": label["class_id"],
+                    "color": label["color"],
+                    "name": row.get_name() if row else label.get("name", ""),
+                }
+            )
         return result
 
     def set_labels(self, labels):
@@ -570,18 +586,14 @@ class YoloLabelPanel(QWidget):
         self.clear_labels()
 
         for label in labels:
-            class_id = label['class_id']
-            color = label.get('color', DEFAULT_COLORS[class_id % len(DEFAULT_COLORS)])
+            class_id = label["class_id"]
+            color = label.get("color", DEFAULT_COLORS[class_id % len(DEFAULT_COLORS)])
             if isinstance(color, str):
                 color = QColor(color)
-            name = label.get('name', '')
+            name = label.get("name", "")
 
             # Create label data
-            label_data = {
-                'class_id': class_id,
-                'color': color,
-                'name': name
-            }
+            label_data = {"class_id": class_id, "color": color, "name": name}
             self.labels.append(label_data)
 
             # Create row widget
@@ -598,7 +610,7 @@ class YoloLabelPanel(QWidget):
 
         # Select first label if available
         if self.labels:
-            self._on_label_selected(self.labels[0]['class_id'])
+            self._on_label_selected(self.labels[0]["class_id"])
 
         self._update_button_states()
 

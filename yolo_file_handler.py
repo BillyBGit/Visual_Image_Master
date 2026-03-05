@@ -32,11 +32,11 @@ class YoloFileHandler:
             str: Comment string like "YOLO_CLASSES:0=name0,1=name1"
         """
         parts = []
-        for label in sorted(labels, key=lambda x: x['class_id']):
-            class_id = label['class_id']
-            name = label.get('name') or f"class_{class_id}"
+        for label in sorted(labels, key=lambda x: x["class_id"]):
+            class_id = label["class_id"]
+            name = label.get("name") or f"class_{class_id}"
             # Escape commas and equals in names
-            name = name.replace('=', '_').replace(',', '_')
+            name = name.replace("=", "_").replace(",", "_")
             parts.append(f"{class_id}={name}")
         return "YOLO_CLASSES:" + ",".join(parts)
 
@@ -55,7 +55,7 @@ class YoloFileHandler:
             return None
 
         try:
-            mapping_str = comment_line[len(prefix):].strip()
+            mapping_str = comment_line[len(prefix) :].strip()
             if not mapping_str:
                 return {}
 
@@ -84,8 +84,8 @@ class YoloFileHandler:
         """
         parts = []
         # Escape commas and equals in filename
-        filename = source_info.get('filename', '')
-        filename = filename.replace('=', '_').replace(',', '_')
+        filename = source_info.get("filename", "")
+        filename = filename.replace("=", "_").replace(",", "_")
         parts.append(f"filename={filename}")
         parts.append(f"width={source_info.get('width', 0)}")
         parts.append(f"height={source_info.get('height', 0)}")
@@ -111,7 +111,7 @@ class YoloFileHandler:
             return None
 
         try:
-            mapping_str = comment_line[len(prefix):].strip()
+            mapping_str = comment_line[len(prefix) :].strip()
             if not mapping_str:
                 return None
 
@@ -119,15 +119,23 @@ class YoloFileHandler:
             for part in mapping_str.split(","):
                 if "=" in part:
                     key, value = part.split("=", 1)
-                    if key == 'filename':
+                    if key == "filename":
                         result[key] = value
-                    elif key in ('width', 'height'):
+                    elif key in ("width", "height"):
                         result[key] = int(value)
-                    elif key in ('sel_x', 'sel_y', 'sel_w', 'sel_h'):
+                    elif key in ("sel_x", "sel_y", "sel_w", "sel_h"):
                         result[key] = float(value)
 
             # Validate required fields
-            required = ['filename', 'width', 'height', 'sel_x', 'sel_y', 'sel_w', 'sel_h']
+            required = [
+                "filename",
+                "width",
+                "height",
+                "sel_x",
+                "sel_y",
+                "sel_w",
+                "sel_h",
+            ]
             if all(k in result for k in required):
                 return result
             return None
@@ -150,7 +158,7 @@ class YoloFileHandler:
         YOLO format: class_id x_center y_center width height
         All values normalized to 0.0-1.0 relative to image size
         """
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             # Write class mapping header comment
             class_mapping = YoloFileHandler.build_class_mapping_comment(labels)
             f.write(f"# {class_mapping}\n")
@@ -161,8 +169,8 @@ class YoloFileHandler:
                 f.write(f"# {source_comment}\n")
 
             for ann in annotations:
-                class_id = ann['class_id']
-                ratios = ann['ratios']
+                class_id = ann["class_id"]
+                ratios = ann["ratios"]
 
                 # ratios are relative to selection box (which becomes the image)
                 # Convert to YOLO center format
@@ -194,21 +202,21 @@ class YoloFileHandler:
             return [], None
 
         try:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 lines = f.readlines()
         except Exception:
             return [], None
 
         # Build lookup structures
-        all_labels = {l['class_id']: l for l in current_labels}
+        all_labels = {lbl["class_id"]: lbl for lbl in current_labels}
 
         # Build name -> current_class_id mapping for translation
         name_to_current_id = {}
         for label in current_labels:
-            name = label.get('name') or f"class_{label['class_id']}"
+            name = label.get("name") or f"class_{label['class_id']}"
             # Normalize name (same as when saving)
-            name = name.replace('=', '_').replace(',', '_')
-            name_to_current_id[name] = label['class_id']
+            name = name.replace("=", "_").replace(",", "_")
+            name_to_current_id[name] = label["class_id"]
 
         # Parse comments from the file
         file_class_mapping = None
@@ -259,19 +267,21 @@ class YoloFileHandler:
                 # Get label info
                 if class_id in all_labels:
                     label_info = all_labels[class_id]
-                    color = label_info['color']
-                    name = label_info.get('name', '')
+                    color = label_info["color"]
+                    name = label_info.get("name", "")
                 else:
                     # Unknown class - use default color
                     color = default_colors[class_id % len(default_colors)]
                     name = f"class_{class_id}"
 
-                annotations.append({
-                    'class_id': class_id,
-                    'color': color,
-                    'name': name,
-                    'ratios': (x, y, width, height)
-                })
+                annotations.append(
+                    {
+                        "class_id": class_id,
+                        "color": color,
+                        "name": name,
+                        "ratios": (x, y, width, height),
+                    }
+                )
 
             except (ValueError, IndexError):
                 continue
@@ -301,7 +311,7 @@ class YoloFileHandler:
 
             filepath = os.path.join(labels_dir, filename)
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath, "r") as f:
                     lines = f.readlines()
 
                 new_lines = []
@@ -332,9 +342,11 @@ class YoloFileHandler:
 
                 # Rewrite file with new header and updated class IDs
                 if file_modified or lines:  # Always update to ensure consistent header
-                    with open(filepath, 'w') as f:
+                    with open(filepath, "w") as f:
                         # Write new class mapping header
-                        class_mapping = YoloFileHandler.build_class_mapping_comment(all_labels)
+                        class_mapping = YoloFileHandler.build_class_mapping_comment(
+                            all_labels
+                        )
                         f.write(f"# {class_mapping}\n")
                         for new_line in new_lines:
                             f.write(f"{new_line}\n")
@@ -362,32 +374,32 @@ class YoloFileHandler:
         names = {}
         colors = {}
         for label in labels:
-            class_id = label['class_id']
-            name = label.get('name', '')
+            class_id = label["class_id"]
+            name = label.get("name", "")
             # Ensure name is a non-empty string (fallback to class_N if empty)
             if not name or not isinstance(name, str):
                 name = f"class_{class_id}"
             names[class_id] = name
 
             # Store color as hex string
-            color = label.get('color')
+            color = label.get("color")
             if color:
-                if hasattr(color, 'name'):
+                if hasattr(color, "name"):
                     colors[class_id] = color.name()
                 elif isinstance(color, str):
                     colors[class_id] = color
 
         # Create YAML structure
         yaml_data = {
-            'path': output_path,
-            'train': 'images',
-            'val': 'images',
-            'names': names,
-            'colors': colors
+            "path": output_path,
+            "train": "images",
+            "val": "images",
+            "names": names,
+            "colors": colors,
         }
 
         # Write YAML file with header comment
-        with open(yaml_path, 'w') as f:
+        with open(yaml_path, "w") as f:
             f.write(YoloFileHandler.YAML_HEADER)
             yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
 
@@ -414,7 +426,7 @@ class YoloFileHandler:
         # Otherwise look for any .yaml file
         try:
             for filename in os.listdir(output_path):
-                if filename.endswith('.yaml') or filename.endswith('.yml'):
+                if filename.endswith(".yaml") or filename.endswith(".yml"):
                     return os.path.join(output_path, filename)
         except OSError:
             pass
@@ -440,14 +452,14 @@ class YoloFileHandler:
             return None, None
 
         try:
-            with open(yaml_path, 'r') as f:
+            with open(yaml_path, "r") as f:
                 yaml_data = yaml.safe_load(f)
 
             if not yaml_data or not isinstance(yaml_data, dict):
                 return None, yaml_path
 
-            names = yaml_data.get('names', {})
-            colors = yaml_data.get('colors', {})
+            names = yaml_data.get("names", {})
+            colors = yaml_data.get("colors", {})
 
             if not names:
                 return None, yaml_path
@@ -465,20 +477,17 @@ class YoloFileHandler:
                 if not isinstance(name, str):
                     name = str(name) if name else f"class_{class_id}"
 
-                label_data = {
-                    'class_id': class_id,
-                    'name': name
-                }
+                label_data = {"class_id": class_id, "name": name}
 
                 # Get color if available
                 color = colors.get(class_id) or colors.get(str(class_id))
                 if color:
-                    label_data['color'] = color
+                    label_data["color"] = color
 
                 labels.append(label_data)
 
             # Sort by class_id to maintain order
-            labels.sort(key=lambda x: x['class_id'])
+            labels.sort(key=lambda x: x["class_id"])
 
             return (labels if labels else None), yaml_path
 

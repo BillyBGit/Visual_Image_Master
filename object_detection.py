@@ -2,35 +2,155 @@
 Object detection using YOLO models for filtering images by content.
 """
 
-import os
 import cv2
 import numpy as np
 from pathlib import Path
 
 # COCO dataset class names (80 classes)
 COCO_CLASSES = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
-    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog",
-    "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
-    "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
-    "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
-    "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich",
-    "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote",
-    "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book",
-    "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
 ]
 
 # Categorize objects for easier filtering
 OBJECT_CATEGORIES = {
     "people": ["person"],
-    "animals": ["bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe"],
-    "vehicles": ["bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat"],
-    "food": ["banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake"],
+    "animals": [
+        "bird",
+        "cat",
+        "dog",
+        "horse",
+        "sheep",
+        "cow",
+        "elephant",
+        "bear",
+        "zebra",
+        "giraffe",
+    ],
+    "vehicles": [
+        "bicycle",
+        "car",
+        "motorcycle",
+        "airplane",
+        "bus",
+        "train",
+        "truck",
+        "boat",
+    ],
+    "food": [
+        "banana",
+        "apple",
+        "sandwich",
+        "orange",
+        "broccoli",
+        "carrot",
+        "hot dog",
+        "pizza",
+        "donut",
+        "cake",
+    ],
     "furniture": ["chair", "couch", "potted plant", "bed", "dining table", "toilet"],
-    "electronics": ["tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster"],
-    "sports": ["frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
-               "skateboard", "surfboard", "tennis racket"],
+    "electronics": [
+        "tv",
+        "laptop",
+        "mouse",
+        "remote",
+        "keyboard",
+        "cell phone",
+        "microwave",
+        "oven",
+        "toaster",
+    ],
+    "sports": [
+        "frisbee",
+        "skis",
+        "snowboard",
+        "sports ball",
+        "kite",
+        "baseball bat",
+        "baseball glove",
+        "skateboard",
+        "surfboard",
+        "tennis racket",
+    ],
 }
 
 
@@ -51,7 +171,7 @@ class ObjectDetector:
         models_dir = Path(__file__).parent / "models"
 
         # Check for custom model first (set via set_custom_model)
-        if hasattr(self, '_custom_model_path') and self._custom_model_path:
+        if hasattr(self, "_custom_model_path") and self._custom_model_path:
             try:
                 self._load_custom_model(self._custom_model_path)
                 return
@@ -64,13 +184,13 @@ class ObjectDetector:
         config_path = models_dir / "yolov4-tiny.cfg"
 
         if not weights_path.exists() or not config_path.exists():
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print("WARNING: YOLO model files not found!")
             print(f"Location: {models_dir}")
             print("\nTo enable object detection filtering, please run:")
             print("  cd models")
             print("  python3 download_models.py")
-            print(f"{'='*60}\n")
+            print(f"{'=' * 60}\n")
             self.net = None
             self.model_loaded = False
             return
@@ -82,7 +202,9 @@ class ObjectDetector:
 
             # Get output layer names
             layer_names = self.net.getLayerNames()
-            self.output_layers = [layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()]
+            self.output_layers = [
+                layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()
+            ]
 
             self.model_loaded = True
             print("✓ YOLO object detector loaded successfully (CPU mode)")
@@ -100,9 +222,9 @@ class ObjectDetector:
 
         suffix = model_path.suffix.lower()
 
-        if suffix in ['.weights']:
+        if suffix in [".weights"]:
             # Darknet weights format - need .cfg file
-            cfg_path = model_path.with_suffix('.cfg')
+            cfg_path = model_path.with_suffix(".cfg")
             if not cfg_path.exists():
                 raise FileNotFoundError(f"Config file not found: {cfg_path}")
 
@@ -111,11 +233,13 @@ class ObjectDetector:
             self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
             layer_names = self.net.getLayerNames()
-            self.output_layers = [layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()]
+            self.output_layers = [
+                layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()
+            ]
             self.model_loaded = True
             print(f"✓ Custom YOLO model loaded: {model_path.name}")
 
-        elif suffix == '.onnx':
+        elif suffix == ".onnx":
             # ONNX format
             self.net = cv2.dnn.readNetFromONNX(str(model_path))
             self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
@@ -126,10 +250,11 @@ class ObjectDetector:
             self.model_loaded = True
             print(f"✓ Custom YOLO model loaded (ONNX): {model_path.name}")
 
-        elif suffix in ['.pt', '.pth', '.safetensors']:
+        elif suffix in [".pt", ".pth", ".safetensors"]:
             # PyTorch formats - requires ultralytics/torch
             try:
                 from ultralytics import YOLO
+
                 self._yolo_model = YOLO(str(model_path))
                 self.model_loaded = True
                 self._is_ultralytics = True
@@ -166,9 +291,7 @@ class ObjectDetector:
             # Ultralytics YOLO models
             if self._is_ultralytics and self._yolo_model is not None:
                 results = self._yolo_model.predict(
-                    str(image_path),
-                    conf=self.confidence_threshold,
-                    verbose=False
+                    str(image_path), conf=self.confidence_threshold, verbose=False
                 )
 
                 detections = []
@@ -181,7 +304,10 @@ class ObjectDetector:
                             if conf > self.confidence_threshold:
                                 # Get class name if available
                                 class_id = int(boxes.cls[i])
-                                if hasattr(result, 'names') and class_id in result.names:
+                                if (
+                                    hasattr(result, "names")
+                                    and class_id in result.names
+                                ):
                                     class_name = result.names[class_id]
                                 else:
                                     class_name = f"object_{class_id}"
@@ -200,7 +326,9 @@ class ObjectDetector:
             height, width = img.shape[:2]
 
             # Create blob (416x416 for YOLOv4-tiny)
-            blob = cv2.dnn.blobFromImage(img, 1/255.0, (416, 416), swapRB=True, crop=False)
+            blob = cv2.dnn.blobFromImage(
+                img, 1 / 255.0, (416, 416), swapRB=True, crop=False
+            )
             self.net.setInput(blob)
 
             # Forward pass
@@ -265,6 +393,7 @@ class ObjectDetector:
 
 # Singleton instance
 _detector = None
+
 
 def get_detector(confidence_threshold=0.5):
     """Get or create the object detector instance."""

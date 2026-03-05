@@ -3,16 +3,29 @@ Auto Caption window for generating and editing image captions.
 """
 
 import os
-from PySide6.QtWidgets import (QMainWindow, QScrollArea, QLabel, QSplitter, QWidget,
-                                QVBoxLayout, QHBoxLayout, QStatusBar, QApplication,
-                                QComboBox, QGroupBox, QPushButton, QTextEdit,
-                                QLineEdit, QMessageBox, QDoubleSpinBox)
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QScrollArea,
+    QLabel,
+    QSplitter,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QStatusBar,
+    QApplication,
+    QComboBox,
+    QGroupBox,
+    QPushButton,
+    QTextEdit,
+    QLineEdit,
+    QMessageBox,
+    QDoubleSpinBox,
+)
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QAction, QPixmap, QKeySequence, QShortcut
 
 from utils import find_main_window
-from caption_generator import (get_caption_generator, CaptionWorker, BlendWorker,
-                               FLORENCE_MODELS, FLORENCE_DETAIL_LEVELS, WD14_MODELS)
+from caption_generator import get_caption_generator, CaptionWorker, BlendWorker
 
 
 class CaptionWindow(QMainWindow):
@@ -116,12 +129,14 @@ class CaptionWindow(QMainWindow):
         model_row = QHBoxLayout()
         model_row.addWidget(QLabel("Model:"))
         self.florence_model_combo = QComboBox()
-        self.florence_model_combo.addItem(f"Base (~460MB)", "base")
-        self.florence_model_combo.addItem(f"Large (~1.5GB)", "large")
-        self.florence_model_combo.addItem(f"Base Fine-tuned (~460MB)", "base-ft")
-        self.florence_model_combo.addItem(f"Large Fine-tuned (~1.5GB)", "large-ft")
+        self.florence_model_combo.addItem("Base (~460MB)", "base")
+        self.florence_model_combo.addItem("Large (~1.5GB)", "large")
+        self.florence_model_combo.addItem("Base Fine-tuned (~460MB)", "base-ft")
+        self.florence_model_combo.addItem("Large Fine-tuned (~1.5GB)", "large-ft")
         self.florence_model_combo.addItem("Custom Path...", "custom")
-        self.florence_model_combo.currentIndexChanged.connect(self._on_florence_model_changed)
+        self.florence_model_combo.currentIndexChanged.connect(
+            self._on_florence_model_changed
+        )
         model_row.addWidget(self.florence_model_combo, 1)
         florence_layout.addLayout(model_row)
 
@@ -206,11 +221,12 @@ class CaptionWindow(QMainWindow):
         wd14_custom_path_layout.setContentsMargins(0, 0, 0, 0)
         wd14_custom_path_layout.addWidget(QLabel("Path:"))
         self.wd14_custom_path = QLineEdit()
-        self.wd14_custom_path.setPlaceholderText("Path to model file (.onnx, .safetensors, .pt)")
+        self.wd14_custom_path.setPlaceholderText(
+            "Path to model file (.onnx, .safetensors, .pt)"
+        )
         wd14_custom_path_layout.addWidget(self.wd14_custom_path, 1)
 
         # Browse button
-        from PySide6.QtWidgets import QFileDialog
         self.wd14_browse_btn = QPushButton("Browse...")
         self.wd14_browse_btn.setMaximumWidth(80)
         self.wd14_browse_btn.clicked.connect(self._browse_wd14_model)
@@ -226,7 +242,9 @@ class CaptionWindow(QMainWindow):
         self.wd14_threshold.setRange(0.1, 0.9)
         self.wd14_threshold.setSingleStep(0.05)
         self.wd14_threshold.setValue(0.55)
-        self.wd14_threshold.setToolTip("Minimum confidence for tags (lower = more tags, higher = fewer)")
+        self.wd14_threshold.setToolTip(
+            "Minimum confidence for tags (lower = more tags, higher = fewer)"
+        )
         threshold_row.addWidget(self.wd14_threshold, 1)
         wd14_layout.addLayout(threshold_row)
 
@@ -241,7 +259,9 @@ class CaptionWindow(QMainWindow):
 
         # Generated caption text area
         self.generated_caption_text = QTextEdit()
-        self.generated_caption_text.setPlaceholderText("Generated caption will appear here. You can edit it before using the action buttons below.")
+        self.generated_caption_text.setPlaceholderText(
+            "Generated caption will appear here. You can edit it before using the action buttons below."
+        )
         self.generated_caption_text.setMinimumHeight(120)
         generated_layout.addWidget(self.generated_caption_text)
 
@@ -258,7 +278,9 @@ class CaptionWindow(QMainWindow):
 
         # Progress label
         self.progress_label = QLabel()
-        self.progress_label.setStyleSheet("QLabel { color: #666666; font-style: italic; }")
+        self.progress_label.setStyleSheet(
+            "QLabel { color: #666666; font-style: italic; }"
+        )
         self.progress_label.hide()
         generated_layout.addWidget(self.progress_label)
 
@@ -309,7 +331,9 @@ class CaptionWindow(QMainWindow):
         actions_layout.addWidget(blend_label)
 
         self.blend_instructions = QTextEdit()
-        self.blend_instructions.setPlaceholderText("Instructions for how Ollama should blend the captions...")
+        self.blend_instructions.setPlaceholderText(
+            "Instructions for how Ollama should blend the captions..."
+        )
         self.blend_instructions.setMinimumHeight(60)
         self.blend_instructions.setMaximumHeight(80)
         default_instructions = (
@@ -331,7 +355,9 @@ class CaptionWindow(QMainWindow):
 
         # Saved caption text area
         self.saved_caption_text = QTextEdit()
-        self.saved_caption_text.setPlaceholderText("Saved caption from .txt file. Edit and save with Ctrl+S or the button below.")
+        self.saved_caption_text.setPlaceholderText(
+            "Saved caption from .txt file. Edit and save with Ctrl+S or the button below."
+        )
         self.saved_caption_text.setMinimumHeight(120)
         self.saved_caption_text.textChanged.connect(self._on_caption_changed)
         saved_layout.addWidget(self.saved_caption_text)
@@ -400,48 +426,54 @@ class CaptionWindow(QMainWindow):
             return
 
         # Load backend selection
-        backend = getattr(self.parent_app, 'caption_backend', 'florence2')
+        backend = getattr(self.parent_app, "caption_backend", "florence2")
         for i in range(self.backend_combo.count()):
             if self.backend_combo.itemData(i) == backend:
                 self.backend_combo.setCurrentIndex(i)
                 break
 
         # Load Florence2 settings
-        florence_model = getattr(self.parent_app, 'caption_florence_model', 'base')
+        florence_model = getattr(self.parent_app, "caption_florence_model", "base")
         for i in range(self.florence_model_combo.count()):
             if self.florence_model_combo.itemData(i) == florence_model:
                 self.florence_model_combo.setCurrentIndex(i)
                 break
 
-        florence_detail = getattr(self.parent_app, 'caption_florence_detail', 'detailed')
+        florence_detail = getattr(
+            self.parent_app, "caption_florence_detail", "detailed"
+        )
         for i in range(self.florence_detail_combo.count()):
             if self.florence_detail_combo.itemData(i) == florence_detail:
                 self.florence_detail_combo.setCurrentIndex(i)
                 break
 
-        florence_custom_path = getattr(self.parent_app, 'caption_florence_custom_path', '')
+        florence_custom_path = getattr(
+            self.parent_app, "caption_florence_custom_path", ""
+        )
         if florence_custom_path:
             self.florence_custom_path.setText(florence_custom_path)
 
         # Load Ollama settings
-        ollama_url = getattr(self.parent_app, 'caption_ollama_url', 'http://localhost:11434')
+        ollama_url = getattr(
+            self.parent_app, "caption_ollama_url", "http://localhost:11434"
+        )
         self.ollama_url.setText(ollama_url)
 
-        ollama_model = getattr(self.parent_app, 'caption_ollama_model', 'llava')
+        ollama_model = getattr(self.parent_app, "caption_ollama_model", "llava")
         self.ollama_model.setText(ollama_model)
 
         # Load WD14 settings
-        wd14_model = getattr(self.parent_app, 'caption_wd14_model', 'vit-v2')
+        wd14_model = getattr(self.parent_app, "caption_wd14_model", "vit-v2")
         for i in range(self.wd14_model_combo.count()):
             if self.wd14_model_combo.itemData(i) == wd14_model:
                 self.wd14_model_combo.setCurrentIndex(i)
                 break
 
-        wd14_threshold = getattr(self.parent_app, 'caption_wd14_threshold', 0.55)
+        wd14_threshold = getattr(self.parent_app, "caption_wd14_threshold", 0.55)
         self.wd14_threshold.setValue(wd14_threshold)
 
         # Load WD14 custom paths into generator
-        wd14_custom_paths = getattr(self.parent_app, 'caption_wd14_custom_paths', {})
+        wd14_custom_paths = getattr(self.parent_app, "caption_wd14_custom_paths", {})
         if wd14_custom_paths:
             for model_key, path in wd14_custom_paths.items():
                 self.generator.set_wd14_custom_path(model_key, path)
@@ -450,12 +482,12 @@ class CaptionWindow(QMainWindow):
                     self.wd14_custom_path.setText(path)
 
         # Load blend instructions
-        blend_instructions = getattr(self.parent_app, 'caption_blend_instructions', '')
+        blend_instructions = getattr(self.parent_app, "caption_blend_instructions", "")
         if blend_instructions:
             self.blend_instructions.setPlainText(blend_instructions)
 
         # Load blend model (will be set after models are loaded)
-        self.caption_blend_model = getattr(self.parent_app, 'caption_blend_model', '')
+        self.caption_blend_model = getattr(self.parent_app, "caption_blend_model", "")
 
     def _save_settings(self):
         """Save caption settings to parent app."""
@@ -467,22 +499,30 @@ class CaptionWindow(QMainWindow):
         self.parent_app.caption_ollama_url = self.ollama_url.text().strip()
         self.parent_app.caption_ollama_model = self.ollama_model.text().strip()
         self.parent_app.caption_florence_model = self.florence_model_combo.currentData()
-        self.parent_app.caption_florence_detail = self.florence_detail_combo.currentData()
-        self.parent_app.caption_florence_custom_path = self.florence_custom_path.text().strip()
+        self.parent_app.caption_florence_detail = (
+            self.florence_detail_combo.currentData()
+        )
+        self.parent_app.caption_florence_custom_path = (
+            self.florence_custom_path.text().strip()
+        )
         self.parent_app.caption_wd14_model = self.wd14_model_combo.currentData()
         self.parent_app.caption_wd14_threshold = self.wd14_threshold.value()
 
         # Save WD14 custom paths from generator
-        self.parent_app.caption_wd14_custom_paths = dict(self.generator.wd14_custom_paths)
+        self.parent_app.caption_wd14_custom_paths = dict(
+            self.generator.wd14_custom_paths
+        )
 
         # Save blend instructions
-        self.parent_app.caption_blend_instructions = self.blend_instructions.toPlainText().strip()
+        self.parent_app.caption_blend_instructions = (
+            self.blend_instructions.toPlainText().strip()
+        )
 
         # Save blend model
         self.parent_app.caption_blend_model = self.blend_model_combo.currentText()
 
         # Trigger settings write
-        if hasattr(self.parent_app, 'write_settings'):
+        if hasattr(self.parent_app, "write_settings"):
             self.parent_app.write_settings()
 
     def _navigate_previous(self):
@@ -516,20 +556,30 @@ class CaptionWindow(QMainWindow):
         if backend == "florence2":
             available, message = self.generator.is_florence_available()
             if available:
-                self.backend_status.setText("Florence2 ready (model loads on first use)")
-                self.backend_status.setStyleSheet("QLabel { color: green; font-size: 11px; }")
+                self.backend_status.setText(
+                    "Florence2 ready (model loads on first use)"
+                )
+                self.backend_status.setStyleSheet(
+                    "QLabel { color: green; font-size: 11px; }"
+                )
             else:
                 self.backend_status.setText(message)
-                self.backend_status.setStyleSheet("QLabel { color: red; font-size: 11px; }")
+                self.backend_status.setStyleSheet(
+                    "QLabel { color: red; font-size: 11px; }"
+                )
                 self.generate_btn.setEnabled(False)
         elif backend == "wd14":
             available, message = self.generator.is_wd14_available()
             if available:
                 self.backend_status.setText("WD14 ready (model loads on first use)")
-                self.backend_status.setStyleSheet("QLabel { color: green; font-size: 11px; }")
+                self.backend_status.setStyleSheet(
+                    "QLabel { color: green; font-size: 11px; }"
+                )
             else:
                 self.backend_status.setText(message)
-                self.backend_status.setStyleSheet("QLabel { color: red; font-size: 11px; }")
+                self.backend_status.setStyleSheet(
+                    "QLabel { color: red; font-size: 11px; }"
+                )
                 self.generate_btn.setEnabled(False)
 
     def _on_backend_changed(self, index):
@@ -582,7 +632,7 @@ class CaptionWindow(QMainWindow):
             self,
             "Select WD14 Model File",
             "",
-            "Model Files (*.onnx *.safetensors *.pt *.pth *.bin);;All Files (*)"
+            "Model Files (*.onnx *.safetensors *.pt *.pth *.bin);;All Files (*)",
         )
         if file_path:
             self.wd14_custom_path.setText(file_path)
@@ -647,8 +697,15 @@ class CaptionWindow(QMainWindow):
 
         # Create worker thread
         self.caption_worker = CaptionWorker(
-            self.generator, image_path, backend, ollama_url, ollama_model,
-            florence_model, florence_detail, wd14_model, wd14_threshold
+            self.generator,
+            image_path,
+            backend,
+            ollama_url,
+            ollama_model,
+            florence_model,
+            florence_detail,
+            wd14_model,
+            wd14_threshold,
         )
         self.caption_worker.progress.connect(self._on_generation_progress)
         self.caption_worker.finished.connect(self._on_generation_finished)
@@ -694,7 +751,9 @@ class CaptionWindow(QMainWindow):
         self.saved_caption_text.setPlainText(generated)
         self.has_unsaved_changes = True
         self._update_window_title()
-        self.status_bar.showMessage("Replaced saved caption with generated caption", 3000)
+        self.status_bar.showMessage(
+            "Replaced saved caption with generated caption", 3000
+        )
 
     def _on_append_clicked(self):
         """Append generated caption to saved caption."""
@@ -728,13 +787,10 @@ class CaptionWindow(QMainWindow):
         import os
 
         # Check if debug mode is enabled
-        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+        debug = os.environ.get("IMG_SORT_DEBUG") == "1"
 
         # Try common Ollama endpoints in order
-        endpoints = [
-            "http://localhost:11434",
-            "http://localhost:3000/ollama"
-        ]
+        endpoints = ["http://localhost:11434", "http://localhost:3000/ollama"]
 
         # Track first working endpoint (even if it has no models)
         fallback_endpoint = None
@@ -751,7 +807,9 @@ class CaptionWindow(QMainWindow):
                 with urllib.request.urlopen(request, timeout=3) as response:
                     response_text = response.read().decode("utf-8")
                     if debug:
-                        print(f"[DEBUG] Response from {endpoint}: {response_text[:200]}...")
+                        print(
+                            f"[DEBUG] Response from {endpoint}: {response_text[:200]}..."
+                        )
 
                     result = json.loads(response_text)
                     models = result.get("models", [])
@@ -759,60 +817,82 @@ class CaptionWindow(QMainWindow):
                     if debug:
                         print(f"[DEBUG] Found {len(models)} models at {endpoint}")
                         if models:
-                            print(f"[DEBUG] First few models: {[m.get('name', 'unknown') for m in models[:3]]}")
+                            print(
+                                f"[DEBUG] First few models: {[m.get('name', 'unknown') for m in models[:3]]}"
+                            )
 
                     if models:
                         # Found endpoint with models - use it immediately
                         if debug:
                             print(f"[DEBUG] Using endpoint {endpoint} (has models)")
-                        return True, endpoint, f"Found {len(models)} model(s) at {endpoint}"
+                        return (
+                            True,
+                            endpoint,
+                            f"Found {len(models)} model(s) at {endpoint}",
+                        )
                     else:
                         # Endpoint works but no models - remember it as fallback
                         if fallback_endpoint is None:
                             if debug:
-                                print(f"[DEBUG] Endpoint {endpoint} connected but no models, saving as fallback")
+                                print(
+                                    f"[DEBUG] Endpoint {endpoint} connected but no models, saving as fallback"
+                                )
                             fallback_endpoint = endpoint
-                            fallback_message = f"Connected to {endpoint} but no models installed"
+                            fallback_message = (
+                                f"Connected to {endpoint} but no models installed"
+                            )
 
             except urllib.error.HTTPError as e:
                 if e.code == 401:
                     # Authentication required - this is likely Open-WebUI
                     # Try to provide helpful guidance but don't fail completely
                     if debug:
-                        print(f"[DEBUG] Endpoint {endpoint} requires authentication (401)")
-                        print(f"[DEBUG] This is likely Open-WebUI with auth enabled")
+                        print(
+                            f"[DEBUG] Endpoint {endpoint} requires authentication (401)"
+                        )
+                        print("[DEBUG] This is likely Open-WebUI with auth enabled")
                     # Don't set as fallback since it won't work without auth
                     continue
                 else:
                     if debug:
-                        print(f"[DEBUG] HTTP Error from {endpoint}: {e.code} {e.reason}")
+                        print(
+                            f"[DEBUG] HTTP Error from {endpoint}: {e.code} {e.reason}"
+                        )
                     continue
             except Exception as e:
                 if debug:
-                    print(f"[DEBUG] Failed to connect to {endpoint}: {type(e).__name__}: {e}")
+                    print(
+                        f"[DEBUG] Failed to connect to {endpoint}: {type(e).__name__}: {e}"
+                    )
                 continue
 
         # Use fallback endpoint if we found one (even with no models)
         if fallback_endpoint:
             if debug:
-                print(f"[DEBUG] No endpoints with models found, using fallback: {fallback_endpoint}")
+                print(
+                    f"[DEBUG] No endpoints with models found, using fallback: {fallback_endpoint}"
+                )
             return True, fallback_endpoint, fallback_message
 
         # No endpoints worked at all
         if debug:
             print("[DEBUG] No Ollama endpoints responded")
-        return False, "", (
-            "No accessible Ollama server found. Options:\n"
-            "1. Start standalone Ollama: 'ollama serve' (recommended)\n"
-            "2. Install Ollama from https://ollama.com\n"
-            "3. If using Open-WebUI with auth, run Ollama separately"
+        return (
+            False,
+            "",
+            (
+                "No accessible Ollama server found. Options:\n"
+                "1. Start standalone Ollama: 'ollama serve' (recommended)\n"
+                "2. Install Ollama from https://ollama.com\n"
+                "3. If using Open-WebUI with auth, run Ollama separately"
+            ),
         )
 
     def _refresh_blend_models(self):
         """Refresh the list of available Ollama models for blending."""
         # Save current selection (or use saved setting on first load)
         current_model = self.blend_model_combo.currentText()
-        if not current_model and hasattr(self, 'caption_blend_model'):
+        if not current_model and hasattr(self, "caption_blend_model"):
             current_model = self.caption_blend_model
 
         # Clear and repopulate
@@ -853,10 +933,14 @@ class CaptionWindow(QMainWindow):
                         if index >= 0:
                             self.blend_model_combo.setCurrentIndex(index)
 
-                    self.status_bar.showMessage(f"Loaded {len(models)} models from {endpoint}", 3000)
+                    self.status_bar.showMessage(
+                        f"Loaded {len(models)} models from {endpoint}", 3000
+                    )
                 else:
                     self.blend_model_combo.addItem("No models found")
-                    self.status_bar.showMessage("Ollama connected but no models installed", 5000)
+                    self.status_bar.showMessage(
+                        "Ollama connected but no models installed", 5000
+                    )
 
         except Exception as e:
             self.blend_model_combo.addItem(f"Error: {str(e)[:30]}")
@@ -865,7 +949,8 @@ class CaptionWindow(QMainWindow):
     def _on_blend_clicked(self):
         """Blend generated and saved captions using Ollama (text-only)."""
         import os
-        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
+        debug = os.environ.get("IMG_SORT_DEBUG") == "1"
 
         generated = self.generated_caption_text.toPlainText().strip()
         saved = self.saved_caption_text.toPlainText().strip()
@@ -875,13 +960,22 @@ class CaptionWindow(QMainWindow):
             return
 
         if not saved:
-            self.status_bar.showMessage("No saved caption to blend with (use Replace instead)", 3000)
+            self.status_bar.showMessage(
+                "No saved caption to blend with (use Replace instead)", 3000
+            )
             return
 
         # Get blend model
         blend_model = self.blend_model_combo.currentText()
-        if not blend_model or blend_model.startswith("Error:") or blend_model == "No models found" or blend_model == "Ollama not detected":
-            self.status_bar.showMessage("Please select a valid Ollama model for blending", 3000)
+        if (
+            not blend_model
+            or blend_model.startswith("Error:")
+            or blend_model == "No models found"
+            or blend_model == "Ollama not detected"
+        ):
+            self.status_bar.showMessage(
+                "Please select a valid Ollama model for blending", 3000
+            )
             return
 
         # Get blend instructions
@@ -911,7 +1005,9 @@ class CaptionWindow(QMainWindow):
         # Show progress indicator
         self.progress_label.setText("Blending captions with Ollama...")
         self.progress_label.show()
-        self.status_bar.showMessage(f"Blending captions with {blend_model}... (this may take a moment)", 0)
+        self.status_bar.showMessage(
+            f"Blending captions with {blend_model}... (this may take a moment)", 0
+        )
 
         # Create and start blend worker thread
         self.blend_worker = BlendWorker(
@@ -924,7 +1020,8 @@ class CaptionWindow(QMainWindow):
     def _on_blend_finished(self, blended_text):
         """Handle successful blend completion."""
         import os
-        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
+        debug = os.environ.get("IMG_SORT_DEBUG") == "1"
 
         if debug:
             print(f"[DEBUG] Blend completed, result length: {len(blended_text)}")
@@ -945,7 +1042,9 @@ class CaptionWindow(QMainWindow):
         self.replace_btn.setEnabled(True)
         self.append_btn.setEnabled(True)
 
-        self.status_bar.showMessage("Captions blended - result in Generated Caption box", 3000)
+        self.status_bar.showMessage(
+            "Captions blended - result in Generated Caption box", 3000
+        )
 
         # Cleanup worker
         if self.blend_worker:
@@ -956,7 +1055,8 @@ class CaptionWindow(QMainWindow):
     def _on_blend_error(self, error_msg):
         """Handle blend error."""
         import os
-        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
+        debug = os.environ.get("IMG_SORT_DEBUG") == "1"
 
         if debug:
             print(f"[DEBUG] Blend failed: {error_msg}")
@@ -1026,7 +1126,9 @@ class CaptionWindow(QMainWindow):
 
             self.has_unsaved_changes = False
             self._update_window_title()
-            self.status_bar.showMessage(f"Saved: {os.path.basename(caption_path)}", 3000)
+            self.status_bar.showMessage(
+                f"Saved: {os.path.basename(caption_path)}", 3000
+            )
 
         except OSError as e:
             self.status_bar.showMessage(f"Save failed: {e}", 5000)
@@ -1089,12 +1191,13 @@ class CaptionWindow(QMainWindow):
             return True
 
         reply = QMessageBox.question(
-            self, "Unsaved Changes",
+            self,
+            "Unsaved Changes",
             "You have unsaved caption changes. Do you want to save them?",
-            QMessageBox.StandardButton.Save |
-            QMessageBox.StandardButton.Discard |
-            QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
         )
 
         if reply == QMessageBox.StandardButton.Save:
@@ -1128,7 +1231,7 @@ class CaptionWindow(QMainWindow):
 
         self.status_bar.showMessage(
             f"{os.path.basename(image_path)} - {self.original_pixmap.width()}x{self.original_pixmap.height()}",
-            3000
+            3000,
         )
 
     def update_image(self):
@@ -1142,7 +1245,7 @@ class CaptionWindow(QMainWindow):
             scaled = self.original_pixmap.scaled(
                 available_size,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+                Qt.TransformationMode.SmoothTransformation,
             )
             self.displayed_pixmap = scaled
             # Calculate effective zoom for display
@@ -1151,12 +1254,12 @@ class CaptionWindow(QMainWindow):
             # Apply zoom factor - create QSize with explicit integer dimensions
             new_size = QSize(
                 int(self.original_pixmap.width() * self.zoom_factor),
-                int(self.original_pixmap.height() * self.zoom_factor)
+                int(self.original_pixmap.height() * self.zoom_factor),
             )
             scaled = self.original_pixmap.scaled(
                 new_size,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+                Qt.TransformationMode.SmoothTransformation,
             )
             self.displayed_pixmap = scaled
 
@@ -1185,13 +1288,18 @@ class CaptionWindow(QMainWindow):
     def keyPressEvent(self, event):
         """Handle keyboard events."""
         # Check if any text box has focus - if so, let it handle navigation keys normally
-        text_has_focus = (self.generated_caption_text.hasFocus() or
-                         self.saved_caption_text.hasFocus() or
-                         self.blend_instructions.hasFocus())
+        text_has_focus = (
+            self.generated_caption_text.hasFocus()
+            or self.saved_caption_text.hasFocus()
+            or self.blend_instructions.hasFocus()
+        )
 
         if event.key() == Qt.Key.Key_Escape:
             self.close()
-        elif event.key() == Qt.Key.Key_S and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_S
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             self._on_save_requested()
         elif event.key() == Qt.Key.Key_Left and not text_has_focus:
             if self.image_list:
@@ -1213,13 +1321,19 @@ class CaptionWindow(QMainWindow):
                 if self._check_unsaved_changes():
                     self.current_index = len(self.image_list) - 1
                     self.load_image()
-        elif event.key() == Qt.Key.Key_Z and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_Z
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             # Ctrl+Z - Undo for generated caption when it has focus
             if self.generated_caption_text.hasFocus():
                 self._undo_generated_caption()
             else:
                 super().keyPressEvent(event)
-        elif event.key() == Qt.Key.Key_Y and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_Y
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             # Ctrl+Y - Redo for generated caption when it has focus
             if self.generated_caption_text.hasFocus():
                 self._redo_generated_caption()
@@ -1234,7 +1348,9 @@ class CaptionWindow(QMainWindow):
             # Switch to native mode if in fit mode
             if self.fit_to_window:
                 self.fit_to_window = False
-                self.zoom_factor = self.displayed_pixmap.width() / self.original_pixmap.width()
+                self.zoom_factor = (
+                    self.displayed_pixmap.width() / self.original_pixmap.width()
+                )
                 self.fit_act.setChecked(False)
                 self.native_act.setChecked(True)
 
@@ -1282,33 +1398,36 @@ class CaptionWindow(QMainWindow):
             return
 
         # Load backend setting
-        if hasattr(main_win, 'caption_backend'):
+        if hasattr(main_win, "caption_backend"):
             backend = main_win.caption_backend or "florence2"
             index = self.backend_combo.findData(backend)
             if index >= 0:
                 self.backend_combo.setCurrentIndex(index)
 
         # Load Ollama settings
-        if hasattr(main_win, 'caption_ollama_url') and main_win.caption_ollama_url:
+        if hasattr(main_win, "caption_ollama_url") and main_win.caption_ollama_url:
             self.ollama_url.setText(main_win.caption_ollama_url)
 
-        if hasattr(main_win, 'caption_ollama_model') and main_win.caption_ollama_model:
+        if hasattr(main_win, "caption_ollama_model") and main_win.caption_ollama_model:
             self.ollama_model.setText(main_win.caption_ollama_model)
 
         # Load Florence settings
-        if hasattr(main_win, 'caption_florence_model'):
+        if hasattr(main_win, "caption_florence_model"):
             florence_model = main_win.caption_florence_model or "base"
             index = self.florence_model_combo.findData(florence_model)
             if index >= 0:
                 self.florence_model_combo.setCurrentIndex(index)
 
-        if hasattr(main_win, 'caption_florence_detail'):
+        if hasattr(main_win, "caption_florence_detail"):
             florence_detail = main_win.caption_florence_detail or "detailed"
             index = self.florence_detail_combo.findData(florence_detail)
             if index >= 0:
                 self.florence_detail_combo.setCurrentIndex(index)
 
-        if hasattr(main_win, 'caption_florence_custom_path') and main_win.caption_florence_custom_path:
+        if (
+            hasattr(main_win, "caption_florence_custom_path")
+            and main_win.caption_florence_custom_path
+        ):
             self.florence_custom_path.setText(main_win.caption_florence_custom_path)
 
     def closeEvent(self, event):

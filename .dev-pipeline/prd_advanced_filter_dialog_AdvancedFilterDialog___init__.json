@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.__init__",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog initialization and default settings",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.__init__`  \n**Size**: 32 lines, complexity 1 (low)\n\n```python\n    def __init__(self, parent=None):\n        super().__init__(parent)\n        self.setWindowTitle(\"Advanced AI Filters\")\n        self.resize(700, 600)\n\n        # Store filter settings\n        self.filter_settings = {\n            \"global_invert\": False,  # Invert entire filter result\n            \"face_detection\": False,\n            \"face_count_min\": 0,\n            \"face_inverse\": False,  # True = does NOT contain\n            \"object_detection\": False,\n            \"object_categories\": [],\n            \"object_confidence\": 0.5,\n            \"object_inverse\": False,  # True = does NOT contain\n            \"custom_model_path\": None,  # Path to custom YOLO model\n            \"scene_recognition\": False,\n            \"scene_groups\": [],\n            \"scene_confidence\": 0.3,\n            \"scene_inverse\": False,  # True = does NOT contain\n            \"quality_filter\": False,\n            \"quality_min_score\": 60,\n            \"quality_sharpness_min\": 40,\n            \"quality_brightness_min\": 50,\n            \"quality_brightness_max\": 200,\n            \"quality_inverse\": False,  # True = does NOT meet criteria\n            \"filesize_filter\": False,\n            \"filesize_min_kb\": 0,  # Minimum file size in KB\n            \"filesize_max_kb\": 10240,  # Maximum file size in KB (10MB default)\n        }\n\n        self.setup_ui()\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog___init__.py\n\nTests for AdvancedFilterDialog.__init__ method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nIt does NOT take any other parameters.\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_init_sets_window_title — Create AdvancedFilterDialog(). Assert window title is 'Advanced AI Filters'.\n2. test_init_sets_window_size — Create AdvancedFilterDialog(). Assert window size is 700x600.\n3. test_init_initializes_filter_settings — Create AdvancedFilterDialog(). Assert filter_settings is a dict with all required keys and default values.\n4. test_init_calls_setup_ui — Create AdvancedFilterDialog(). Assert that setup_ui was called during initialization.\n5. test_init_with_parent — Create AdvancedFilterDialog(parent=QWidget()). Assert parent is set correctly.\n6. test_filter_settings_defaults — Create AdvancedFilterDialog(). Verify all default values in filter_settings match the source code.\n7. test_filter_settings_keys — Create AdvancedFilterDialog(). Assert filter_settings contains all expected keys.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog___init__.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog___init__.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-05T20:45:40.195Z"
+  }
+}

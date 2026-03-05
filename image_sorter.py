@@ -6,10 +6,22 @@ import os
 import shutil
 import tempfile
 import atexit
-from PySide6.QtWidgets import (QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
-                               QLineEdit, QMessageBox, QProgressBar, QStatusBar,
-                               QFileSystemModel, QToolButton, QMenu,
-                               QPushButton, QFileDialog)
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QSplitter,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QStatusBar,
+    QFileSystemModel,
+    QToolButton,
+    QMenu,
+    QPushButton,
+    QFileDialog,
+)
 from PySide6.QtCore import Qt, QSize, QDir
 from PySide6.QtGui import QAction
 from PIL import Image
@@ -137,13 +149,14 @@ class DeleteUndoManager:
         except Exception as e:
             print(f"Error cleaning up temp directory: {e}")
 
-from thumbnail_list import ThumbnailList
-from folder_tree import FolderTree
-from face_detection import FaceDetector, ImageQualityAnalyzer
-from face_detection_dialog import FaceDetectionDialog
-from settings_manager import SettingsManager
-from image_sorter_filters import FilteringMixin
-from image_sorter_operations import FileOperationsMixin
+
+from thumbnail_list import ThumbnailList  # noqa: E402
+from folder_tree import FolderTree  # noqa: E402
+from face_detection import FaceDetector, ImageQualityAnalyzer  # noqa: E402
+from face_detection_dialog import FaceDetectionDialog  # noqa: E402
+from settings_manager import SettingsManager  # noqa: E402
+from image_sorter_filters import FilteringMixin  # noqa: E402
+from image_sorter_operations import FileOperationsMixin  # noqa: E402
 
 
 class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
@@ -203,7 +216,9 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self._scene_recognizer = None
 
         # Undo state for move/copy operations
-        self.last_operation = None  # {"type": "move"|"copy", "files": [(src, dest), ...]}
+        self.last_operation = (
+            None  # {"type": "move"|"copy", "files": [(src, dest), ...]}
+        )
 
         # Delete undo manager (for restoring deleted files)
         self.delete_undo_manager = DeleteUndoManager()
@@ -222,76 +237,76 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         menu_bar = self.menuBar()
 
         # File Menu
-        file_menu = menu_bar.addMenu('&File')
-        exit_act = QAction('&Exit', self)
-        exit_act.setShortcut('Ctrl+Q')
+        file_menu = menu_bar.addMenu("&File")
+        exit_act = QAction("&Exit", self)
+        exit_act.setShortcut("Ctrl+Q")
         exit_act.triggered.connect(self.close)
         file_menu.addAction(exit_act)
 
         # Options Menu
-        options_menu = menu_bar.addMenu('&Options')
+        options_menu = menu_bar.addMenu("&Options")
 
-        self.remember_settings_act = QAction('Remember Settings', self, checkable=True)
+        self.remember_settings_act = QAction("Remember Settings", self, checkable=True)
         self.remember_settings_act.setChecked(True)
         options_menu.addAction(self.remember_settings_act)
 
-        self.show_names_act = QAction('Show Filenames', self, checkable=True)
+        self.show_names_act = QAction("Show Filenames", self, checkable=True)
         self.show_names_act.setChecked(False)
         self.show_names_act.triggered.connect(self.toggle_filenames)
         options_menu.addAction(self.show_names_act)
 
-        self.show_dimensions_act = QAction('Show Dimensions', self, checkable=True)
+        self.show_dimensions_act = QAction("Show Dimensions", self, checkable=True)
         self.show_dimensions_act.setChecked(False)
         self.show_dimensions_act.triggered.connect(self.toggle_dimensions)
         options_menu.addAction(self.show_dimensions_act)
 
-        self.show_filesize_act = QAction('Show File Size', self, checkable=True)
+        self.show_filesize_act = QAction("Show File Size", self, checkable=True)
         self.show_filesize_act.setChecked(False)
         self.show_filesize_act.triggered.connect(self.toggle_filesize)
         options_menu.addAction(self.show_filesize_act)
 
-        self.show_counts_act = QAction('Show Folder Counts', self, checkable=True)
+        self.show_counts_act = QAction("Show Folder Counts", self, checkable=True)
         self.show_counts_act.setChecked(False)
         self.show_counts_act.triggered.connect(self.toggle_folder_counts)
         options_menu.addAction(self.show_counts_act)
 
-        self.conf_delete_act = QAction('Confirm Deletions', self, checkable=True)
+        self.conf_delete_act = QAction("Confirm Deletions", self, checkable=True)
         self.conf_delete_act.setChecked(True)
         self.conf_delete_act.triggered.connect(self.toggle_conf_del)
         options_menu.addAction(self.conf_delete_act)
 
         options_menu.addSeparator()
 
-        face_detect_settings_act = QAction('Face Detection Settings...', self)
+        face_detect_settings_act = QAction("Face Detection Settings...", self)
         face_detect_settings_act.triggered.connect(self.show_face_detection_settings)
         options_menu.addAction(face_detect_settings_act)
 
         # Tools Menu
-        tools_menu = menu_bar.addMenu('&Tools')
+        tools_menu = menu_bar.addMenu("&Tools")
 
-        yolo_labeling_act = QAction('&YOLO Labelling...', self)
+        yolo_labeling_act = QAction("&YOLO Labelling...", self)
         yolo_labeling_act.triggered.connect(self.open_yolo_window)
         tools_menu.addAction(yolo_labeling_act)
 
-        auto_caption_act = QAction('&Auto Caption...', self)
+        auto_caption_act = QAction("&Auto Caption...", self)
         auto_caption_act.triggered.connect(self.open_caption_window)
         tools_menu.addAction(auto_caption_act)
 
-        enhance_act = QAction('Image &Enhance...', self)
+        enhance_act = QAction("Image &Enhance...", self)
         enhance_act.triggered.connect(self.open_enhance_dialog)
         tools_menu.addAction(enhance_act)
 
         # Help Menu
-        help_menu = menu_bar.addMenu('&Help')
+        help_menu = menu_bar.addMenu("&Help")
 
-        manual_act = QAction('&Manual', self)
-        manual_act.setShortcut('F1')
+        manual_act = QAction("&Manual", self)
+        manual_act.setShortcut("F1")
         manual_act.triggered.connect(self.show_manual)
         help_menu.addAction(manual_act)
 
         help_menu.addSeparator()
 
-        about_act = QAction('&About', self)
+        about_act = QAction("&About", self)
         about_act.triggered.connect(self.show_about)
         help_menu.addAction(about_act)
 
@@ -322,10 +337,16 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.src_browse_btn.clicked.connect(self.browse_source_folder)
         self.src_dedup_btn = QPushButton("🗑️")
         self.src_dedup_btn.setMaximumWidth(30)
-        self.src_dedup_btn.setToolTip("Remove duplicates in selected folders (right-click for options)")
-        self.src_dedup_btn.clicked.connect(lambda: self.remove_folder_duplicates(self.src_tree))
+        self.src_dedup_btn.setToolTip(
+            "Remove duplicates in selected folders (right-click for options)"
+        )
+        self.src_dedup_btn.clicked.connect(
+            lambda: self.remove_folder_duplicates(self.src_tree)
+        )
         self.src_dedup_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.src_dedup_btn.customContextMenuRequested.connect(self.show_folder_dedup_menu)
+        self.src_dedup_btn.customContextMenuRequested.connect(
+            self.show_folder_dedup_menu
+        )
         self.src_path_row.addWidget(self.src_path_display)
         self.src_path_row.addWidget(self.src_browse_btn)
         self.src_path_row.addWidget(self.src_dedup_btn)
@@ -355,7 +376,9 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.filter_btn.setText("🔽")
         self.filter_btn.setIconSize(icon_size)
         self.filter_btn.setMinimumSize(icon_size)
-        self.filter_btn.setToolTip("Left-click to toggle filter, right-click for options")
+        self.filter_btn.setToolTip(
+            "Left-click to toggle filter, right-click for options"
+        )
         self.filter_btn.clicked.connect(self.toggle_filter)
         self.filter_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.filter_btn.customContextMenuRequested.connect(self.show_filter_menu)
@@ -363,7 +386,9 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.setup_filter_menu()
 
         # Store original button stylesheet
-        self._filter_btn_original_style = self.filter_btn.styleSheet() if self.filter_btn.styleSheet() else ""
+        self._filter_btn_original_style = (
+            self.filter_btn.styleSheet() if self.filter_btn.styleSheet() else ""
+        )
 
         # Sort button
         self.sort_btn = QToolButton()
@@ -393,10 +418,16 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.batch_caption_btn.setText("📝")
         self.batch_caption_btn.setIconSize(icon_size)
         self.batch_caption_btn.setMinimumSize(icon_size)
-        self.batch_caption_btn.setToolTip("Generate captions (left-click to run, right-click for settings)")
+        self.batch_caption_btn.setToolTip(
+            "Generate captions (left-click to run, right-click for settings)"
+        )
         self.batch_caption_btn.clicked.connect(self.batch_generate_captions)
-        self.batch_caption_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.batch_caption_btn.customContextMenuRequested.connect(self.show_caption_settings_menu)
+        self.batch_caption_btn.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.batch_caption_btn.customContextMenuRequested.connect(
+            self.show_caption_settings_menu
+        )
 
         self.toolbar_layout.addWidget(self.filter_btn)
         self.toolbar_layout.addWidget(self.sort_btn)
@@ -424,10 +455,16 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.dest_browse_btn.clicked.connect(self.browse_dest_folder)
         self.dest_dedup_btn = QPushButton("🗑️")
         self.dest_dedup_btn.setMaximumWidth(30)
-        self.dest_dedup_btn.setToolTip("Remove duplicates in selected folders (right-click for options)")
-        self.dest_dedup_btn.clicked.connect(lambda: self.remove_folder_duplicates(self.dest_tree))
+        self.dest_dedup_btn.setToolTip(
+            "Remove duplicates in selected folders (right-click for options)"
+        )
+        self.dest_dedup_btn.clicked.connect(
+            lambda: self.remove_folder_duplicates(self.dest_tree)
+        )
         self.dest_dedup_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.dest_dedup_btn.customContextMenuRequested.connect(self.show_folder_dedup_menu)
+        self.dest_dedup_btn.customContextMenuRequested.connect(
+            self.show_folder_dedup_menu
+        )
         self.dest_path_row.addWidget(self.dest_path_display)
         self.dest_path_row.addWidget(self.dest_browse_btn)
         self.dest_path_row.addWidget(self.dest_dedup_btn)
@@ -454,6 +491,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         # Load WD14 custom paths into caption generator
         if self.caption_wd14_custom_paths:
             from caption_generator import get_caption_generator
+
             generator = get_caption_generator()
             for model_key, path in self.caption_wd14_custom_paths.items():
                 generator.set_wd14_custom_path(model_key, path)
@@ -469,7 +507,10 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for main window."""
-        if event.key() == Qt.Key.Key_Z and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        if (
+            event.key() == Qt.Key.Key_Z
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
             self.undo_last_operation()
         else:
             super().keyPressEvent(event)
@@ -500,8 +541,11 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         new_path = self.src_path_display.text()
 
         if not os.path.isdir(new_path):
-            QMessageBox.warning(self, "Invalid Path",
-                f"The path '{new_path}' does not exist or is not a directory.")
+            QMessageBox.warning(
+                self,
+                "Invalid Path",
+                f"The path '{new_path}' does not exist or is not a directory.",
+            )
             if self.src_root_path and os.path.isdir(self.src_root_path):
                 self.src_path_display.setText(self.src_root_path)
             return
@@ -529,8 +573,11 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         new_path = self.dest_path_display.text()
 
         if not os.path.isdir(new_path):
-            QMessageBox.warning(self, "Invalid Path",
-                f"The path '{new_path}' does not exist or is not a directory.")
+            QMessageBox.warning(
+                self,
+                "Invalid Path",
+                f"The path '{new_path}' does not exist or is not a directory.",
+            )
             if self.dest_root_path and os.path.isdir(self.dest_root_path):
                 self.dest_path_display.setText(self.dest_root_path)
             return
@@ -730,8 +777,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
                 self.face_detector.set_preset(new_preset)
 
                 self.status_bar.showMessage(
-                    f"Face detection preset changed to: {new_preset.capitalize()}",
-                    5000
+                    f"Face detection preset changed to: {new_preset.capitalize()}", 5000
                 )
 
                 if self._settings_loaded:
@@ -740,7 +786,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
     def resizeEvent(self, event):
         """Handle main window resize - triggers thumbnail redraw."""
         super().resizeEvent(event)
-        if hasattr(self, 'thumb_list') and hasattr(self, '_settings_loaded'):
+        if hasattr(self, "thumb_list") and hasattr(self, "_settings_loaded"):
             self.thumb_list.scheduleDelayedItemsLayout()
 
             if self._settings_loaded:
@@ -750,6 +796,6 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         """Save settings and clean up when the application closes."""
         self.write_settings()
         # Clean up delete undo temp directory
-        if hasattr(self, 'delete_undo_manager'):
+        if hasattr(self, "delete_undo_manager"):
             self.delete_undo_manager.cleanup()
         event.accept()

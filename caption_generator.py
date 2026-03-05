@@ -6,13 +6,13 @@ import os
 from typing import Optional, Tuple
 
 import numpy as np
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import Signal, QThread
 from PIL import Image
 
 
 def _debug(message: str):
     """Print debug message if debug mode is enabled via IMG_SORT_DEBUG env var."""
-    if os.environ.get('IMG_SORT_DEBUG') == '1':
+    if os.environ.get("IMG_SORT_DEBUG") == "1":
         print(f"[DEBUG] {message}")
 
 
@@ -48,10 +48,18 @@ class CaptionWorker(QThread):
     error = Signal(str)  # Error message
     progress = Signal(str)  # Progress updates
 
-    def __init__(self, generator, image_path: str, backend: str,
-                 ollama_url: str = "", ollama_model: str = "",
-                 florence_model: str = "base", florence_detail: str = "detailed",
-                 wd14_model: str = "vit-v2", wd14_threshold: float = 0.35):
+    def __init__(
+        self,
+        generator,
+        image_path: str,
+        backend: str,
+        ollama_url: str = "",
+        ollama_model: str = "",
+        florence_model: str = "base",
+        florence_detail: str = "detailed",
+        wd14_model: str = "vit-v2",
+        wd14_threshold: float = 0.35,
+    ):
         super().__init__()
         self.generator = generator
         self.image_path = image_path
@@ -77,14 +85,14 @@ class CaptionWorker(QThread):
                 caption = self.generator.generate_florence(
                     self.image_path,
                     model_key=self.florence_model,
-                    detail_level=self.florence_detail
+                    detail_level=self.florence_detail,
                 )
             elif self.backend == "wd14":
                 self.progress.emit("Loading WD14 tagger...")
                 caption = self.generator.generate_wd14(
                     self.image_path,
                     model_key=self.wd14_model,
-                    threshold=self.wd14_threshold
+                    threshold=self.wd14_threshold,
                 )
             else:  # ollama
                 self.progress.emit(f"Connecting to Ollama ({self.ollama_model})...")
@@ -102,8 +110,15 @@ class BlendWorker(QThread):
     finished = Signal(str)  # Blended caption result
     error = Signal(str)  # Error message
 
-    def __init__(self, generator, ollama_url: str, model: str,
-                 instructions: str, generated_caption: str, saved_caption: str):
+    def __init__(
+        self,
+        generator,
+        ollama_url: str,
+        model: str,
+        instructions: str,
+        generated_caption: str,
+        saved_caption: str,
+    ):
         super().__init__()
         self.generator = generator
         self.ollama_url = ollama_url
@@ -114,7 +129,8 @@ class BlendWorker(QThread):
 
     def run(self):
         import os
-        debug = os.environ.get('IMG_SORT_DEBUG') == '1'
+
+        debug = os.environ.get("IMG_SORT_DEBUG") == "1"
 
         try:
             if debug:
@@ -161,7 +177,9 @@ class CaptionGenerator:
         # WD14 state
         self.wd14_model = None
         self.wd14_tags = None  # Tag names from CSV
-        self.wd14_format = None  # Track model format: "onnx", "safetensors", or "pytorch"
+        self.wd14_format = (
+            None  # Track model format: "onnx", "safetensors", or "pytorch"
+        )
         self.wd14_img_size = 448  # Model input image size (detected from model)
         self._wd14_loaded = False
         self._current_wd14_model = None  # Track which WD14 model is loaded
@@ -174,12 +192,16 @@ class CaptionGenerator:
             Tuple of (available, message)
         """
         try:
-            import torch
-            import transformers
+            import torch  # noqa: F401
+            import transformers  # noqa: F401
+
             return True, "Florence2 ready"
         except ImportError as e:
             missing = str(e).split("'")[1] if "'" in str(e) else str(e)
-            return False, f"Missing '{missing}' — install with: pip install transformers torch"
+            return (
+                False,
+                f"Missing '{missing}' — install with: pip install transformers torch",
+            )
 
     def is_wd14_available(self) -> Tuple[bool, str]:
         """Check if WD14 dependencies are available.
@@ -192,26 +214,34 @@ class CaptionGenerator:
         has_torch = False
 
         try:
-            import onnxruntime
+            import onnxruntime  # noqa: F401
+
             has_onnx = True
         except ImportError:
             pass
 
         try:
-            import torch
+            import torch  # noqa: F401
+
             has_torch = True
         except ImportError:
             pass
 
         # Need huggingface_hub for downloading
         try:
-            import huggingface_hub
+            import huggingface_hub  # noqa: F401
         except ImportError:
-            return False, "Missing: huggingface_hub. Install with: pip install huggingface-hub"
+            return (
+                False,
+                "Missing: huggingface_hub. Install with: pip install huggingface-hub",
+            )
 
         # Need at least one backend
         if not has_onnx and not has_torch:
-            return False, "Missing model backend. Install onnxruntime or torch: pip install onnxruntime"
+            return (
+                False,
+                "Missing model backend. Install onnxruntime or torch: pip install onnxruntime",
+            )
 
         backends = []
         if has_onnx:
@@ -247,17 +277,34 @@ class CaptionGenerator:
                     return False, "Unable to determine image format"
 
                 # Check mode (must be convertible to RGB)
-                valid_modes = ['RGB', 'RGBA', 'L', 'LA', 'P', '1', 'CMYK', 'YCbCr', 'LAB', 'HSV']
+                valid_modes = [
+                    "RGB",
+                    "RGBA",
+                    "L",
+                    "LA",
+                    "P",
+                    "1",
+                    "CMYK",
+                    "YCbCr",
+                    "LAB",
+                    "HSV",
+                ]
                 if img.mode not in valid_modes:
                     return False, f"Unsupported image mode: {img.mode}"
 
                 # Check dimensions
                 width, height = img.size
                 if width < 10 or height < 10:
-                    return False, f"Image too small: {width}x{height}. Minimum 10x10 pixels required."
+                    return (
+                        False,
+                        f"Image too small: {width}x{height}. Minimum 10x10 pixels required.",
+                    )
 
                 if width > 10000 or height > 10000:
-                    return False, f"Image too large: {width}x{height}. Maximum 10000x10000 pixels."
+                    return (
+                        False,
+                        f"Image too large: {width}x{height}. Maximum 10000x10000 pixels.",
+                    )
 
                 # Try to actually load the image data to catch corrupt files
                 try:
@@ -309,6 +356,7 @@ class CaptionGenerator:
         if self._florence_loaded:
             _debug("Unloading Florence2 model...")
             import gc
+
             self.florence_model = None
             self.florence_processor = None
             self._florence_loaded = False
@@ -316,9 +364,10 @@ class CaptionGenerator:
             gc.collect()
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-            except:
+            except Exception:
                 pass
             _debug("Florence2 model unloaded")
 
@@ -347,7 +396,9 @@ class CaptionGenerator:
 
         # Unload current model if a different one is requested
         if self._florence_loaded and self._current_florence_model != model_name:
-            _debug(f"Different model requested, unloading '{self._current_florence_model}'")
+            _debug(
+                f"Different model requested, unloading '{self._current_florence_model}'"
+            )
             self.unload_florence()
 
         try:
@@ -364,7 +415,7 @@ class CaptionGenerator:
             # Determine device
             if torch.cuda.is_available():
                 self.device = "cuda"
-            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 self.device = "mps"
             else:
                 self.device = "cpu"
@@ -396,14 +447,16 @@ class CaptionGenerator:
             return True
 
         except Exception as e:
-            _debug(f"=== Florence2 load FAILED ===")
+            _debug("=== Florence2 load FAILED ===")
             _debug(f"Error: {e}")
             import traceback
+
             traceback.print_exc()
             raise RuntimeError(f"Failed to load Florence2: {e}")
 
-    def generate_florence(self, image_path: str, model_key: str = "base",
-                          detail_level: str = "detailed") -> str:
+    def generate_florence(
+        self, image_path: str, model_key: str = "base", detail_level: str = "detailed"
+    ) -> str:
         """Generate caption using Florence2.
 
         Args:
@@ -435,7 +488,9 @@ class CaptionGenerator:
         _debug("Opening image with PIL...")
         try:
             image = Image.open(image_path)
-            _debug(f"Image opened: format={image.format}, mode={image.mode}, size={image.size}")
+            _debug(
+                f"Image opened: format={image.format}, mode={image.mode}, size={image.size}"
+            )
             # Force load the image data
             image.load()
             _debug("Image data loaded")
@@ -445,6 +500,7 @@ class CaptionGenerator:
         except Exception as e:
             _debug(f"Failed to load image: {e}")
             import traceback
+
             traceback.print_exc()
             raise RuntimeError(f"Failed to load image: {e}")
 
@@ -468,16 +524,21 @@ class CaptionGenerator:
             if img_array is None or img_array.size == 0:
                 raise RuntimeError("Image converted to empty array")
             if len(img_array.shape) != 3 or img_array.shape[2] != 3:
-                raise RuntimeError(f"Invalid image shape: {img_array.shape}, expected (H, W, 3)")
+                raise RuntimeError(
+                    f"Invalid image shape: {img_array.shape}, expected (H, W, 3)"
+                )
             _debug("Array validation passed")
         except Exception as e:
             _debug(f"Array conversion failed: {e}")
             import traceback
+
             traceback.print_exc()
             raise RuntimeError(f"Image array conversion failed: {e}")
 
         # Get task prompt based on detail level
-        task_prompt = FLORENCE_DETAIL_LEVELS.get(detail_level, FLORENCE_DETAIL_LEVELS["detailed"])
+        task_prompt = FLORENCE_DETAIL_LEVELS.get(
+            detail_level, FLORENCE_DETAIL_LEVELS["detailed"]
+        )
         _debug(f"Task prompt: {task_prompt} (detail level: {detail_level})")
 
         # Process inputs - Florence2 expects specific format
@@ -485,14 +546,13 @@ class CaptionGenerator:
         _debug(f"Processor type: {type(self.florence_processor)}")
         try:
             inputs = self.florence_processor(
-                text=task_prompt,
-                images=image,
-                return_tensors="pt"
+                text=task_prompt, images=image, return_tensors="pt"
             )
             _debug(f"Processor returned: {type(inputs)}")
         except Exception as e:
             _debug(f"Processor call failed: {e}")
             import traceback
+
             traceback.print_exc()
             raise RuntimeError(f"Florence2 processor failed: {e}")
 
@@ -502,10 +562,14 @@ class CaptionGenerator:
             raise RuntimeError("Florence2 processor returned None")
 
         _debug(f"inputs type: {type(inputs)}")
-        _debug(f"inputs keys: {list(inputs.keys()) if hasattr(inputs, 'keys') else 'N/A'}")
+        _debug(
+            f"inputs keys: {list(inputs.keys()) if hasattr(inputs, 'keys') else 'N/A'}"
+        )
 
         if "pixel_values" not in inputs:
-            raise RuntimeError(f"Florence2 processor missing pixel_values. Got keys: {list(inputs.keys())}")
+            raise RuntimeError(
+                f"Florence2 processor missing pixel_values. Got keys: {list(inputs.keys())}"
+            )
 
         _debug(f"pixel_values is None: {inputs['pixel_values'] is None}")
         if inputs["pixel_values"] is None:
@@ -515,24 +579,32 @@ class CaptionGenerator:
         pv = inputs["pixel_values"]
         _debug(f"pixel_values type: {type(pv)}")
         _debug(f"pixel_values has shape: {hasattr(pv, 'shape')}")
-        if not hasattr(pv, 'shape'):
+        if not hasattr(pv, "shape"):
             raise RuntimeError(f"pixel_values has no shape attribute, type: {type(pv)}")
         _debug(f"pixel_values shape: {pv.shape}")
         if len(pv.shape) != 4:
-            raise RuntimeError(f"Invalid pixel_values shape: {pv.shape}, expected 4D tensor")
+            raise RuntimeError(
+                f"Invalid pixel_values shape: {pv.shape}, expected 4D tensor"
+            )
 
         # Move inputs to model device, with pixel_values in model dtype
         _debug("Moving inputs to model device...")
-        _debug(f"Model device: {self.florence_model.device}, dtype: {self.florence_model.dtype}")
+        _debug(
+            f"Model device: {self.florence_model.device}, dtype: {self.florence_model.dtype}"
+        )
 
         # Move each tensor appropriately - pixel_values needs float16, input_ids stays int
         inputs_dict = {}
         for key, value in inputs.items():
-            if hasattr(value, 'to'):
+            if hasattr(value, "to"):
                 if key == "pixel_values":
                     # Convert pixel_values to model dtype (float16)
-                    inputs_dict[key] = value.to(self.florence_model.device, self.florence_model.dtype)
-                    _debug(f"{key} moved to {self.florence_model.device} with dtype {self.florence_model.dtype}")
+                    inputs_dict[key] = value.to(
+                        self.florence_model.device, self.florence_model.dtype
+                    )
+                    _debug(
+                        f"{key} moved to {self.florence_model.device} with dtype {self.florence_model.dtype}"
+                    )
                 else:
                     # Keep other tensors (input_ids, attention_mask) as-is but move to device
                     inputs_dict[key] = value.to(self.florence_model.device)
@@ -553,6 +625,7 @@ class CaptionGenerator:
         except Exception as e:
             _debug(f"model.generate() FAILED: {e}")
             import traceback
+
             traceback.print_exc()
             raise
 
@@ -566,14 +639,14 @@ class CaptionGenerator:
         # Use Florence2's built-in post-processing if available
         try:
             parsed = self.florence_processor.post_process_generation(
-                generated_text,
-                task=task_prompt,
-                image_size=original_size
+                generated_text, task=task_prompt, image_size=original_size
             )
             _debug(f"Post-processing result type: {type(parsed)}")
             # The result is a dict with the task as key
             caption = parsed.get(task_prompt, generated_text)
-            _debug(f"Caption from post-processing: {caption[:200] if len(caption) > 200 else caption}")
+            _debug(
+                f"Caption from post-processing: {caption[:200] if len(caption) > 200 else caption}"
+            )
         except Exception as e:
             _debug(f"Post-processing failed: {e}, using raw text")
             # Fallback: manual cleanup
@@ -589,7 +662,9 @@ class CaptionGenerator:
         _debug("=== Florence2 generation complete ===")
         return caption
 
-    def generate_ollama(self, image_path: str, url: str, model: str, custom_prompt: str = None) -> str:
+    def generate_ollama(
+        self, image_path: str, url: str, model: str, custom_prompt: str = None
+    ) -> str:
         """Generate caption using Ollama API.
 
         Args:
@@ -619,14 +694,14 @@ class CaptionGenerator:
             "model": model,
             "prompt": custom_prompt,
             "images": [image_data],
-            "stream": False
+            "stream": False,
         }
 
         request = urllib.request.Request(
             api_url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
 
         try:
@@ -658,13 +733,26 @@ class CaptionGenerator:
                 result = json.loads(response.read().decode("utf-8"))
                 models = [m.get("name", "") for m in result.get("models", [])]
                 # Filter to vision-capable models (common ones)
-                vision_models = [m for m in models if any(
-                    v in m.lower() for v in ["llava", "bakllava", "moondream", "llama3.2-vision"]
-                )]
+                vision_models = [
+                    m
+                    for m in models
+                    if any(
+                        v in m.lower()
+                        for v in ["llava", "bakllava", "moondream", "llama3.2-vision"]
+                    )
+                ]
                 if vision_models:
-                    return True, f"Connected. Found {len(vision_models)} vision model(s)", vision_models
+                    return (
+                        True,
+                        f"Connected. Found {len(vision_models)} vision model(s)",
+                        vision_models,
+                    )
                 elif models:
-                    return True, f"Connected but no vision models found. Available: {', '.join(models[:5])}", models
+                    return (
+                        True,
+                        f"Connected but no vision models found. Available: {', '.join(models[:5])}",
+                        models,
+                    )
                 else:
                     return True, "Connected but no models installed", []
         except urllib.error.URLError as e:
@@ -691,17 +779,13 @@ class CaptionGenerator:
 
         api_url = f"{url.rstrip('/')}/api/generate"
 
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "stream": False
-        }
+        payload = {"model": model, "prompt": prompt, "stream": False}
 
         request = urllib.request.Request(
             api_url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
 
         try:
@@ -743,14 +827,16 @@ class CaptionGenerator:
             # Clear PyTorch cache if using PyTorch format
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                     _debug("PyTorch CUDA cache cleared")
-            except:
+            except Exception:
                 pass
 
             # Give system time to release resources (helps prevent crashes when switching models)
             import time
+
             time.sleep(0.1)
 
             _debug("WD14 model unloaded")
@@ -786,7 +872,9 @@ class CaptionGenerator:
         # Unload current model if a different one is requested
         if self._wd14_loaded and self._current_wd14_model != model_name:
             _debug(f"Different model requested, unloading '{self._current_wd14_model}'")
-            _debug(f"Current model state before unload - loaded: {self._wd14_loaded}, format: {self.wd14_format}")
+            _debug(
+                f"Current model state before unload - loaded: {self._wd14_loaded}, format: {self.wd14_format}"
+            )
             self.unload_wd14()
             _debug("Unload complete, continuing with new model load")
 
@@ -797,7 +885,9 @@ class CaptionGenerator:
             _debug("=== Loading WD14 ===")
             _debug(f"Model key: {model_key}")
             _debug(f"Model name: {model_name}")
-            _debug(f"Current state - _wd14_loaded: {self._wd14_loaded}, model: {self.wd14_model}, tags: {self.wd14_tags}")
+            _debug(
+                f"Current state - _wd14_loaded: {self._wd14_loaded}, model: {self.wd14_model}, tags: {self.wd14_tags}"
+            )
 
             # Download and load tags CSV
             _debug("Step 1: Downloading tags CSV...")
@@ -810,14 +900,13 @@ class CaptionGenerator:
 
             _debug("Step 2: Loading tags from CSV...")
             try:
-                with open(tags_path, 'r', encoding='utf-8') as f:
+                with open(tags_path, "r", encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     self.wd14_tags = []
                     for row in reader:
-                        self.wd14_tags.append({
-                            'name': row['name'],
-                            'category': int(row['category'])
-                        })
+                        self.wd14_tags.append(
+                            {"name": row["name"], "category": int(row["category"])}
+                        )
                 _debug(f"Loaded {len(self.wd14_tags)} tags")
             except Exception as e:
                 _debug(f"Failed to load tags: {e}")
@@ -828,24 +917,28 @@ class CaptionGenerator:
             has_onnx = False
             has_torch = False
             try:
-                import onnxruntime
+                import onnxruntime  # noqa: F401
+
                 has_onnx = True
                 _debug("ONNX Runtime available")
             except ImportError:
                 _debug("ONNX Runtime not available")
 
             try:
-                import torch
+                import torch  # noqa: F401
+
                 has_torch = True
                 _debug("PyTorch available")
             except ImportError:
                 _debug("PyTorch not available")
 
             if not has_onnx and not has_torch:
-                raise RuntimeError("No model backend available. Install onnxruntime or torch: pip install onnxruntime")
+                raise RuntimeError(
+                    "No model backend available. Install onnxruntime or torch: pip install onnxruntime"
+                )
 
             # Extract model short name from repository (e.g., "SmilingWolf/wd-v1-4-vit-tagger-v2" -> "wd-v1-4-vit-tagger-v2")
-            model_short_name = model_name.split('/')[-1]
+            model_short_name = model_name.split("/")[-1]
             _debug(f"Model short name: {model_short_name}")
 
             # Check if user has specified a custom path for this model
@@ -867,7 +960,9 @@ class CaptionGenerator:
                     elif ext in [".pt", ".pth", ".bin"]:
                         model_format = "pytorch"
                     else:
-                        _debug(f"Warning: Unknown file extension {ext}, will attempt to detect format")
+                        _debug(
+                            f"Warning: Unknown file extension {ext}, will attempt to detect format"
+                        )
 
             # If no custom path or custom path doesn't exist, try to download model in order of preference: ONNX -> SafeTensors -> PyTorch
             if not model_path:
@@ -877,7 +972,9 @@ class CaptionGenerator:
                         _debug("Attempting to download ONNX model...")
                         downloaded_path = hf_hub_download(model_name, "model.onnx")
                         # Check for renamed model first
-                        renamed_path = os.path.join(os.path.dirname(downloaded_path), f"{model_short_name}.onnx")
+                        renamed_path = os.path.join(
+                            os.path.dirname(downloaded_path), f"{model_short_name}.onnx"
+                        )
 
                         # If renamed version already exists, use it
                         if os.path.exists(renamed_path):
@@ -902,9 +999,14 @@ class CaptionGenerator:
                 if not model_path and has_torch:
                     try:
                         _debug("Attempting to download SafeTensors model...")
-                        downloaded_path = hf_hub_download(model_name, "model.safetensors")
+                        downloaded_path = hf_hub_download(
+                            model_name, "model.safetensors"
+                        )
                         # Check for renamed model first
-                        renamed_path = os.path.join(os.path.dirname(downloaded_path), f"{model_short_name}.safetensors")
+                        renamed_path = os.path.join(
+                            os.path.dirname(downloaded_path),
+                            f"{model_short_name}.safetensors",
+                        )
 
                         # If renamed version already exists, use it
                         if os.path.exists(renamed_path):
@@ -939,11 +1041,16 @@ class CaptionGenerator:
                     ]
                     for pytorch_file in pytorch_files:
                         try:
-                            _debug(f"Attempting to download PyTorch model ({pytorch_file})...")
+                            _debug(
+                                f"Attempting to download PyTorch model ({pytorch_file})..."
+                            )
                             downloaded_path = hf_hub_download(model_name, pytorch_file)
                             # Check for renamed model first
                             ext = os.path.splitext(pytorch_file)[1]
-                            renamed_path = os.path.join(os.path.dirname(downloaded_path), f"{model_short_name}{ext}")
+                            renamed_path = os.path.join(
+                                os.path.dirname(downloaded_path),
+                                f"{model_short_name}{ext}",
+                            )
 
                             # If renamed version already exists, use it
                             if os.path.exists(renamed_path):
@@ -978,7 +1085,9 @@ class CaptionGenerator:
                 )
 
             # Load model based on detected format
-            _debug(f"Step 5: Loading model file - path: {model_path}, format: {model_format}")
+            _debug(
+                f"Step 5: Loading model file - path: {model_path}, format: {model_format}"
+            )
             _debug(f"About to call _load_wd14_{model_format}...")
 
             if model_format == "onnx":
@@ -994,13 +1103,16 @@ class CaptionGenerator:
             self.wd14_img_size = img_size
             self._wd14_loaded = True
             self._current_wd14_model = model_name
-            _debug(f"=== WD14 loaded successfully (format: {model_format}, input size: {img_size}) ===")
+            _debug(
+                f"=== WD14 loaded successfully (format: {model_format}, input size: {img_size}) ==="
+            )
             return True
 
         except Exception as e:
-            _debug(f"=== WD14 load FAILED ===")
+            _debug("=== WD14 load FAILED ===")
             _debug(f"Error: {e}")
             import traceback
+
             traceback.print_exc()
 
             # Clean up any partially loaded state
@@ -1025,20 +1137,24 @@ class CaptionGenerator:
         _debug(f"[_load_wd14_onnx] Model key: {model_key}")
 
         # Use available execution providers (CUDA if available, otherwise CPU)
-        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
-        _debug(f"[_load_wd14_onnx] Creating InferenceSession with providers: {providers}")
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        _debug(
+            f"[_load_wd14_onnx] Creating InferenceSession with providers: {providers}"
+        )
 
         try:
             self.wd14_model = ort.InferenceSession(model_path, providers=providers)
-            _debug(f"[_load_wd14_onnx] InferenceSession created successfully")
+            _debug("[_load_wd14_onnx] InferenceSession created successfully")
         except Exception as e:
             _debug(f"[_load_wd14_onnx] FAILED to create InferenceSession: {e}")
             raise
 
         # Get model input details
-        _debug(f"[_load_wd14_onnx] Getting input info...")
+        _debug("[_load_wd14_onnx] Getting input info...")
         input_info = self.wd14_model.get_inputs()[0]
-        _debug(f"[_load_wd14_onnx] Model input name: {input_info.name}, shape: {input_info.shape}, type: {input_info.type}")
+        _debug(
+            f"[_load_wd14_onnx] Model input name: {input_info.name}, shape: {input_info.shape}, type: {input_info.type}"
+        )
 
         # Extract input size from shape [batch, channels, height, width]
         img_size = 448  # default
@@ -1048,10 +1164,14 @@ class CaptionGenerator:
                 img_size = input_info.shape[2]
             _debug(f"[_load_wd14_onnx] Detected ONNX input size: {img_size}")
 
-        _debug(f"[_load_wd14_onnx] Completed successfully, returning img_size: {img_size}")
+        _debug(
+            f"[_load_wd14_onnx] Completed successfully, returning img_size: {img_size}"
+        )
         return img_size
 
-    def _load_wd14_pytorch(self, model_path: str, model_key: str, format_type: str) -> int:
+    def _load_wd14_pytorch(
+        self, model_path: str, model_key: str, format_type: str
+    ) -> int:
         """Load WD14 model in PyTorch/SafeTensors format.
 
         Returns:
@@ -1064,65 +1184,75 @@ class CaptionGenerator:
         _debug(f"[_load_wd14_pytorch] Model key: {model_key}, Format: {format_type}")
 
         # Determine device
-        _debug(f"[_load_wd14_pytorch] Determining device...")
+        _debug("[_load_wd14_pytorch] Determining device...")
         if torch.cuda.is_available():
             device = "cuda"
-        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             device = "mps"
         else:
             device = "cpu"
         _debug(f"[_load_wd14_pytorch] Using device: {device}")
 
         # Load state dict based on format
-        _debug(f"[_load_wd14_pytorch] Loading state_dict from file...")
+        _debug("[_load_wd14_pytorch] Loading state_dict from file...")
         try:
             if format_type == "safetensors":
                 from safetensors.torch import load_file
+
                 state_dict = load_file(model_path)
-                _debug(f"[_load_wd14_pytorch] SafeTensors loaded")
+                _debug("[_load_wd14_pytorch] SafeTensors loaded")
             else:  # pytorch
                 state_dict = torch.load(model_path, map_location=device)
-                _debug(f"[_load_wd14_pytorch] PyTorch weights loaded")
+                _debug("[_load_wd14_pytorch] PyTorch weights loaded")
         except Exception as e:
             _debug(f"[_load_wd14_pytorch] FAILED to load state_dict: {e}")
             raise
 
         # Infer architecture and image size from state_dict inspection
-        _debug(f"[_load_wd14_pytorch] Inferring architecture from state_dict...")
-        base_model, img_size = self._infer_wd14_architecture_and_size(state_dict, model_key)
-        _debug(f"[_load_wd14_pytorch] Inferred architecture: {base_model}, image size: {img_size}")
+        _debug("[_load_wd14_pytorch] Inferring architecture from state_dict...")
+        base_model, img_size = self._infer_wd14_architecture_and_size(
+            state_dict, model_key
+        )
+        _debug(
+            f"[_load_wd14_pytorch] Inferred architecture: {base_model}, image size: {img_size}"
+        )
 
         # Create model with correct number of classes and image size
         num_classes = len(self.wd14_tags)
-        _debug(f"[_load_wd14_pytorch] Creating timm model with {num_classes} classes, img_size={img_size}...")
+        _debug(
+            f"[_load_wd14_pytorch] Creating timm model with {num_classes} classes, img_size={img_size}..."
+        )
         try:
             self.wd14_model = timm.create_model(
-                base_model,
-                pretrained=False,
-                num_classes=num_classes,
-                img_size=img_size
+                base_model, pretrained=False, num_classes=num_classes, img_size=img_size
             )
-            _debug(f"[_load_wd14_pytorch] Model created successfully")
+            _debug("[_load_wd14_pytorch] Model created successfully")
         except Exception as e:
             _debug(f"[_load_wd14_pytorch] FAILED to create model: {e}")
             raise
 
         # Load weights
-        _debug(f"[_load_wd14_pytorch] Loading weights into model...")
+        _debug("[_load_wd14_pytorch] Loading weights into model...")
         try:
             self.wd14_model.load_state_dict(state_dict, strict=False)
-            _debug(f"[_load_wd14_pytorch] Weights loaded")
+            _debug("[_load_wd14_pytorch] Weights loaded")
         except Exception as e:
             _debug(f"[_load_wd14_pytorch] FAILED to load weights: {e}")
             raise
 
-        _debug(f"[_load_wd14_pytorch] Moving model to {device} and setting eval mode...")
+        _debug(
+            f"[_load_wd14_pytorch] Moving model to {device} and setting eval mode..."
+        )
         self.wd14_model.to(device).eval()
-        _debug(f"[_load_wd14_pytorch] Completed successfully, returning img_size: {img_size}")
+        _debug(
+            f"[_load_wd14_pytorch] Completed successfully, returning img_size: {img_size}"
+        )
 
         return img_size
 
-    def _infer_wd14_architecture_and_size(self, state_dict: dict, model_key: str) -> Tuple[str, int]:
+    def _infer_wd14_architecture_and_size(
+        self, state_dict: dict, model_key: str
+    ) -> Tuple[str, int]:
         """Infer the correct model architecture and image size from state_dict.
 
         Args:
@@ -1136,8 +1266,8 @@ class CaptionGenerator:
 
         # Try to determine patch size from patch_embed.proj.weight
         patch_size = 16  # default
-        if 'patch_embed.proj.weight' in state_dict:
-            patch_weight_shape = state_dict['patch_embed.proj.weight'].shape
+        if "patch_embed.proj.weight" in state_dict:
+            patch_weight_shape = state_dict["patch_embed.proj.weight"].shape
             _debug(f"patch_embed.proj.weight shape: {patch_weight_shape}")
             # Shape is [out_channels, in_channels, height, width]
             if len(patch_weight_shape) == 4:
@@ -1146,8 +1276,8 @@ class CaptionGenerator:
 
         # Try to determine image size from pos_embed
         img_size = 224  # default
-        if 'pos_embed' in state_dict:
-            pos_embed_shape = state_dict['pos_embed'].shape
+        if "pos_embed" in state_dict:
+            pos_embed_shape = state_dict["pos_embed"].shape
             _debug(f"pos_embed shape: {pos_embed_shape}")
             # Shape is [1, num_patches + 1, embed_dim] where +1 is CLS token
             # OR [1, num_patches, embed_dim] if no CLS token
@@ -1158,6 +1288,7 @@ class CaptionGenerator:
             if patch_size:
                 # img_size = sqrt(num_patches) * patch_size
                 import math
+
                 patches_per_side = math.sqrt(num_patches)
                 if patches_per_side == int(patches_per_side):
                     img_size = int(patches_per_side) * patch_size
@@ -1167,7 +1298,9 @@ class CaptionGenerator:
                     patches_per_side = math.sqrt(num_positions)
                     if patches_per_side == int(patches_per_side):
                         img_size = int(patches_per_side) * patch_size
-                        _debug(f"Detected image size from pos_embed (no CLS): {img_size}")
+                        _debug(
+                            f"Detected image size from pos_embed (no CLS): {img_size}"
+                        )
 
         # Determine base architecture from model key
         # Use generic names WITHOUT size suffix so timm respects the img_size parameter
@@ -1191,8 +1324,9 @@ class CaptionGenerator:
 
         return base_model, img_size
 
-    def generate_wd14(self, image_path: str, model_key: str = "vit-v2",
-                      threshold: float = 0.35) -> str:
+    def generate_wd14(
+        self, image_path: str, model_key: str = "vit-v2", threshold: float = 0.35
+    ) -> str:
         """Generate tags using WD14 tagger.
 
         Args:
@@ -1203,7 +1337,7 @@ class CaptionGenerator:
         Returns:
             Comma-separated tags string
         """
-        _debug(f"=== Starting WD14 tagging ===")
+        _debug("=== Starting WD14 tagging ===")
         _debug(f"Image path: {image_path}")
         _debug(f"Model key: {model_key}, Threshold: {threshold}")
 
@@ -1221,7 +1355,9 @@ class CaptionGenerator:
 
         # Resize to model input size (use detected size from model)
         _debug(f"Resizing image to {self.wd14_img_size}x{self.wd14_img_size}")
-        image = image.resize((self.wd14_img_size, self.wd14_img_size), Image.Resampling.LANCZOS)
+        image = image.resize(
+            (self.wd14_img_size, self.wd14_img_size), Image.Resampling.LANCZOS
+        )
 
         # Run inference based on model format
         if self.wd14_format == "onnx":
@@ -1236,12 +1372,12 @@ class CaptionGenerator:
             if prob >= threshold and i < len(self.wd14_tags):
                 tag_info = self.wd14_tags[i]
                 # Skip rating tags (category 9)
-                if tag_info['category'] != 9:
-                    tags.append((tag_info['name'], prob))
+                if tag_info["category"] != 9:
+                    tags.append((tag_info["name"], prob))
 
         # Sort by probability and format
         tags.sort(key=lambda x: x[1], reverse=True)
-        tag_names = [t[0].replace('_', ' ') for t in tags]
+        tag_names = [t[0].replace("_", " ") for t in tags]
 
         result = ", ".join(tag_names)
         _debug(f"=== Generated {len(tag_names)} tags (format: {self.wd14_format}) ===")
