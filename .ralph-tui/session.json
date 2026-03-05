@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "sessionId": "63c9a471-c84a-4af2-9cc3-8f5e8036d9d9",
+  "sessionId": "8b8570d6-9441-4814-9c18-16be4edfe737",
   "status": "running",
-  "startedAt": "2026-03-05T22:05:18.072Z",
-  "updatedAt": "2026-03-05T22:14:26.965Z",
+  "startedAt": "2026-03-05T22:17:07.118Z",
+  "updatedAt": "2026-03-05T22:35:27.604Z",
   "currentIteration": 2,
   "maxIterations": 50,
   "tasksCompleted": 1,
@@ -11,12 +11,12 @@
   "agentPlugin": "ollama-bridge",
   "trackerState": {
     "plugin": "json",
-    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog_create_object_filter_section.json",
+    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog_create_scene_filter_section.json",
     "totalTasks": 2,
     "tasks": [
       {
         "id": "US-001",
-        "title": "Test AdvancedFilterDialog.create_object_filter_section",
+        "title": "Test AdvancedFilterDialog.create_scene_filter_section",
         "status": "completed",
         "completedInSession": true
       },
@@ -33,21 +33,21 @@
       "iteration": 1,
       "status": "completed",
       "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_object_filter_section",
+      "taskTitle": "Test AdvancedFilterDialog.create_scene_filter_section",
       "taskCompleted": false,
-      "durationMs": 544923,
-      "startedAt": "2026-03-05T22:05:18.116Z",
-      "endedAt": "2026-03-05T22:14:23.039Z"
+      "durationMs": 1096592,
+      "startedAt": "2026-03-05T22:17:07.133Z",
+      "endedAt": "2026-03-05T22:35:23.725Z"
     },
     {
       "iteration": 2,
       "status": "completed",
       "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_object_filter_section",
+      "taskTitle": "Test AdvancedFilterDialog.create_scene_filter_section",
       "taskCompleted": true,
-      "durationMs": 878,
-      "startedAt": "2026-03-05T22:14:24.042Z",
-      "endedAt": "2026-03-05T22:14:24.920Z"
+      "durationMs": 875,
+      "startedAt": "2026-03-05T22:35:24.729Z",
+      "endedAt": "2026-03-05T22:35:25.604Z"
     }
   ],
   "skippedTaskIds": [],

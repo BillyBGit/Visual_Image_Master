@@ -34,6 +34,17 @@
       "last_generated": "2026-03-05T22:02:51.322225+00:00",
       "loc": 39,
       "complexity": 1
+    },
+    "advanced_filter_dialog.py::AdvancedFilterDialog.create_object_filter_section": {
+      "source_file": "advanced_filter_dialog.py",
+      "function_name": "AdvancedFilterDialog.create_object_filter_section",
+      "signature_hash": "835283dc22e23861",
+      "body_hash": "de5ab94723650d5d",
+      "test_file": "test_advanced_filter_dialog_AdvancedFilterDialog_create_object_filter_section.py",
+      "status": "active",
+      "last_generated": "2026-03-05T22:14:29.574970+00:00",
+      "loc": 72,
+      "complexity": 2
     }
   }
 }
