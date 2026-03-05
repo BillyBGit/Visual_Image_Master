@@ -12,6 +12,17 @@
       "last_generated": "2026-03-05T20:45:42.365110+00:00",
       "loc": 32,
       "complexity": 1
+    },
+    "advanced_filter_dialog.py::AdvancedFilterDialog.setup_ui": {
+      "source_file": "advanced_filter_dialog.py",
+      "function_name": "AdvancedFilterDialog.setup_ui",
+      "signature_hash": "79e1359dcfeafbab",
+      "body_hash": "61d9e766c966d04f",
+      "test_file": "test_advanced_filter_dialog_AdvancedFilterDialog_setup_ui.py",
+      "status": "active",
+      "last_generated": "2026-03-05T21:15:52.168912+00:00",
+      "loc": 44,
+      "complexity": 1
     }
   }
 }
