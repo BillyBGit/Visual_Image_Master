@@ -1,22 +1,22 @@
 {
   "version": 1,
-  "sessionId": "31e90578-8f7b-44d9-a7d7-2cd574da78d8",
+  "sessionId": "63c9a471-c84a-4af2-9cc3-8f5e8036d9d9",
   "status": "running",
-  "startedAt": "2026-03-05T21:17:59.993Z",
-  "updatedAt": "2026-03-05T22:02:49.414Z",
-  "currentIteration": 3,
+  "startedAt": "2026-03-05T22:05:18.072Z",
+  "updatedAt": "2026-03-05T22:14:26.965Z",
+  "currentIteration": 2,
   "maxIterations": 50,
   "tasksCompleted": 1,
   "isPaused": false,
   "agentPlugin": "ollama-bridge",
   "trackerState": {
     "plugin": "json",
-    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog_create_face_filter_section.json",
+    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog_create_object_filter_section.json",
     "totalTasks": 2,
     "tasks": [
       {
         "id": "US-001",
-        "title": "Test AdvancedFilterDialog.create_face_filter_section functionality",
+        "title": "Test AdvancedFilterDialog.create_object_filter_section",
         "status": "completed",
         "completedInSession": true
       },
@@ -33,31 +33,21 @@
       "iteration": 1,
       "status": "completed",
       "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_face_filter_section functionality",
+      "taskTitle": "Test AdvancedFilterDialog.create_object_filter_section",
       "taskCompleted": false,
-      "durationMs": 1561778,
-      "startedAt": "2026-03-05T21:18:00.035Z",
-      "endedAt": "2026-03-05T21:44:01.813Z"
+      "durationMs": 544923,
+      "startedAt": "2026-03-05T22:05:18.116Z",
+      "endedAt": "2026-03-05T22:14:23.039Z"
     },
     {
       "iteration": 2,
       "status": "completed",
       "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_face_filter_section functionality",
-      "taskCompleted": false,
-      "durationMs": 1122716,
-      "startedAt": "2026-03-05T21:44:02.817Z",
-      "endedAt": "2026-03-05T22:02:45.533Z"
-    },
-    {
-      "iteration": 3,
-      "status": "completed",
-      "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_face_filter_section functionality",
+      "taskTitle": "Test AdvancedFilterDialog.create_object_filter_section",
       "taskCompleted": true,
-      "durationMs": 873,
-      "startedAt": "2026-03-05T22:02:46.536Z",
-      "endedAt": "2026-03-05T22:02:47.409Z"
+      "durationMs": 878,
+      "startedAt": "2026-03-05T22:14:24.042Z",
+      "endedAt": "2026-03-05T22:14:24.920Z"
     }
   ],
   "skippedTaskIds": [],
