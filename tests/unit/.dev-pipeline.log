@@ -2,3 +2,4 @@
 [2026-03-06 08:15:52] SUCCESS advanced_filter_dialog.py::AdvancedFilterDialog.setup_ui — generated test_advanced_filter_dialog_AdvancedFilterDialog_setup_ui.py (7 tests, 1810s)
 [2026-03-06 09:02:51] SUCCESS advanced_filter_dialog.py::AdvancedFilterDialog.create_face_filter_section — generated test_advanced_filter_dialog_AdvancedFilterDialog_create_face_filter_section.py (7 tests, 2819s)
 [2026-03-06 09:14:29] SUCCESS advanced_filter_dialog.py::AdvancedFilterDialog.create_object_filter_section — generated test_advanced_filter_dialog_AdvancedFilterDialog_create_object_filter_section.py (9 tests, 698s)
+[2026-03-06 09:35:30] SUCCESS advanced_filter_dialog.py::AdvancedFilterDialog.create_scene_filter_section — generated test_advanced_filter_dialog_AdvancedFilterDialog_create_scene_filter_section.py (7 tests, 1261s)

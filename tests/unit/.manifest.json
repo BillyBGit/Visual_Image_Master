@@ -45,6 +45,17 @@
       "last_generated": "2026-03-05T22:14:29.574970+00:00",
       "loc": 72,
       "complexity": 2
+    },
+    "advanced_filter_dialog.py::AdvancedFilterDialog.create_scene_filter_section": {
+      "source_file": "advanced_filter_dialog.py",
+      "function_name": "AdvancedFilterDialog.create_scene_filter_section",
+      "signature_hash": "e550fb568fea4818",
+      "body_hash": "2733d6a5dec348c4",
+      "test_file": "test_advanced_filter_dialog_AdvancedFilterDialog_create_scene_filter_section.py",
+      "status": "active",
+      "last_generated": "2026-03-05T22:35:30.118009+00:00",
+      "loc": 59,
+      "complexity": 2
     }
   }
 }
