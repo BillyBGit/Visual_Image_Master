@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "project": "img_sort",
+  "entries": {
+    "advanced_filter_dialog.py::AdvancedFilterDialog.__init__": {
+      "source_file": "advanced_filter_dialog.py",
+      "function_name": "AdvancedFilterDialog.__init__",
+      "signature_hash": "a870ba18e3102042",
+      "body_hash": "9554d994053ee008",
+      "test_file": "test_advanced_filter_dialog_AdvancedFilterDialog___init__.py",
+      "status": "active",
+      "last_generated": "2026-03-05T20:45:42.365110+00:00",
+      "loc": 32,
+      "complexity": 1
+    }
+  }
+}
