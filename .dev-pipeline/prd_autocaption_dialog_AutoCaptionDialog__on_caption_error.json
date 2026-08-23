@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog._on_caption_error",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog._on_caption_error functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog._on_caption_error`  \n**Size**: 15 lines, complexity 2 (low)\n\n```python\n    def _on_caption_error(self, error):\n        \"\"\"Handle caption generation error.\"\"\"\n        image_path = self.image_paths[self.current_index]\n        self.results.append((image_path, None, f\"error: {error}\"))\n\n        # Cleanup worker\n        if self.caption_worker:\n            self.caption_worker.wait()\n            self.caption_worker.deleteLater()\n            self.caption_worker = None\n\n        # Move to next\n        self.current_index += 1\n        self.progress_bar.setValue(self.current_index)\n        QTimer.singleShot(10, self._process_next_image)\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_caption_error.py\n\nTests for AutoCaptionDialog._on_caption_error method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None).\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_on_caption_error_records_error — Create AutoCaptionDialog with mock image_paths. Call _on_caption_error with a test error. Assert that the error is recorded in self.results with the correct image path and error message.\n2. test_on_caption_error_increments_index — Verify that self.current_index is incremented by 1 after calling _on_caption_error.\n3. test_on_caption_error_updates_progress_bar — Assert that self.progress_bar.setValue is called with the updated current_index.\n4. test_on_caption_error_cleans_up_worker — Verify that if self.caption_worker exists, it is cleaned up (wait, deleteLater, set to None).\n5. test_on_caption_error_schedules_next_image — Assert that QTimer.singleShot is called with _process_next_image.\n6. test_on_caption_error_with_no_worker — Test the function when self.caption_worker is None. Ensure no errors occur and the function behaves as expected.\n7. test_on_caption_error_with_multiple_errors — Simulate multiple errors and verify that each error is recorded and the state is updated correctly.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_caption_error.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_caption_error.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T04:42:17.878Z"
+  }
+}

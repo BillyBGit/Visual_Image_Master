@@ -28,12 +28,23 @@ class SettingsManager:
         self.settings.setValue(
             "preview_autoname_extract", self.app.preview_autoname_extract
         )
+        self.settings.setValue(
+            "preview_crop_align_mode", self.app.preview_crop_align_mode
+        )
+        self.settings.setValue(
+            "preview_extract_save_dir", self.app.preview_extract_save_dir
+        )
         self.settings.setValue("confirm_delete", self.app.conf_delete_act.isChecked())
         self.settings.setValue("show_names", self.app.show_names_act.isChecked())
         self.settings.setValue(
             "show_dimensions", self.app.show_dimensions_act.isChecked()
         )
         self.settings.setValue("show_counts", self.app.show_counts_act.isChecked())
+        self.settings.setValue("comfyui_info", self.app.comfyui_info_act.isChecked())
+        self.settings.setValue(
+            "preview_rating_display",
+            self.app.preview_rating_display_act.isChecked(),
+        )
 
         # Save sort settings
         self.settings.setValue("sort_by", self.app.sort_by)
@@ -189,15 +200,31 @@ class SettingsManager:
         current_src_index = self.app.src_tree.currentIndex()
         if current_src_index.isValid():
             self.settings.setValue(
-                "src_selected_path", self.app.src_model.filePath(current_src_index)
+                "src_selected_path",
+                self.app.src_model.filePath(
+                    self.app.src_proxy.mapToSource(current_src_index)
+                ),
             )
 
         # Save the currently selected folder in dest tree
         current_dest_index = self.app.dest_tree.currentIndex()
         if current_dest_index.isValid():
             self.settings.setValue(
-                "dest_selected_path", self.app.dest_model.filePath(current_dest_index)
+                "dest_selected_path",
+                self.app.dest_model.filePath(
+                    self.app.dest_proxy.mapToSource(current_dest_index)
+                ),
             )
+
+        # Save folder tree sort state
+        self.settings.setValue("src_tree_sort_mode", self.app.src_tree_sort_mode)
+        self.settings.setValue(
+            "src_tree_sort_ascending", self.app.src_tree_sort_ascending
+        )
+        self.settings.setValue("dest_tree_sort_mode", self.app.dest_tree_sort_mode)
+        self.settings.setValue(
+            "dest_tree_sort_ascending", self.app.dest_tree_sort_ascending
+        )
 
         self.settings.sync()
 
@@ -210,9 +237,19 @@ class SettingsManager:
         if not remember:
             return
 
-        # 2. Block signals during restoration to prevent premature saves
+        # 2. Block signals during restoration to prevent premature saves.
+        # Also block the selection model so setCurrentIndex() during restore does not
+        # trigger on_selection_changed → refresh_thumbnails → processEvents, which
+        # can cause QFileSystemModel's async rowsInserted to fire and rebuild the
+        # proxy mapping, invalidating the index we're about to pass to scrollTo().
         self.app.src_tree.blockSignals(True)
         self.app.dest_tree.blockSignals(True)
+        src_sel_model = self.app.src_tree.selectionModel()
+        dest_sel_model = self.app.dest_tree.selectionModel()
+        if src_sel_model:
+            src_sel_model.blockSignals(True)
+        if dest_sel_model:
+            dest_sel_model.blockSignals(True)
 
         # 3. Restore Window Geometry and State
         main_geo = self.settings.value("main_geometry")
@@ -236,11 +273,23 @@ class SettingsManager:
         self.app.show_dimensions_act.setChecked(
             self.settings.value("show_dimensions", False, type=bool)
         )
+        self.app.comfyui_info_act.setChecked(
+            self.settings.value("comfyui_info", False, type=bool)
+        )
+        self.app.preview_rating_display_act.setChecked(
+            self.settings.value("preview_rating_display", True, type=bool)
+        )
         self.app.preview_fit_default = self.settings.value(
             "preview_fit", False, type=bool
         )
         self.app.preview_autoname_extract = self.settings.value(
             "preview_autoname_extract", False, type=bool
+        )
+        self.app.preview_crop_align_mode = self.settings.value(
+            "preview_crop_align_mode", "image"
+        )
+        self.app.preview_extract_save_dir = self.settings.value(
+            "preview_extract_save_dir", ""
         )
 
         # Restore folder counts setting
@@ -252,6 +301,15 @@ class SettingsManager:
         # Restore sort settings
         self.app.sort_by = self.settings.value("sort_by", "name")
         self.app.sort_ascending = self.settings.value("sort_ascending", True, type=bool)
+        # Composition Diversity is an expensive per-image analysis (HOG
+        # descriptor + O(n^2) ordering) meant for deliberate, in-the-moment
+        # use from the Sort menu - it must never come back as a silent
+        # persisted default, since it would then run unattended on whatever
+        # folder loads at startup, potentially for minutes, before the
+        # window is usable (looks exactly like a hang/crash).
+        if self.app.sort_by == "composition_diversity":
+            self.app.sort_by = "name"
+            self.app.sort_ascending = True
         if hasattr(self.app, "sort_actions"):
             for key, action in self.app.sort_actions.items():
                 action.setChecked(key == (self.app.sort_by, self.app.sort_ascending))
@@ -375,38 +433,82 @@ class SettingsManager:
         if not os.path.isdir(dest_selected):
             dest_selected = dest_root
 
+        # Restore folder tree sort state before setting indexes (proxy must be configured)
+        src_sort_mode = self.settings.value("src_tree_sort_mode", "name")
+        src_sort_asc = self.settings.value("src_tree_sort_ascending", True, type=bool)
+        dest_sort_mode = self.settings.value("dest_tree_sort_mode", "name")
+        dest_sort_asc = self.settings.value("dest_tree_sort_ascending", True, type=bool)
+        self.app.src_tree_sort_mode = src_sort_mode
+        self.app.src_tree_sort_ascending = src_sort_asc
+        self.app.dest_tree_sort_mode = dest_sort_mode
+        self.app.dest_tree_sort_ascending = dest_sort_asc
+        self.app.src_proxy.set_sort_mode(src_sort_mode, src_sort_asc)
+        self.app.dest_proxy.set_sort_mode(dest_sort_mode, dest_sort_asc)
+        # Sync menu check state
+        if hasattr(self.app, "src_tree_sort_actions"):
+            for (m, a), act in self.app.src_tree_sort_actions.items():
+                act.setChecked(m == src_sort_mode and a == src_sort_asc)
+        if hasattr(self.app, "dest_tree_sort_actions"):
+            for (m, a), act in self.app.dest_tree_sort_actions.items():
+                act.setChecked(m == dest_sort_mode and a == dest_sort_asc)
+
         # Set source tree root and selected path
         self.app.src_root_path = src_root
+        self.app.src_proxy.set_scope_root(src_root)
         self.app.src_path_display.setText(src_root)
-        src_root_index = self.app.src_model.index(src_root)
+        src_root_index = self.app.src_proxy.mapFromSource(
+            self.app.src_model.index(src_root)
+        )
         if src_root_index.isValid():
             self.app.src_tree.setRootIndex(src_root_index)
-
-            src_sel_index = self.app.src_model.index(src_selected)
+            src_sel_index = self.app.src_proxy.mapFromSource(
+                self.app.src_model.index(src_selected)
+            )
             if src_sel_index.isValid():
                 self.app.src_tree.setCurrentIndex(src_sel_index)
-                self.app.src_tree.scrollTo(src_sel_index)
+                # Use currentIndex() rather than src_sel_index: the proxy mapping
+                # may have been rebuilt (making src_sel_index stale) by anything
+                # that processed events between the two calls.
+                cur = self.app.src_tree.currentIndex()
+                if cur.isValid():
+                    self.app.src_tree.scrollTo(cur)
         else:
-            self.app.src_tree.setRootIndex(self.app.src_model.index("/"))
+            self.app.src_tree.setRootIndex(
+                self.app.src_proxy.mapFromSource(self.app.src_model.index("/"))
+            )
             self.app.src_path_display.setText("/")
             self.app.src_root_path = "/"
+            self.app.src_proxy.set_scope_root("/")
 
         # Set destination tree root and selected path
         self.app.dest_root_path = dest_root
+        self.app.dest_proxy.set_scope_root(dest_root)
         self.app.dest_path_display.setText(dest_root)
-        dest_root_index = self.app.dest_model.index(dest_root)
+        dest_root_index = self.app.dest_proxy.mapFromSource(
+            self.app.dest_model.index(dest_root)
+        )
         if dest_root_index.isValid():
             self.app.dest_tree.setRootIndex(dest_root_index)
-
-            dest_sel_index = self.app.dest_model.index(dest_selected)
+            dest_sel_index = self.app.dest_proxy.mapFromSource(
+                self.app.dest_model.index(dest_selected)
+            )
             if dest_sel_index.isValid():
                 self.app.dest_tree.setCurrentIndex(dest_sel_index)
-                self.app.dest_tree.scrollTo(dest_sel_index)
+                cur = self.app.dest_tree.currentIndex()
+                if cur.isValid():
+                    self.app.dest_tree.scrollTo(cur)
         else:
-            self.app.dest_tree.setRootIndex(self.app.dest_model.index("/"))
+            self.app.dest_tree.setRootIndex(
+                self.app.dest_proxy.mapFromSource(self.app.dest_model.index("/"))
+            )
             self.app.dest_path_display.setText("/")
             self.app.dest_root_path = "/"
+            self.app.dest_proxy.set_scope_root("/")
 
         # 7. Unblock signals
         self.app.src_tree.blockSignals(False)
         self.app.dest_tree.blockSignals(False)
+        if src_sel_model:
+            src_sel_model.blockSignals(False)
+        if dest_sel_model:
+            dest_sel_model.blockSignals(False)

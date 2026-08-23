@@ -9,9 +9,22 @@ from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PIL import Image
 
 from advanced_filter_dialog import AdvancedFilterDialog
+from composition_similarity import order_by_diversity
 from object_detection import get_detector as get_object_detector
 from quality_assessment import get_assessor as get_quality_assessor
 from scene_recognition import get_recognizer as get_scene_recognizer
+
+VALID_IMAGE_EXTS = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".avif",
+    ".tiff",
+    ".bmp",
+    ".tn3",
+)
 
 
 class FilteringMixin:
@@ -82,6 +95,41 @@ class FilteringMixin:
 
         self.sort_menu.addSeparator()
 
+        # Face area sorting (largest detected face / image area) — useful for
+        # finding tightly-framed portrait candidates
+        face_ratio_asc_act = QAction("Face Area % (Low to High)", self, checkable=True)
+        face_ratio_asc_act.triggered.connect(lambda: self.set_sort("face_ratio", True))
+        self.sort_menu.addAction(face_ratio_asc_act)
+
+        face_ratio_desc_act = QAction("Face Area % (High to Low)", self, checkable=True)
+        face_ratio_desc_act.triggered.connect(
+            lambda: self.set_sort("face_ratio", False)
+        )
+        self.sort_menu.addAction(face_ratio_desc_act)
+
+        self.sort_menu.addSeparator()
+
+        # Composition diversity sorting — orders by structural (colour-excluded)
+        # dissimilarity via greedy farthest-point sampling, so taking the first
+        # N images gives a spread-out, non-redundant training subset
+        comp_div_desc_act = QAction(
+            "Composition Diversity (Most Diverse First)", self, checkable=True
+        )
+        comp_div_desc_act.triggered.connect(
+            lambda: self.set_sort("composition_diversity", False)
+        )
+        self.sort_menu.addAction(comp_div_desc_act)
+
+        comp_div_asc_act = QAction(
+            "Composition Diversity (Most Redundant First)", self, checkable=True
+        )
+        comp_div_asc_act.triggered.connect(
+            lambda: self.set_sort("composition_diversity", True)
+        )
+        self.sort_menu.addAction(comp_div_asc_act)
+
+        self.sort_menu.addSeparator()
+
         # File size sorting
         size_asc_act = QAction("File Size (Smallest First)", self, checkable=True)
         size_asc_act.triggered.connect(lambda: self.set_sort("filesize", True))
@@ -104,6 +152,10 @@ class FilteringMixin:
             ("height", False): height_desc_act,
             ("quality", True): quality_asc_act,
             ("quality", False): quality_desc_act,
+            ("face_ratio", True): face_ratio_asc_act,
+            ("face_ratio", False): face_ratio_desc_act,
+            ("composition_diversity", True): comp_div_asc_act,
+            ("composition_diversity", False): comp_div_desc_act,
             ("filesize", True): size_asc_act,
             ("filesize", False): size_desc_act,
         }
@@ -619,30 +671,45 @@ class FilteringMixin:
             self.write_settings()
 
     def refresh_thumbnails(self):
+        # Disabled for the duration of the reload so a double-click during a
+        # slow directory load (large/high-res folders can take a while, and
+        # QApplication.processEvents() below keeps the UI responsive enough
+        # for that click to land) can't open a preview window built from a
+        # partial mid-load snapshot of the list - previously, doing so froze
+        # the preview's navigation at whatever count had loaded so far,
+        # making it look like it "only had the first N images" and wrapped
+        # around early.
+        try:
+            self._refresh_thumbnails_impl()
+        finally:
+            self.thumb_list.setEnabled(True)
+
+    def _refresh_thumbnails_impl(self):
+        self.thumb_list.setEnabled(False)
+        # Each call gets a unique generation token. Any loop that sees a newer
+        # token knows it has been superseded and must stop appending items.
+        self._refresh_generation = getattr(self, "_refresh_generation", 0) + 1
+        my_gen = self._refresh_generation
+
         # Show progress bar immediately
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate mode
-        self.status_bar.showMessage("Loading directory...")
+        self.start_loading_spinner("Loading directory...")
         QApplication.processEvents()  # Force UI update
+        if self._refresh_generation != my_gen:
+            self.stop_loading_spinner()
+            return
 
         self.thumb_list.clear()
         path = self.get_current_source_path()
         if not os.path.isdir(path):
             self.progress_bar.setVisible(False)
+            self.stop_loading_spinner()
             return
 
-        valid = (
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".gif",
-            ".webp",
-            ".avif",
-            ".tiff",
-            ".bmp",
-            ".tn3",
-        )
-        files = [f for f in os.listdir(path) if f.lower().endswith(valid)]
+        self._update_source_watcher(path)
+
+        files = [f for f in os.listdir(path) if f.lower().endswith(VALID_IMAGE_EXTS)]
 
         # Apply face filter if active
         if self.filter_active and self.filter_mode:
@@ -652,7 +719,7 @@ class FilteringMixin:
             self.progress_bar.setRange(0, total)
             self.progress_bar.setValue(0)
             self.progress_bar.setVisible(True)
-            self.status_bar.showMessage(f"Filtering {total} images...")
+            self.set_loading_spinner_message(f"Filtering {total} images...")
 
             for i, f in enumerate(files):
                 full_path = os.path.join(path, f)
@@ -672,6 +739,9 @@ class FilteringMixin:
                 self.progress_bar.setValue(i + 1)
                 if i % 5 == 0:
                     QApplication.processEvents()
+                    if self._refresh_generation != my_gen:
+                        self.stop_loading_spinner()
+                        return
 
             files = filtered_files
             self.progress_bar.setVisible(False)
@@ -680,6 +750,7 @@ class FilteringMixin:
         total_files = len(files)
 
         if total_files == 0:
+            self.stop_loading_spinner()
             if self.filter_active and self.filter_mode:
                 if self.filter_mode == "has_face":
                     filter_name = "with faces"
@@ -698,13 +769,18 @@ class FilteringMixin:
         show_dimensions = self.show_dimensions_act.isChecked()
         show_filesize = self.show_filesize_act.isChecked()
 
+        from rating_manager import get_rating_manager, combine_display_text
+
+        full_paths = [os.path.join(path, f) for f in files]
+        ratings = get_rating_manager().get_ratings_bulk(full_paths)
+
         self.progress_bar.setRange(0, total_files)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
-        self.status_bar.showMessage(f"Loading {total_files} images...")
+        self.set_loading_spinner_message(f"Loading {total_files} images...")
 
         for i, f in enumerate(files):
-            full_p = os.path.join(path, f)
+            full_p = full_paths[i]
 
             # Determine display text (mutually exclusive)
             if show_names:
@@ -716,16 +792,24 @@ class FilteringMixin:
             else:
                 display_text = ""
 
-            item = QListWidgetItem(QIcon(full_p), display_text)
+            item = QListWidgetItem(
+                QIcon(full_p),
+                combine_display_text(display_text, ratings.get(full_p)),
+            )
             item.setData(Qt.ItemDataRole.UserRole, full_p)
+            item.setData(Qt.ItemDataRole.UserRole + 1, display_text)
             self.thumb_list.addItem(item)
 
             self.progress_bar.setValue(i + 1)
 
             if i % 10 == 0:
                 QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.stop_loading_spinner()
+                    return
 
         self.progress_bar.setVisible(False)
+        self.stop_loading_spinner()
 
         if self.filter_active and self.filter_mode:
             if self.filter_mode == "has_face":
@@ -745,6 +829,138 @@ class FilteringMixin:
             self.dest_tree.count_delegate._count_cache.clear()
             self.src_tree.viewport().update()
             self.dest_tree.viewport().update()
+
+    # ── Live-watching the source folder for externally added files ─────────
+
+    def _update_source_watcher(self, path):
+        """Point the QFileSystemWatcher at whichever folder is now displayed."""
+        watched = self.source_watcher.directories()
+        if watched:
+            self.source_watcher.removePaths(watched)
+        if path and os.path.isdir(path):
+            self.source_watcher.addPath(path)
+        self._pending_new_files = {}
+
+    def on_source_directory_changed(self, path):
+        """Fired by the OS when the watched folder's contents change.
+
+        Only reacts to the folder currently being displayed - a signal for a
+        folder we've since navigated away from is stale and ignored. Debounced
+        via a short timer since a single external file write can fire this
+        more than once in quick succession.
+        """
+        if os.path.normpath(path) != os.path.normpath(self.get_current_source_path()):
+            return
+        self._new_file_check_timer.start(400)
+
+    def _check_for_new_thumbnails(self):
+        """Add any newly-appeared image file(s) to the grid without a full reload.
+
+        A file is only added once its size has been stable across two checks,
+        so a partially-written file (an external app still saving) doesn't
+        get picked up and thumbnailed mid-write.
+        """
+        path = self.get_current_source_path()
+        if not os.path.isdir(path):
+            self._pending_new_files = {}
+            return
+
+        try:
+            current_files = {
+                f for f in os.listdir(path) if f.lower().endswith(VALID_IMAGE_EXTS)
+            }
+        except OSError:
+            return
+
+        shown_paths = set()
+        for i in range(self.thumb_list.count()):
+            item_path = self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+            if item_path:
+                shown_paths.add(os.path.normpath(item_path))
+
+        still_pending = {}
+        needs_recheck = False
+        added_any = False
+
+        for f in current_files:
+            full_path = os.path.normpath(os.path.join(path, f))
+            if full_path in shown_paths:
+                continue
+
+            try:
+                size = os.path.getsize(full_path)
+            except OSError:
+                continue
+
+            prev_size = self._pending_new_files.get(full_path)
+            if prev_size is not None and prev_size == size:
+                if self._add_new_thumbnail(path, f, full_path):
+                    added_any = True
+            else:
+                still_pending[full_path] = size
+                needs_recheck = True
+
+        self._pending_new_files = still_pending
+        if needs_recheck:
+            self._new_file_check_timer.start(400)
+
+        if added_any and self.show_counts_act.isChecked():
+            self.src_tree.count_delegate._count_cache.clear()
+            self.src_tree.viewport().update()
+
+    def _add_new_thumbnail(self, dir_path, filename, full_path):
+        """Insert a single new file into the thumbnail grid at its correct
+        sorted position, respecting whichever filter is currently active.
+
+        Returns True if the thumbnail was added.
+        """
+        for i in range(self.thumb_list.count()):
+            if self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole) == full_path:
+                return False  # already added by a refresh that ran meanwhile
+
+        if self.filter_active and self.filter_mode:
+            include = False
+            if self.filter_mode == "has_face":
+                include = self.face_detector.has_face(full_path)
+            elif self.filter_mode == "no_face":
+                include = not self.face_detector.has_face(full_path)
+            elif self.filter_mode == "advanced":
+                include = self.matches_advanced_filters(full_path)
+            if not include:
+                return False
+
+        from rating_manager import get_rating_manager, combine_display_text
+
+        if self.show_names_act.isChecked():
+            display_text = filename
+        elif self.show_dimensions_act.isChecked():
+            display_text = self.get_image_dimensions_str(full_path)
+        elif self.show_filesize_act.isChecked():
+            display_text = self.get_file_size_str(full_path)
+        else:
+            display_text = ""
+
+        rating = get_rating_manager().get_ratings_bulk([full_path]).get(full_path)
+        item = QListWidgetItem(
+            QIcon(full_path), combine_display_text(display_text, rating)
+        )
+        item.setData(Qt.ItemDataRole.UserRole, full_path)
+        item.setData(Qt.ItemDataRole.UserRole + 1, display_text)
+
+        current_basenames = [
+            os.path.basename(self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole))
+            for i in range(self.thumb_list.count())
+            if self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+        ]
+        combined = self.sort_files(dir_path, current_basenames + [filename])
+        try:
+            insert_row = combined.index(filename)
+        except ValueError:
+            insert_row = self.thumb_list.count()
+
+        self.thumb_list.insertItem(insert_row, item)
+        self.status_bar.showMessage(f"Added: {filename}", 3000)
+        return True
 
     def sort_files(self, path, files):
         """Sort files based on current sort criteria."""
@@ -780,6 +996,16 @@ class FilteringMixin:
                 key=lambda f: self.get_image_quality(os.path.join(path, f)),
                 reverse=not self.sort_ascending,
             )
+        elif self.sort_by == "face_ratio":
+            files = sorted(
+                files,
+                key=lambda f: self.get_face_area_ratio(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
+        elif self.sort_by == "composition_diversity":
+            files = self.order_by_composition_diversity(path, files)
+            if self.sort_ascending:
+                files = list(reversed(files))
         elif self.sort_by == "filesize":
             files = sorted(
                 files,
@@ -787,6 +1013,64 @@ class FilteringMixin:
                 reverse=not self.sort_ascending,
             )
         return files
+
+    def order_by_composition_diversity(self, path, files):
+        """Order files by structural (colour-excluded) diversity.
+
+        Uses greedy farthest-point sampling over each image's HOG composition
+        descriptor, so the returned order starts with a representative seed
+        image and then always adds whichever remaining image is least like
+        anything already placed. Taking the first N files from this order
+        gives a diverse, non-redundant subset (e.g. for LoRA training),
+        instead of several near-identical framings.
+        """
+        full_paths = [os.path.join(path, f) for f in files]
+        my_gen = self._refresh_generation
+        total = len(full_paths)
+
+        # Computing a HOG descriptor per image is the expensive part (disk +
+        # decode + resize + HOG) - keep the UI responsive and interruptible,
+        # since this can be slow on folders with hundreds+ of images.
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.set_loading_spinner_message(
+            f"Computing composition descriptors for {total} images..."
+        )
+
+        descriptors = []
+        valid_files = []
+        for i, (f, full_path) in enumerate(zip(files, full_paths)):
+            desc = self.composition_analyzer.get_descriptor(full_path)
+            if desc is not None:
+                descriptors.append(desc)
+                valid_files.append(f)
+
+            self.progress_bar.setValue(i + 1)
+            if i % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    # Folder/sort changed mid-computation - the caller's
+                    # generation check will discard this result shortly
+                    # anyway, so just stop doing further work now.
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        self.progress_bar.setVisible(False)
+
+        if len(descriptors) <= 2:
+            return files
+
+        self.set_loading_spinner_message("Ordering by composition diversity...")
+        QApplication.processEvents()
+
+        ordered = order_by_diversity(valid_files, descriptors)
+
+        # Files whose descriptor couldn't be computed (unreadable) are kept
+        # in their existing relative order, appended at the end.
+        skipped = [f for f in files if f not in valid_files]
+        return ordered + skipped
 
     def get_image_resolution(self, file_path):
         """Get total pixel count (width * height) of an image."""
@@ -815,6 +1099,10 @@ class FilteringMixin:
     def get_image_quality(self, file_path):
         """Get image quality/sharpness score."""
         return self.quality_analyzer.get_blur_score(file_path)
+
+    def get_face_area_ratio(self, file_path):
+        """Get the ratio of image area occupied by the largest detected face."""
+        return self.face_detector.get_face_area_ratio(file_path)
 
     def get_file_size(self, file_path):
         """Get file size in bytes."""

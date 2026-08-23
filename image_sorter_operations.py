@@ -3,6 +3,7 @@ FileOperationsMixin - File operations, dedup execution, undo, tool windows, capt
 and help/about dialogs for ImageSorter.
 """
 
+import csv
 import os
 import shutil
 from PySide6.QtWidgets import (
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QTextBrowser,
     QDialogButtonBox,
+    QFileDialog,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup
@@ -180,76 +182,95 @@ class FileOperationsMixin:
         # Return only groups with duplicates (more than 1 file)
         return {h: files for h, files in hash_dict.items() if len(files) > 1}
 
-    def find_visual_duplicates(self, file_paths):
-        """Find visual duplicates using findimagedupes. Returns dict of {group_id: [files]}."""
-        import subprocess
-        import tempfile
-        import shutil
+    def find_visual_duplicates(self, file_paths, threshold=10):
+        """Find visually similar images using perceptual hashing (pHash).
 
-        # Check if findimagedupes is available
-        try:
-            subprocess.run(
-                ["findimagedupes", "--version"], capture_output=True, check=True
+        Uses a 64-bit DCT-based hash computed via numpy — no external tools needed.
+        threshold: max Hamming distance (out of 64) to call two images duplicates.
+        10 is a good default: catches re-saves, JPEG re-compression, minor crops.
+        Lower values (e.g. 4) require a closer match; 0 means byte-identical pixels.
+
+        Returns dict of {group_id: [file_paths]} for groups with >= 2 files.
+        """
+        import numpy as np
+        from PIL import Image
+
+        HASH_SIZE = 8  # produces a 64-bit hash
+
+        def _dct1d(x):
+            n = len(x)
+            v = np.concatenate([x[::2], x[1::2][::-1]])
+            V = np.fft.rfft(v)
+            k = np.arange(n) * (-1j * np.pi / (2 * n))
+            return (np.exp(k) * np.concatenate([V, np.conj(V[-2:0:-1])])).real[:n]
+
+        def compute_phash(path):
+            img = (
+                Image.open(path)
+                .convert("L")
+                .resize((HASH_SIZE * 4, HASH_SIZE * 4), Image.LANCZOS)
             )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            QMessageBox.warning(
-                self,
-                "Tool Not Found",
-                "The 'findimagedupes' tool is not installed.\n\n"
-                "Install it with:\n"
-                "  Ubuntu/Debian: sudo apt install findimagedupes\n"
-                "  Fedora: sudo dnf install findimagedupes\n"
-                "  Arch: sudo pacman -S findimagedupes\n\n"
-                "Or from source: https://github.com/jhnc/findimagedupes",
-            )
-            raise RuntimeError("findimagedupes not found")
+            arr = np.array(img, dtype=np.float64)
+            dct2d = np.apply_along_axis(_dct1d, 0, np.apply_along_axis(_dct1d, 1, arr))
+            low = dct2d[:HASH_SIZE, :HASH_SIZE]
+            bits = (low > np.median(low)).flatten()
+            result = 0
+            for bit in bits:
+                result = (result << 1) | int(bit)
+            return result
 
-        # Get unique directories containing the files
-        directories = list(set(os.path.dirname(p) for p in file_paths))
-        file_paths_set = set(file_paths)
+        # --- Hash all images, reporting progress ---
+        hashes = []
+        n = len(file_paths)
+        self.status_bar.showMessage(f"Computing hashes for {n} images…", 0)
+        for i, path in enumerate(file_paths):
+            try:
+                hashes.append(compute_phash(path))
+            except Exception:
+                hashes.append(None)
+            if i % 20 == 0:
+                self.status_bar.showMessage(f"Hashing {i + 1}/{n}…", 0)
+                QApplication.processEvents()
 
-        # Create a temporary directory for the fingerprint database
-        temp_dir = tempfile.mkdtemp()
-        db_file = os.path.join(temp_dir, "fingerprints.db")
+        # --- Union-Find to group transitively linked duplicates ---
+        parent = list(range(n))
 
-        try:
-            # Use custom hook to output files with ||| delimiter (handles spaces in paths)
-            custom_hook = 'VIEW(){ for f in "$@"; do printf "%s|||" "$f"; done; echo; }'
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
 
-            # Run findimagedupes on the directories
-            # -f is for fingerprint database, -i is for custom view hook
-            result = subprocess.run(
-                ["findimagedupes", "-f", db_file, "-i", custom_hook] + directories,
-                capture_output=True,
-                text=True,
-            )
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
 
-            # Parse output - each line has files separated by |||
-            duplicates = {}
-            group_id = 0
-
-            for line in result.stdout.strip().split("\n"):
-                if not line.strip():
+        self.status_bar.showMessage("Comparing hashes…", 0)
+        QApplication.processEvents()
+        for i in range(n):
+            if hashes[i] is None:
+                continue
+            for j in range(i + 1, n):
+                if hashes[j] is None:
                     continue
+                if bin(hashes[i] ^ hashes[j]).count("1") <= threshold:
+                    union(i, j)
 
-                # Split by ||| delimiter
-                files = [f.strip() for f in line.strip().split("|||") if f.strip()]
+        # --- Collect groups ---
+        groups: dict[int, list] = {}
+        for i, path in enumerate(file_paths):
+            root = find(i)
+            groups.setdefault(root, []).append(path)
 
-                # Filter to only include files from our input set
-                valid_files = [
-                    f for f in files if f in file_paths_set and os.path.isfile(f)
-                ]
+        duplicates = {}
+        group_id = 0
+        for files in groups.values():
+            if len(files) >= 2:
+                duplicates[group_id] = files
+                group_id += 1
 
-                if len(valid_files) > 1:
-                    duplicates[group_id] = valid_files
-                    group_id += 1
-
-            return duplicates
-
-        finally:
-            # Clean up temp directory and database
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir, ignore_errors=True)
+        return duplicates
 
     def delete_duplicate_files(self, duplicates):
         """Delete duplicate files, keeping one per group based on dedup_mode.
@@ -635,6 +656,31 @@ class FileOperationsMixin:
         self.yolo_window = YoloWindow(image_list, current_index, self)
         self.yolo_window.showMaximized()
 
+    def open_slideshow(self):
+        """Open a slideshow of the currently displayed thumbnails."""
+        from slideshow_window import SlideshowWindow
+
+        image_list = []
+        for i in range(self.thumb_list.count()):
+            item = self.thumb_list.item(i)
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                image_list.append(path)
+
+        if not image_list:
+            QMessageBox.information(
+                self, "No Images", "Please select a source folder with images first."
+            )
+            return
+
+        current_index = 0
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            current_index = self.thumb_list.row(selected_items[0])
+
+        self.slideshow_window = SlideshowWindow(image_list, current_index, self)
+        self.slideshow_window.showMaximized()
+
     def open_caption_window(self):
         """Open the Auto Caption window with current thumbnails."""
         from caption_window import CaptionWindow
@@ -704,6 +750,335 @@ class FileOperationsMixin:
         dialog = EnhanceDialog(image_paths, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.refresh_thumbnails()
+
+    def open_letterbox_dialog(self):
+        """Open the Remove Letterbox dialog for selected thumbnails."""
+        from letterbox_dialog import LetterboxDialog
+
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            image_paths = [
+                item.data(Qt.ItemDataRole.UserRole)
+                for item in selected_items
+                if item.data(Qt.ItemDataRole.UserRole)
+            ]
+        else:
+            image_paths = []
+            for i in range(self.thumb_list.count()):
+                item = self.thumb_list.item(i)
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path:
+                    image_paths.append(path)
+
+            if not image_paths:
+                QMessageBox.information(
+                    self,
+                    "No Images",
+                    "Please select a source folder with images first.",
+                )
+                return
+
+            reply = QMessageBox.question(
+                self,
+                "Remove Letterbox — All Images?",
+                f"No thumbnails selected. Process all {len(image_paths)} images"
+                " in the current folder?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        dialog = LetterboxDialog(image_paths, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.refresh_thumbnails()
+
+    def open_pair_selector(self):
+        """Open the Pair Selector window pre-populated from current app state.
+
+        LHS (dir_a / files_a):
+          - Selected thumbnails → pass those specific files as files_a
+          - No selection       → pass the currently active source folder as dir_a
+
+        RHS (dir_b):
+          - Currently selected folder in the destination tree, or dest_root_path
+        """
+        from pair_selector_window import PairSelectorWindow
+
+        # ── LHS ───────────────────────────────────────────────────────────────
+        selected_items = self.thumb_list.selectedItems()
+        if selected_items:
+            files_a = [
+                item.data(Qt.ItemDataRole.UserRole)
+                for item in selected_items
+                if item.data(Qt.ItemDataRole.UserRole)
+            ]
+            dir_a = None
+        else:
+            files_a = None
+            dir_a = self.get_current_source_path()
+
+        # ── RHS ───────────────────────────────────────────────────────────────
+        dest_index = self.dest_tree.currentIndex()
+        if dest_index.isValid():
+            dir_b = self.dest_model.filePath(self.dest_proxy.mapToSource(dest_index))
+        else:
+            dir_b = self.dest_root_path
+
+        win = PairSelectorWindow(parent=self, dir_a=dir_a, dir_b=dir_b, files_a=files_a)
+        win.show()
+
+    def open_filename_matcher(self):
+        """Open the Filename Matcher window, pre-populated from current app state.
+
+        Left pane:  currently active source folder.
+        Right pane: currently selected destination folder, or dest_root_path.
+        """
+        from filename_matcher_window import FilenameMatcherWindow
+
+        dir_a = self.get_current_source_path()
+
+        dest_index = self.dest_tree.currentIndex()
+        if dest_index.isValid():
+            dir_b = self.dest_model.filePath(self.dest_proxy.mapToSource(dest_index))
+        else:
+            dir_b = self.dest_root_path
+
+        win = FilenameMatcherWindow(parent=self, dir_a=dir_a, dir_b=dir_b)
+        win.show()
+
+    def open_re_extract_matcher(self):
+        """Open the Re-Extract Matcher window, pre-populated from current app state.
+
+        Originals pane: currently active source folder.
+        Extracts pane:  currently selected destination folder, or dest_root_path.
+        """
+        from re_extract_matcher_window import ReExtractMatcherWindow
+
+        dir_originals = self.get_current_source_path()
+
+        dest_index = self.dest_tree.currentIndex()
+        if dest_index.isValid():
+            dir_extracts = self.dest_model.filePath(
+                self.dest_proxy.mapToSource(dest_index)
+            )
+        else:
+            dir_extracts = self.dest_root_path
+
+        win = ReExtractMatcherWindow(
+            parent=self, dir_originals=dir_originals, dir_extracts=dir_extracts
+        )
+        win.show()
+
+    def open_rating_analysis(self):
+        """Correlate ratings of the currently displayed images against their
+        embedded ComfyUI LoRAs/strengths and prompt keywords.
+
+        Scoped to whatever's currently shown in the thumbnail grid (respects
+        any active filter), not the whole dataset - matches "rate a batch,
+        then analyze that batch."
+        """
+        from rating_manager import get_rating_manager
+        from rating_analysis import analyze_ratings
+
+        paths = [
+            self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.thumb_list.count())
+        ]
+        if not paths:
+            QMessageBox.information(
+                self, "Analyze Ratings", "No images currently displayed."
+            )
+            return
+
+        ratings = get_rating_manager().get_ratings_bulk(paths)
+        if len(ratings) < 3:
+            QMessageBox.information(
+                self,
+                "Analyze Ratings",
+                f"Only {len(ratings)} rated image(s) in the current view. "
+                "Rate at least a handful first (press 1-5 on a thumbnail, "
+                "or 0 to clear a rating) before analyzing.",
+            )
+            return
+
+        result = analyze_ratings(ratings)
+        if result["num_with_metadata"] == 0:
+            QMessageBox.information(
+                self,
+                "Analyze Ratings",
+                f"{len(ratings)} image(s) rated, but none had embedded "
+                "ComfyUI metadata to analyze. Enable Options > Show ComfyUI "
+                "Info to check whether these images carry generation data.",
+            )
+            return
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Rating Analysis")
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setText(self._format_rating_analysis(result))
+        box.exec()
+
+    def _format_rating_analysis(self, result):
+        lines = [
+            f"{result['num_rated']} image(s) rated, "
+            f"{result['num_with_metadata']} had ComfyUI metadata "
+            f"(avg rating {result['overall_avg']:.2f}/5)",
+            "",
+            "LoRA strength correlation with rating:",
+            "(closer to +1.0 = higher strength -> higher rating; "
+            "closer to -1.0 = higher strength -> lower rating)",
+        ]
+
+        if result["lora_stats"]:
+            for stat in result["lora_stats"][:10]:
+                corr = stat["strength_correlation"]
+                corr_str = (
+                    f"{corr:+.2f}"
+                    if corr is not None
+                    else "n/a (not enough strength variation)"
+                )
+                lines.append(
+                    f"  - {stat['name']}: avg {stat['avg_rating']:.2f}/5 "
+                    f"over {stat['count']} use(s), correlation {corr_str}"
+                )
+        else:
+            lines.append("  (no LoRAs found in rated images)")
+
+        lines.append("")
+        lines.append("Prompt keywords associated with HIGHER ratings:")
+        if result["keyword_stats_high"]:
+            for kw in result["keyword_stats_high"]:
+                lines.append(
+                    f"  - '{kw['keyword']}': avg {kw['avg_rating']:.2f}/5 "
+                    f"({kw['delta']:+.2f} vs overall, {kw['count']} occurrence(s))"
+                )
+        else:
+            lines.append("  (none found)")
+
+        lines.append("")
+        lines.append("Prompt keywords associated with LOWER ratings:")
+        if result["keyword_stats_low"]:
+            for kw in result["keyword_stats_low"]:
+                lines.append(
+                    f"  - '{kw['keyword']}': avg {kw['avg_rating']:.2f}/5 "
+                    f"({kw['delta']:+.2f} vs overall, {kw['count']} occurrence(s))"
+                )
+        else:
+            lines.append("  (none found)")
+
+        return "\n".join(lines)
+
+    def export_ratings_csv(self):
+        """Export the currently displayed rated images' ComfyUI metadata to
+        a CSV, one row per (image, LoRA) pair, for flexible slicing outside
+        the app (Excel, pandas, etc.).
+
+        Scoped the same way as Analyze Ratings - whatever's currently shown
+        in the thumbnail grid. Images with no LoRAs still get one row (with
+        the lora columns blank) so every rated image is represented.
+        """
+        from rating_manager import get_rating_manager
+        from comfyui_metadata import extract_comfyui_info
+
+        paths = [
+            self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.thumb_list.count())
+        ]
+        if not paths:
+            QMessageBox.information(
+                self, "Export Ratings CSV", "No images currently displayed."
+            )
+            return
+
+        ratings = get_rating_manager().get_ratings_bulk(paths)
+        if not ratings:
+            QMessageBox.information(
+                self,
+                "Export Ratings CSV",
+                "No rated images in the current view. Rate at least one "
+                "(press 1-5 on a thumbnail) before exporting.",
+            )
+            return
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Ratings CSV", "ratings_export.csv", "CSV Files (*.csv)"
+        )
+        if not save_path:
+            return
+
+        fieldnames = [
+            "image_path",
+            "image_filename",
+            "rating",
+            "model_name",
+            "lora_name",
+            "lora_strength_model",
+            "lora_strength_clip",
+            "positive_prompt",
+            "negative_prompt",
+        ]
+
+        row_count = 0
+        try:
+            with open(save_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for path in sorted(ratings.keys()):
+                    info = extract_comfyui_info(path)
+                    loras = info["loras"] if info else []
+                    base_row = {
+                        "image_path": path,
+                        "image_filename": os.path.basename(path),
+                        "rating": ratings[path],
+                        "model_name": (info["model_name"] if info else "") or "",
+                        "positive_prompt": (info["positive_prompt"] if info else "")
+                        or "",
+                        "negative_prompt": (info["negative_prompt"] if info else "")
+                        or "",
+                    }
+
+                    if loras:
+                        for lora in loras:
+                            writer.writerow(
+                                {
+                                    **base_row,
+                                    "lora_name": lora["name"],
+                                    "lora_strength_model": (
+                                        lora["strength_model"]
+                                        if lora["strength_model"] is not None
+                                        else ""
+                                    ),
+                                    "lora_strength_clip": (
+                                        lora["strength_clip"]
+                                        if lora["strength_clip"] is not None
+                                        else ""
+                                    ),
+                                }
+                            )
+                            row_count += 1
+                    else:
+                        writer.writerow(
+                            {
+                                **base_row,
+                                "lora_name": "",
+                                "lora_strength_model": "",
+                                "lora_strength_clip": "",
+                            }
+                        )
+                        row_count += 1
+        except OSError as e:
+            QMessageBox.warning(
+                self, "Export Failed", f"Could not write CSV file:\n{e}"
+            )
+            return
+
+        self.status_bar.showMessage(
+            f"Exported {row_count} row(s) for {len(ratings)} rated image(s) "
+            f"to {os.path.basename(save_path)}",
+            5000,
+        )
 
     def show_caption_settings_menu(self, pos):
         """Show right-click settings menu for caption button."""

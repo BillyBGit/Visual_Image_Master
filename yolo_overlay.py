@@ -17,6 +17,7 @@ class YoloOverlay(QWidget):
     # Interaction modes
     MODE_SELECT = "select"  # Select/move selection box or annotations
     MODE_DRAW = "draw"  # Draw new annotation boxes
+    MODE_PAINT = "paint"  # Paint a freeform dab trail -> tightest-fit bbox
 
     # Handle types for resizing
     HANDLE_NONE = None
@@ -69,6 +70,18 @@ class YoloOverlay(QWidget):
         self.drag_start_ratios = None
         self.drag_start_position_ratios = None
 
+        # Manual resize mode: allows the selection box itself to be resized
+        # via drag handles (for freeform sub-feature boxes - e.g. eyes, nose,
+        # chin - rather than always being a fixed preset size)
+        self.manual_resize_enabled = False
+        # Manual Square: same freeform drag/resize as above, but the box is
+        # forced to stay a perfect square (in image pixels) while resizing.
+        self.square_resize_enabled = False
+        self.resizing_selection = False
+        self.selection_resize_handle = self.HANDLE_NONE
+        self.selection_resize_drag_start = QPoint()
+        self.selection_resize_original_ratios = None
+
         # Annotation boxes
         # List of dicts: {'class_id': int, 'color': QColor, 'name': str, 'ratios': (x, y, w, h)}
         self.annotations = []
@@ -82,6 +95,18 @@ class YoloOverlay(QWidget):
         self.draw_current = QPoint()
         self.current_draw_label = None  # {'class_id', 'color', 'name'}
 
+        # Paint mode: instead of dragging out a rectangle, the user paints a
+        # trail of dabs (e.g. tracing a small mole) and releasing computes
+        # the tightest rectangle bounding everything painted. Layers on top
+        # of whichever selection-sizing mode (fixed/manual) is active - it
+        # only changes how annotations *within* the locked selection are
+        # created.
+        self.paint_mode_enabled = False
+        self.brush_radius = 10  # display pixels
+        self.painting = False
+        self.paint_points = []
+        self.paint_hover_pos = None
+
         # Dragging/resizing annotation state
         self.dragging_annotation = False
         self.resizing_annotation = False
@@ -91,10 +116,34 @@ class YoloOverlay(QWidget):
 
         # Handle size for hit detection
         self.handle_size = 10
+        # Corners get a bigger hit box than edges - landing exactly on a
+        # single point is harder than landing anywhere along a mid-edge
+        self.corner_handle_size = 20
 
     def set_size_mode(self, mode):
         """Set the size mode (image or screen)."""
         self.size_mode = mode
+
+    def set_manual_resize_enabled(self, enabled):
+        """Enable/disable manual freeform resizing of the selection box itself."""
+        self.manual_resize_enabled = enabled
+
+    def set_square_resize_enabled(self, enabled):
+        """Enable/disable the 1:1 aspect-ratio lock during manual resize."""
+        self.square_resize_enabled = enabled
+
+    def set_paint_mode_enabled(self, enabled):
+        """Enable/disable paint-to-bbox annotation creation."""
+        self.paint_mode_enabled = enabled
+        # Re-evaluate interaction mode immediately if a label is already selected
+        if self.current_draw_label:
+            self.interaction_mode = self.MODE_PAINT if enabled else self.MODE_DRAW
+        self.update()
+
+    def set_brush_radius(self, radius):
+        """Set the paint brush radius, in display pixels."""
+        self.brush_radius = max(1, radius)
+        self.update()
 
     def set_selection_locked(self, locked):
         """Set whether the selection is locked (drawing only allowed when locked)."""
@@ -108,7 +157,9 @@ class YoloOverlay(QWidget):
         """
         self.current_draw_label = label_info
         if label_info:
-            self.interaction_mode = self.MODE_DRAW
+            self.interaction_mode = (
+                self.MODE_PAINT if self.paint_mode_enabled else self.MODE_DRAW
+            )
         else:
             self.interaction_mode = self.MODE_SELECT
 
@@ -333,15 +384,22 @@ class YoloOverlay(QWidget):
     def _get_handle_at_pos(self, pos, rect):
         """Check if position is on a resize handle of the given rect."""
         hs = self.handle_size
+        chs = self.corner_handle_size
 
-        # Corner handles
-        if QRect(rect.left() - hs // 2, rect.top() - hs // 2, hs, hs).contains(pos):
+        # Corner handles (larger hit box than edges - see corner_handle_size)
+        if QRect(rect.left() - chs // 2, rect.top() - chs // 2, chs, chs).contains(pos):
             return self.HANDLE_TL
-        if QRect(rect.right() - hs // 2, rect.top() - hs // 2, hs, hs).contains(pos):
+        if QRect(rect.right() - chs // 2, rect.top() - chs // 2, chs, chs).contains(
+            pos
+        ):
             return self.HANDLE_TR
-        if QRect(rect.left() - hs // 2, rect.bottom() - hs // 2, hs, hs).contains(pos):
+        if QRect(rect.left() - chs // 2, rect.bottom() - chs // 2, chs, chs).contains(
+            pos
+        ):
             return self.HANDLE_BL
-        if QRect(rect.right() - hs // 2, rect.bottom() - hs // 2, hs, hs).contains(pos):
+        if QRect(rect.right() - chs // 2, rect.bottom() - chs // 2, chs, chs).contains(
+            pos
+        ):
             return self.HANDLE_BR
 
         # Edge handles
@@ -379,7 +437,13 @@ class YoloOverlay(QWidget):
             and self.selection_position_ratios is not None
         )
 
-        if not has_selection and not self.annotations and not self.drawing_annotation:
+        if (
+            not has_selection
+            and not self.annotations
+            and not self.drawing_annotation
+            and not self.painting
+            and self.paint_hover_pos is None
+        ):
             return
 
         painter = QPainter(self)
@@ -399,6 +463,16 @@ class YoloOverlay(QWidget):
         # Draw annotation being created
         if self.drawing_annotation and self.current_draw_label:
             self._draw_drawing_box(painter, selection_rect)
+
+        # Draw the in-progress paint stroke, or a hover preview of the brush size
+        if self.painting and self.current_draw_label:
+            self._draw_paint_stroke(painter)
+        elif (
+            not self.painting
+            and self.paint_hover_pos is not None
+            and self.current_draw_label
+        ):
+            self._draw_paint_hover_preview(painter)
 
     def _draw_selection_box(self, painter):
         """Draw the red selection box with semi-transparent overlay outside."""
@@ -475,6 +549,25 @@ class YoloOverlay(QWidget):
                 corner_size,
                 corner_size,
             )
+
+        # In manual resize mode (while unlocked), also show edge-midpoint
+        # handles so users can see they can drag a single edge, not just corners
+        if self.manual_resize_enabled and not self.selection_locked:
+            mid_x = selection_rect.center().x()
+            mid_y = selection_rect.center().y()
+            edges = [
+                QPoint(mid_x, selection_rect.top()),
+                QPoint(mid_x, selection_rect.bottom()),
+                QPoint(selection_rect.left(), mid_y),
+                QPoint(selection_rect.right(), mid_y),
+            ]
+            for edge in edges:
+                painter.drawRect(
+                    edge.x() - corner_size // 2,
+                    edge.y() - corner_size // 2,
+                    corner_size,
+                    corner_size,
+                )
 
     def _draw_annotation_box(self, painter, annotation, selection_rect, is_selected):
         """Draw a single annotation box."""
@@ -610,6 +703,38 @@ class YoloOverlay(QWidget):
                 box_rect.x() + 5, box_rect.y() + 2 + text_rect.height(), name
             )
 
+    def _draw_paint_stroke(self, painter):
+        """Draw the dab trail while an active paint stroke is in progress."""
+        color = self.current_draw_label.get("color", QColor(0, 255, 0))
+        fill_color = QColor(color)
+        fill_color.setAlpha(130)
+        painter.setBrush(fill_color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        r = self.brush_radius
+        for p in self.paint_points:
+            painter.drawEllipse(p, r, r)
+
+        # Also show the tight bbox that release would currently produce
+        if len(self.paint_points) > 1:
+            xs = [p.x() for p in self.paint_points]
+            ys = [p.y() for p in self.paint_points]
+            box_rect = QRect(
+                QPoint(min(xs) - r, min(ys) - r), QPoint(max(xs) + r, max(ys) + r)
+            )
+            pen = QPen(color, 1, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(box_rect)
+
+    def _draw_paint_hover_preview(self, painter):
+        """Show an outline of the brush size at the current hover position."""
+        color = self.current_draw_label.get("color", QColor(0, 255, 0))
+        pen = QPen(color, 1, Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        r = self.brush_radius
+        painter.drawEllipse(self.paint_hover_pos, r, r)
+
     def mousePressEvent(self, event):
         """Handle mouse press for various interactions."""
         if event.button() != Qt.MouseButton.LeftButton:
@@ -659,6 +784,38 @@ class YoloOverlay(QWidget):
             self.selected_annotation = None
             self.update()
 
+        # Check if clicking on a resize handle of the selection box itself
+        # (manual resize mode only, and only while unlocked - drawing/locking
+        # take over once the box is set)
+        if (
+            self.manual_resize_enabled
+            and not self.selection_locked
+            and not selection_rect.isNull()
+        ):
+            handle = self._get_handle_at_pos(pos, selection_rect)
+            if handle != self.HANDLE_NONE:
+                self.resizing_selection = True
+                self.selection_resize_handle = handle
+                self.selection_resize_drag_start = pos
+                self.selection_resize_original_ratios = self.selection_ratios
+                self.setCursor(self._get_cursor_for_handle(handle))
+                event.accept()
+                return
+
+        # Check if in paint mode and clicking inside selection rect (only if not on
+        # an annotation). Painting is only allowed when selection is locked (set)
+        if (
+            self.interaction_mode == self.MODE_PAINT
+            and self.current_draw_label
+            and self.selection_locked
+        ):
+            if not selection_rect.isNull() and selection_rect.contains(pos):
+                self.painting = True
+                self.paint_points = [pos]
+                self.setCursor(Qt.CursorShape.CrossCursor)
+                event.accept()
+                return
+
         # Check if in draw mode and clicking inside selection rect (only if not on an annotation)
         # Drawing is only allowed when selection is locked (set)
         if (
@@ -694,6 +851,17 @@ class YoloOverlay(QWidget):
         pos = event.position().toPoint()
         selection_rect = self._get_selection_rect_display()
 
+        # Handle active painting
+        if self.painting:
+            clamped = QPoint(
+                max(selection_rect.left(), min(selection_rect.right(), pos.x())),
+                max(selection_rect.top(), min(selection_rect.bottom(), pos.y())),
+            )
+            self.paint_points.append(clamped)
+            self.update()
+            event.accept()
+            return
+
         # Handle drawing annotation
         if self.drawing_annotation:
             self.draw_current = pos
@@ -712,6 +880,14 @@ class YoloOverlay(QWidget):
         if self.dragging_annotation and self.selected_annotation is not None:
             self._move_annotation(pos)
             self.update()
+            event.accept()
+            return
+
+        # Handle resizing selection box itself (manual mode)
+        if self.resizing_selection:
+            self._resize_selection_box(pos)
+            self.update()
+            self.selection_changed.emit()
             event.accept()
             return
 
@@ -753,6 +929,29 @@ class YoloOverlay(QWidget):
             if not selection_rect.isNull() and selection_rect.contains(pos):
                 cursor = Qt.CursorShape.CrossCursor
 
+        # Check if in paint mode inside selection - also track hover position
+        # so the brush-size preview circle follows the cursor
+        old_hover = self.paint_hover_pos
+        self.paint_hover_pos = None
+        if self.interaction_mode == self.MODE_PAINT and self.selection_locked:
+            if not selection_rect.isNull() and selection_rect.contains(pos):
+                self.paint_hover_pos = pos
+                if cursor == Qt.CursorShape.ArrowCursor:
+                    cursor = Qt.CursorShape.CrossCursor
+        if old_hover != self.paint_hover_pos:
+            self.update()
+
+        # Check selection box resize handles (manual mode only, while unlocked)
+        if (
+            cursor == Qt.CursorShape.ArrowCursor
+            and self.manual_resize_enabled
+            and not self.selection_locked
+            and not selection_rect.isNull()
+        ):
+            handle = self._get_handle_at_pos(pos, selection_rect)
+            if handle != self.HANDLE_NONE:
+                cursor = self._get_cursor_for_handle(handle)
+
         # Check if over selection box
         if cursor == Qt.CursorShape.ArrowCursor:
             if not selection_rect.isNull() and selection_rect.contains(pos):
@@ -761,9 +960,24 @@ class YoloOverlay(QWidget):
         self.setCursor(cursor)
         event.ignore()
 
+    def leaveEvent(self, event):
+        """Clear the paint brush hover preview when the cursor leaves the widget."""
+        if self.paint_hover_pos is not None:
+            self.paint_hover_pos = None
+            self.update()
+        super().leaveEvent(event)
+
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
         if event.button() == Qt.MouseButton.LeftButton:
+            # Finish painting
+            if self.painting:
+                self._finish_painting()
+                self.painting = False
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+                event.accept()
+                return
+
             # Finish drawing annotation
             if self.drawing_annotation:
                 self._finish_drawing_annotation()
@@ -786,6 +1000,15 @@ class YoloOverlay(QWidget):
                 self.dragging_annotation = False
                 self.setCursor(Qt.CursorShape.ArrowCursor)
                 self.annotations_changed.emit()
+                event.accept()
+                return
+
+            # Finish resizing selection box
+            if self.resizing_selection:
+                self.resizing_selection = False
+                self.selection_resize_handle = self.HANDLE_NONE
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+                self.selection_changed.emit()
                 event.accept()
                 return
 
@@ -831,6 +1054,42 @@ class YoloOverlay(QWidget):
         ratios = self._display_to_selection_ratios(box_rect)
 
         # Add annotation
+        self.add_annotation(
+            self.current_draw_label["class_id"],
+            self.current_draw_label["color"],
+            self.current_draw_label["name"],
+            ratios,
+        )
+
+    def _finish_painting(self):
+        """Turn the painted dab trail into a tight-fitting annotation box."""
+        points = self.paint_points
+        self.paint_points = []
+
+        if not points or not self.current_draw_label:
+            self.update()
+            return
+
+        selection_rect = self._get_selection_rect_display()
+        if selection_rect.isNull():
+            return
+
+        r = self.brush_radius
+        xs = [p.x() for p in points]
+        ys = [p.y() for p in points]
+        box_rect = QRect(
+            QPoint(min(xs) - r, min(ys) - r), QPoint(max(xs) + r, max(ys) + r)
+        )
+        # Dabs are clamped to the selection during painting, but the brush
+        # radius can still push the expanded box slightly past the edge
+        box_rect = box_rect.intersected(selection_rect)
+
+        if box_rect.width() < 4 or box_rect.height() < 4:
+            self.update()
+            return
+
+        ratios = self._display_to_selection_ratios(box_rect)
+
         self.add_annotation(
             self.current_draw_label["class_id"],
             self.current_draw_label["color"],
@@ -935,6 +1194,140 @@ class YoloOverlay(QWidget):
         )
 
         self.annotations[self.selected_annotation]["ratios"] = new_ratios
+
+    def _resize_selection_box(self, pos):
+        """Resize the selection box itself, in image-ratio space (manual mode)."""
+        if self.selection_resize_original_ratios is None or self.image_size is None:
+            return
+        if self.image_size.width() == 0 or self.image_size.height() == 0:
+            return
+
+        orig = self.selection_resize_original_ratios
+        orig_rect = QRect(
+            int(orig[0] * self.image_size.width()),
+            int(orig[1] * self.image_size.height()),
+            int(orig[2] * self.image_size.width()),
+            int(orig[3] * self.image_size.height()),
+        )
+
+        delta_x = pos.x() - self.selection_resize_drag_start.x()
+        delta_y = pos.y() - self.selection_resize_drag_start.y()
+
+        new_rect = QRect(orig_rect)
+        handle = self.selection_resize_handle
+
+        if handle in (self.HANDLE_TL, self.HANDLE_L, self.HANDLE_BL):
+            new_rect.setLeft(orig_rect.left() + delta_x)
+        if handle in (self.HANDLE_TR, self.HANDLE_R, self.HANDLE_BR):
+            new_rect.setRight(orig_rect.right() + delta_x)
+        if handle in (self.HANDLE_TL, self.HANDLE_T, self.HANDLE_TR):
+            new_rect.setTop(orig_rect.top() + delta_y)
+        if handle in (self.HANDLE_BL, self.HANDLE_B, self.HANDLE_BR):
+            new_rect.setBottom(orig_rect.bottom() + delta_y)
+
+        min_size = 10
+
+        if self.square_resize_enabled:
+            # Force width == height (image pixels). Whichever edge(s) this
+            # handle actually drags stays anchored on the far side; corner
+            # handles naturally anchor the opposite corner, edge handles
+            # anchor their own fixed edge and grow/shrink the untouched axis
+            # symmetrically about its original center.
+            left_free = handle in (self.HANDLE_TL, self.HANDLE_L, self.HANDLE_BL)
+            right_free = handle in (self.HANDLE_TR, self.HANDLE_R, self.HANDLE_BR)
+            top_free = handle in (self.HANDLE_TL, self.HANDLE_T, self.HANDLE_TR)
+            bottom_free = handle in (self.HANDLE_BL, self.HANDLE_B, self.HANDLE_BR)
+
+            # A corner handle drags both axes, so the larger of the two raw
+            # deltas is the honest target size. An edge (mid-side) handle
+            # only drags one axis - using max() there would pick the
+            # *untouched* axis whenever the dragged one shrinks, making the
+            # box unable to shrink at all. Use the dragged axis alone instead.
+            horizontal_dragged = left_free or right_free
+            vertical_dragged = top_free or bottom_free
+            if horizontal_dragged and vertical_dragged:
+                size = max(new_rect.width(), new_rect.height())
+            elif horizontal_dragged:
+                size = new_rect.width()
+            else:
+                size = new_rect.height()
+
+            old_left, old_right = new_rect.left(), new_rect.right()
+            old_top, old_bottom = new_rect.top(), new_rect.bottom()
+            img_w = self.image_size.width()
+            img_h = self.image_size.height()
+
+            # Clamp the target size itself to the room actually available in
+            # the direction(s) this handle grows, *before* applying it to
+            # both axes - clamping each edge independently afterward (like
+            # the generic image-bounds clamp below does) would only pull in
+            # whichever edge hit the image border, leaving the other axis at
+            # the old, now-mismatched size and breaking the square lock right
+            # at the image edge. QRect's right()/bottom() are inclusive, so
+            # a rect anchored at `edge` with the given `size` needs a "-1"/"+1"
+            # correction throughout to land on an exact width/height of `size`.
+            if left_free and not right_free:
+                size = min(size, old_right + 1)
+            elif right_free and not left_free:
+                size = min(size, img_w - old_left)
+            else:
+                center_x = (old_left + old_right) // 2
+                size = min(size, 2 * min(center_x, img_w - 1 - center_x) + 1)
+
+            if top_free and not bottom_free:
+                size = min(size, old_bottom + 1)
+            elif bottom_free and not top_free:
+                size = min(size, img_h - old_top)
+            else:
+                center_y = (old_top + old_bottom) // 2
+                size = min(size, 2 * min(center_y, img_h - 1 - center_y) + 1)
+
+            size = max(size, min_size)
+
+            if left_free and not right_free:
+                new_rect.setLeft(old_right - size + 1)
+            elif right_free and not left_free:
+                new_rect.setRight(old_left + size - 1)
+            else:
+                center_x = (old_left + old_right) // 2
+                new_left = center_x - size // 2
+                new_rect.setLeft(new_left)
+                new_rect.setRight(new_left + size - 1)
+
+            if top_free and not bottom_free:
+                new_rect.setTop(old_bottom - size + 1)
+            elif bottom_free and not top_free:
+                new_rect.setBottom(old_top + size - 1)
+            else:
+                center_y = (old_top + old_bottom) // 2
+                new_top = center_y - size // 2
+                new_rect.setTop(new_top)
+                new_rect.setBottom(new_top + size - 1)
+
+        # Ensure minimum size
+        if new_rect.width() < min_size:
+            if handle in (self.HANDLE_TL, self.HANDLE_L, self.HANDLE_BL):
+                new_rect.setLeft(new_rect.right() - min_size)
+            else:
+                new_rect.setRight(new_rect.left() + min_size)
+        if new_rect.height() < min_size:
+            if handle in (self.HANDLE_TL, self.HANDLE_T, self.HANDLE_TR):
+                new_rect.setTop(new_rect.bottom() - min_size)
+            else:
+                new_rect.setBottom(new_rect.top() + min_size)
+
+        # Clamp to image bounds
+        new_rect.setLeft(max(0, new_rect.left()))
+        new_rect.setTop(max(0, new_rect.top()))
+        new_rect.setRight(min(self.image_size.width(), new_rect.right()))
+        new_rect.setBottom(min(self.image_size.height(), new_rect.bottom()))
+
+        self.selection_ratios = (
+            new_rect.x() / self.image_size.width(),
+            new_rect.y() / self.image_size.height(),
+            new_rect.width() / self.image_size.width(),
+            new_rect.height() / self.image_size.height(),
+        )
 
     def _move_selection(self, pos):
         """Move selection box based on mouse position.

@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.get_filter_settings",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog.get_filter_settings method",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.get_filter_settings`  \n**Size**: 3 lines, complexity 1 (low)\n\n```python\n    def get_filter_settings(self):\n        \"\"\"Get current filter settings.\"\"\"\n        return self.filter_settings.copy()\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_get_filter_settings.py\n\nTests for AdvancedFilterDialog.get_filter_settings() method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_get_filter_settings_returns_copy — Create AdvancedFilterDialog(). Call get_filter_settings(). Assert returns a dict and is a copy (not the same object as self.filter_settings).\n2. test_get_filter_settings_default_values — Create AdvancedFilterDialog(). Call get_filter_settings(). Assert all default values match the initial filter_settings dict.\n3. test_get_filter_settings_after_update — Create AdvancedFilterDialog(). Call update_filter_settings(). Call get_filter_settings(). Assert values reflect changes made by update_filter_settings.\n4. test_get_filter_settings_face_detection — Create AdvancedFilterDialog(). Set face_enable_cb to True. Call get_filter_settings(). Assert face_detection is True.\n5. test_get_filter_settings_object_detection — Create AdvancedFilterDialog(). Set object_enable_cb to True. Call get_filter_settings(). Assert object_detection is True.\n6. test_get_filter_settings_scene_recognition — Create AdvancedFilterDialog(). Set scene_enable_cb to True. Call get_filter_settings(). Assert scene_recognition is True.\n7. test_get_filter_settings_quality_filter — Create AdvancedFilterDialog(). Set quality_enable_cb to True. Call get_filter_settings(). Assert quality_filter is True.\n8. test_get_filter_settings_filesize_filter — Create AdvancedFilterDialog(). Set filesize_enable_cb to True. Call get_filter_settings(). Assert filesize_filter is True.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_get_filter_settings.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_get_filter_settings.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T03:01:14.694Z"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.on_object_category_changed",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test on_object_category_changed behavior",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.on_object_category_changed`  \n**Size**: 6 lines, complexity 4 (low)\n\n```python\n    def on_object_category_changed(self):\n        \"\"\"Auto-enable object detection when a category is selected.\"\"\"\n        any_checked = any(cb.isChecked() for cb in self.object_category_cbs.values())\n        if any_checked and not self.object_enable_cb.isChecked():\n            self.object_enable_cb.setChecked(True)\n        self.update_filter_settings()\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_on_object_category_changed.py\n\nTests for AdvancedFilterDialog.on_object_category_changed method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None). It does NOT take any other parameters.\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_on_object_category_changed_enables_filter — Create AdvancedFilterDialog(). Simulate checking a category checkbox by calling on_object_category_changed(). Assert object_enable_cb.isChecked() is True.\n2. test_on_object_category_changed_no_change_when_enabled — Create AdvancedFilterDialog(). Set object_enable_cb to checked. Call on_object_category_changed(). Assert object_enable_cb.isChecked() remains True.\n3. test_on_object_category_changed_multiple_categories — Create AdvancedFilterDialog(). Simulate checking multiple category checkboxes. Call on_object_category_changed(). Assert object_enable_cb.isChecked() is True.\n4. test_on_object_category_changed_all_unchecked — Create AdvancedFilterDialog(). Simulate unchecking all category checkboxes. Call on_object_category_changed(). Assert object_enable_cb.isChecked() is False.\n5. test_on_object_category_changed_updates_settings — Create AdvancedFilterDialog(). Call on_object_category_changed(). Assert update_filter_settings was called.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_on_object_category_changed.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_on_object_category_changed.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T01:28:07.207Z"
+  }
+}

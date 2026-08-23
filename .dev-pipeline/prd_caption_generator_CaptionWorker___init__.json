@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionWorker.__init__",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionWorker initialization with various backends",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionWorker.__init__`  \n**Size**: 22 lines, complexity 1 (low)\n\n```python\n    def __init__(\n        self,\n        generator,\n        image_path: str,\n        backend: str,\n        ollama_url: str = \"\",\n        ollama_model: str = \"\",\n        florence_model: str = \"base\",\n        florence_detail: str = \"detailed\",\n        wd14_model: str = \"vit-v2\",\n        wd14_threshold: float = 0.35,\n    ):\n        super().__init__()\n        self.generator = generator\n        self.image_path = image_path\n        self.backend = backend\n        self.ollama_url = ollama_url\n        self.ollama_model = ollama_model\n        self.florence_model = florence_model\n        self.florence_detail = florence_detail\n        self.wd14_model = wd14_model\n        self.wd14_threshold = wd14_threshold\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionWorker___init__.py\n\nTests for CaptionWorker.__init__ method.\n\nIMPORTANT: CaptionWorker constructor is CaptionWorker(generator, image_path: str, backend: str, ollama_url: str='', ollama_model: str='', florence_model: str='base', florence_detail: str='detailed', wd14_model: str='vit-v2', wd14_threshold: float=0.35).\nImport: from caption_generator import CaptionWorker\n\n1. test_init_with_florence_backend — Create CaptionWorker with backend='florence2', verify all attributes are set correctly.\n2. test_init_with_wd14_backend — Create CaptionWorker with backend='wd14', verify all attributes are set correctly.\n3. test_init_with_ollama_backend — Create CaptionWorker with backend='ollama', verify all attributes are set correctly.\n4. test_init_with_custom_ollama_url — Create CaptionWorker with custom ollama_url, verify ollama_url attribute is set.\n5. test_init_with_custom_florence_model — Create CaptionWorker with custom florence_model, verify florence_model attribute is set.\n6. test_init_with_custom_wd14_model — Create CaptionWorker with custom wd14_model, verify wd14_model attribute is set.\n7. test_init_with_custom_wd14_threshold — Create CaptionWorker with custom wd14_threshold, verify wd14_threshold attribute is set.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionWorker___init__.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionWorker___init__.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T09:08:15.262Z"
+  }
+}

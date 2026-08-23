@@ -21,9 +21,10 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QMessageBox,
     QMenu,
+    QSpinBox,
 )
 from PySide6.QtCore import Qt, QTimer, QSize, QPoint, QRect
-from PySide6.QtGui import QAction, QPixmap, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QPixmap, QKeySequence
 
 from utils import find_main_window
 from yolo_overlay import YoloOverlay
@@ -74,6 +75,26 @@ class YoloWindow(QMainWindow):
         self._last_selection_size = None  # QSize of last used selection
         self._last_size_mode = self.SIZE_MODE_IMAGE  # Mode of last used selection
 
+        # Bounding box mode: fixed-size preset (default) vs manual freeform
+        # resize, for drawing an arbitrary bbox around a feature (eyes, nose,
+        # chin) within an already-correctly-sized image
+        self.manual_bbox_mode = False
+        self._last_manual_bbox_mode = False
+        self._last_manual_ratios = None  # (x, y, w, h) ratios of last locked manual box
+
+        # Manual Square: a manual-mode sub-variant that keeps the freeform
+        # box locked to a 1:1 aspect ratio and saves the crop at its native
+        # pixel size with no forced resize (unlike Fixed/Manual, which both
+        # scale the output to match self.selection_size)
+        self.manual_square_mode = False
+        self._last_manual_square_mode = False
+        self._last_manual_square_size_px = None  # side length, in image pixels
+
+        # Paint annotation mode: independent of the above - paint a dab
+        # trail instead of dragging a rectangle, for small/irregular
+        # features (e.g. moles) where many precise rectangles would be tedious
+        self.paint_annotations_mode = False
+
         # Overlay widget
         self.overlay = None
 
@@ -93,9 +114,16 @@ class YoloWindow(QMainWindow):
 
         # Note: Window will be maximized in showEvent() after geometry is available
 
+        # Middle-mouse-button drag-to-pan state (in addition to the scrollbars)
+        self._panning = False
+        self._pan_start_pos = QPoint()
+        self._pan_start_h_value = 0
+        self._pan_start_v_value = 0
+
         # Event configuration
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.scroll_area.installEventFilter(self)
+        self.image_label.installEventFilter(self)
 
     def _setup_ui(self):
         """Setup the main UI with splitter layout."""
@@ -117,7 +145,8 @@ class YoloWindow(QMainWindow):
         self.right_panel_layout.setContentsMargins(10, 10, 10, 10)
 
         # Resolution selection group
-        resolution_group = QGroupBox("Selection Size")
+        self.resolution_group = QGroupBox("Selection Size")
+        resolution_group = self.resolution_group
         resolution_layout = QVBoxLayout(resolution_group)
 
         # Resolution dropdown
@@ -166,6 +195,24 @@ class YoloWindow(QMainWindow):
         resolution_layout.addLayout(set_layout)
 
         self.right_panel_layout.addWidget(resolution_group)
+
+        # Paint Brush group - only relevant (and shown) when Paint
+        # Annotations mode is on, via the Bounding Box menu
+        self.paint_brush_group = QGroupBox("Paint Brush")
+        paint_brush_layout = QHBoxLayout(self.paint_brush_group)
+        paint_brush_layout.addWidget(QLabel("Size:"))
+        self.brush_size_spin = QSpinBox()
+        self.brush_size_spin.setRange(2, 200)
+        self.brush_size_spin.setValue(20)
+        self.brush_size_spin.setSuffix(" px")
+        self.brush_size_spin.setToolTip(
+            "Diameter of the paint dab, in on-screen pixels"
+        )
+        self.brush_size_spin.valueChanged.connect(self._on_brush_size_changed)
+        paint_brush_layout.addWidget(self.brush_size_spin)
+        paint_brush_layout.addStretch()
+        self.paint_brush_group.setVisible(False)
+        self.right_panel_layout.addWidget(self.paint_brush_group)
 
         # Extracted Images section
         self.extractions_group = QGroupBox("Extracted Images (0)")
@@ -226,6 +273,62 @@ class YoloWindow(QMainWindow):
         """Setup the menu bar."""
         menubar = self.menuBar()
 
+        # Bounding Box menu - choose how the selection/labeling box is sized
+        bbox_menu = menubar.addMenu("Bounding Box")
+
+        self.bbox_mode_group = QActionGroup(self)
+        self.bbox_mode_group.setExclusive(True)
+
+        self.fixed_bbox_act = QAction("Fixed Size (Preset)", self, checkable=True)
+        self.fixed_bbox_act.setToolTip(
+            "Box size comes from the preset dropdown; used to crop a portion "
+            "of the image as a new training image"
+        )
+        self.fixed_bbox_act.setChecked(True)
+        self.fixed_bbox_act.triggered.connect(lambda: self._set_bbox_mode(False))
+        self.bbox_mode_group.addAction(self.fixed_bbox_act)
+        bbox_menu.addAction(self.fixed_bbox_act)
+
+        self.manual_bbox_act = QAction("Manual Resize", self, checkable=True)
+        self.manual_bbox_act.setToolTip(
+            "Box is a freeform rectangle you drag/resize by hand - for "
+            "bounding a specific feature (eyes, nose, chin) within an "
+            "already-sized image"
+        )
+        self.manual_bbox_act.triggered.connect(
+            lambda: self._set_bbox_mode(True, square=False)
+        )
+        self.bbox_mode_group.addAction(self.manual_bbox_act)
+        bbox_menu.addAction(self.manual_bbox_act)
+
+        self.manual_square_bbox_act = QAction("Manual Square", self, checkable=True)
+        self.manual_square_bbox_act.setToolTip(
+            "Box is a freeform square you drag/resize by hand - saved at "
+            "the image's native pixel resolution with no forced resize, "
+            "for square crops you'll process to a standard size separately"
+        )
+        self.manual_square_bbox_act.triggered.connect(
+            lambda: self._set_bbox_mode(True, square=True)
+        )
+        self.bbox_mode_group.addAction(self.manual_square_bbox_act)
+        bbox_menu.addAction(self.manual_square_bbox_act)
+
+        bbox_menu.addSeparator()
+
+        # Paint annotation mode is independent of Fixed/Manual above - it
+        # changes how annotations *within* the locked selection are created
+        # (paint a dab trail -> tightest-fit box, instead of drag-a-rectangle).
+        # Still bounded by whichever selection-sizing mode is active.
+        self.paint_mode_act = QAction("Paint Annotations", self, checkable=True)
+        self.paint_mode_act.setToolTip(
+            "Left-click and drag within the selection to paint a small "
+            "irregular area (e.g. a mole) - releasing creates a tight "
+            "rectangular box around the painted area, using the currently "
+            "selected label"
+        )
+        self.paint_mode_act.triggered.connect(self._on_paint_mode_toggled)
+        bbox_menu.addAction(self.paint_mode_act)
+
         # Options menu
         options_menu = menubar.addMenu("Options")
 
@@ -250,6 +353,11 @@ class YoloWindow(QMainWindow):
 
         # Zoom menu
         zoom_menu = menubar.addMenu("Zoom")
+
+        # Fit to Window - same action/state as the one under Options, just
+        # also reachable from the menu users naturally look for it in
+        zoom_menu.addAction(self.fit_act)
+        zoom_menu.addSeparator()
 
         # Standard zoom levels
         self.zoom_actions = {}
@@ -412,6 +520,182 @@ class YoloWindow(QMainWindow):
         self._update_overlay()
         self._update_selection_display()
 
+    def _on_paint_mode_toggled(self, checked):
+        """Toggle Paint Annotations mode.
+
+        Independent of the Fixed/Manual selection-sizing mode - it only
+        changes how annotations *within* the locked selection are created.
+        """
+        self.paint_annotations_mode = checked
+        self.paint_brush_group.setVisible(checked)
+        if self.overlay:
+            self.overlay.set_paint_mode_enabled(checked)
+        status = "enabled" if checked else "disabled"
+        self.status_bar.showMessage(f"Paint annotation mode {status}", 3000)
+
+    def _on_brush_size_changed(self, value):
+        """Update the overlay's paint brush radius from the diameter spinbox."""
+        if self.overlay:
+            self.overlay.set_brush_radius(max(1, value // 2))
+
+    def _set_bbox_mode(self, manual, square=False):
+        """Switch between fixed-size preset selection and manual freeform resize.
+
+        Manual mode lets the box be dragged/resized to any size directly on
+        the image - for bounding a specific feature (eyes, nose, chin) rather
+        than always extracting a fixed preset-sized crop. The `square`
+        sub-variant additionally locks the box to a 1:1 aspect ratio and
+        skips the final forced resize, so the saved crop is an exact square
+        at the image's native pixel resolution.
+        """
+        if self.selection_locked:
+            # Must clear the current selection before changing modes
+            self.fixed_bbox_act.setChecked(not self.manual_bbox_mode)
+            self.manual_bbox_act.setChecked(
+                self.manual_bbox_mode and not self.manual_square_mode
+            )
+            self.manual_square_bbox_act.setChecked(
+                self.manual_bbox_mode and self.manual_square_mode
+            )
+            self.status_bar.showMessage(
+                "Clear selection first to change bounding box mode", 3000
+            )
+            return
+
+        if self.manual_bbox_mode == manual and self.manual_square_mode == square:
+            return
+
+        self.manual_bbox_mode = manual
+        self.manual_square_mode = manual and square
+
+        if manual:
+            self.resolution_combo.setEnabled(False)
+            self.image_mode_radio.setEnabled(False)
+            self.screen_mode_radio.setEnabled(False)
+            self.resolution_group.setTitle(
+                "Selection Size (Manual Square)"
+                if self.manual_square_mode
+                else "Selection Size (Manual)"
+            )
+
+            # Manual mode always works in image-pixel-ratio terms
+            self.size_mode = self.SIZE_MODE_IMAGE
+            self.image_mode_radio.setChecked(True)
+            self.screen_mode_radio.setChecked(False)
+
+            self._start_manual_selection()
+
+            if self.manual_square_mode:
+                self.status_bar.showMessage(
+                    "Manual square mode: drag corners/edges to resize "
+                    "(stays square), then Set to lock",
+                    5000,
+                )
+            else:
+                self.status_bar.showMessage(
+                    "Manual bounding box mode: drag corners/edges to resize, "
+                    "then Set to lock",
+                    5000,
+                )
+        else:
+            self.resolution_combo.setEnabled(True)
+            self.image_mode_radio.setEnabled(True)
+            self.screen_mode_radio.setEnabled(True)
+            self.resolution_group.setTitle("Selection Size")
+
+            self.selection_size = None
+            self.resolution_combo.setCurrentIndex(0)
+            self.set_btn.setEnabled(False)
+
+            if self.overlay:
+                self.overlay.set_manual_resize_enabled(False)
+                self.overlay.set_square_resize_enabled(False)
+                self.overlay.selection_ratios = None
+                self.overlay.selection_position_ratios = None
+                self.overlay.clear_selection()
+
+            self.status_bar.showMessage("Fixed size bounding box mode", 3000)
+
+        self._update_selection_display()
+
+    def _make_square_ratios(
+        self, center_x_ratio, center_y_ratio, side_px, img_w, img_h
+    ):
+        """Return (x, y, w, h) ratios for an exact side_px × side_px square,
+        centered at the given ratio position and clamped to image bounds."""
+        side_px = max(1, min(side_px, img_w, img_h))
+        w_ratio = side_px / img_w
+        h_ratio = side_px / img_h
+        x_ratio = min(max(0.0, center_x_ratio - w_ratio / 2), 1.0 - w_ratio)
+        y_ratio = min(max(0.0, center_y_ratio - h_ratio / 2), 1.0 - h_ratio)
+        return (x_ratio, y_ratio, w_ratio, h_ratio)
+
+    def _start_manual_selection(self, ratios=None):
+        """Create a freeform selection box, defaulting to a centered 40% box.
+
+        Args:
+            ratios: optional (x, y, w, h) ratios to restore exactly (e.g. the
+                last locked manual box), instead of the default centered box.
+                Ratios are always relative to the current image, so this
+                works correctly even if the new image has different
+                dimensions than the one the ratios were captured from.
+        """
+        if self.original_pixmap.isNull():
+            return
+
+        img_w = self.original_pixmap.width()
+        img_h = self.original_pixmap.height()
+
+        if self.manual_square_mode:
+            # Ratios alone don't travel correctly between differently-shaped
+            # images (the same ratios would no longer be square in pixels),
+            # so square mode restores by pixel side length instead, keeping
+            # whatever center position the ratios imply.
+            if ratios is not None:
+                center_x = ratios[0] + ratios[2] / 2
+                center_y = ratios[1] + ratios[3] / 2
+                side_px = self._last_manual_square_size_px or round(
+                    0.4 * min(img_w, img_h)
+                )
+            else:
+                center_x, center_y = 0.5, 0.5
+                side_px = round(0.4 * min(img_w, img_h))
+            box_ratios = self._make_square_ratios(
+                center_x, center_y, side_px, img_w, img_h
+            )
+        else:
+            box_ratios = ratios if ratios is not None else (0.3, 0.3, 0.4, 0.4)
+        _, _, w_ratio, h_ratio = box_ratios
+
+        # selection_size is kept in original-image pixels purely for the
+        # status bar / saved source_info - the box itself is ratio-driven
+        self.selection_size = QSize(
+            max(1, int(round(w_ratio * img_w))), max(1, int(round(h_ratio * img_h)))
+        )
+
+        # Manual mode is always image-ratio-based; never let it be pushed
+        # into screen mode by pixel-size heuristics meant for fixed presets
+        self.size_mode = self.SIZE_MODE_IMAGE
+        self.image_mode_radio.setChecked(True)
+        self.screen_mode_radio.setChecked(False)
+
+        self._create_overlay()
+        if self.overlay:
+            self.overlay.set_size_mode(YoloOverlay.SIZE_MODE_IMAGE)
+            self.overlay.set_manual_resize_enabled(True)
+            self.overlay.set_square_resize_enabled(self.manual_square_mode)
+            self.overlay.selection_ratios = box_ratios
+            self.overlay.selection_position_ratios = None
+            self.overlay.set_selection_locked(False)
+
+        self.set_btn.setEnabled(True)
+        self.clear_btn.setEnabled(True)
+
+        self.update_image()
+        QApplication.processEvents()
+        self._update_overlay()
+        self._update_selection_display()
+
     def _on_size_mode_changed(self, button):
         """Handle size mode radio button change."""
         if self.selection_locked:
@@ -460,20 +744,51 @@ class YoloWindow(QMainWindow):
         # Save as last used selection for restoring on new images
         self._last_selection_size = QSize(self.selection_size)
         self._last_size_mode = self.size_mode
+        self._last_manual_bbox_mode = self.manual_bbox_mode
+        self._last_manual_square_mode = self.manual_square_mode
+        if self.manual_bbox_mode and self.overlay:
+            # Save exact ratios (not pixel size) so restoring on a
+            # differently-sized image keeps the same relative box, and so
+            # navigation never has to reason about "oversized" pixel boxes
+            self._last_manual_ratios = self.overlay.selection_ratios
+            if self.manual_square_mode and self.overlay.selection_ratios:
+                _, _, w_ratio, _ = self.overlay.selection_ratios
+                self._last_manual_square_size_px = max(
+                    1, round(w_ratio * self.original_pixmap.width())
+                )
 
         # Tell overlay that selection is locked (enables drawing)
         if self.overlay:
             self.overlay.set_selection_locked(True)
 
-        mode_name = "image" if self.size_mode == self.SIZE_MODE_IMAGE else "screen"
-        self.status_bar.showMessage(
-            f"Selection locked: {self.selection_size.width()} × {self.selection_size.height()} ({mode_name} pixels)",
-            5000,
-        )
+        if self.manual_bbox_mode:
+            mode_name = "manual square" if self.manual_square_mode else "manual"
+            self.status_bar.showMessage(
+                f"Selection locked: {self.selection_size.width()} × {self.selection_size.height()} ({mode_name})",
+                5000,
+            )
+        else:
+            mode_name = "image" if self.size_mode == self.SIZE_MODE_IMAGE else "screen"
+            self.status_bar.showMessage(
+                f"Selection locked: {self.selection_size.width()} × {self.selection_size.height()} ({mode_name} pixels)",
+                5000,
+            )
 
     def _on_clear_clicked(self):
         """Handle Clear button click - unlock and clear selection."""
         self.selection_locked = False
+
+        if self.overlay:
+            self.overlay.set_selection_locked(False)  # Disable drawing
+            self.overlay.clear_selection()
+
+        if self.manual_bbox_mode:
+            # Stay in manual mode - just start a fresh freeform box
+            self.clear_btn.setEnabled(False)
+            self._start_manual_selection()
+            self.status_bar.showMessage("Selection cleared", 3000)
+            return
+
         self.selection_size = None
         self.resolution_combo.setCurrentIndex(0)  # Reset to "Please select..."
         self.resolution_combo.setEnabled(True)
@@ -482,19 +797,20 @@ class YoloWindow(QMainWindow):
         self.set_btn.setEnabled(False)
         self.clear_btn.setEnabled(False)
 
-        if self.overlay:
-            self.overlay.set_selection_locked(False)  # Disable drawing
-            self.overlay.clear_selection()
-
         self._update_selection_display()
         self.status_bar.showMessage("Selection cleared", 3000)
 
     def _update_selection_display(self):
         """Update status bar with selection info."""
         if self.selection_size:
-            mode_suffix = (
-                " (img)" if self.size_mode == self.SIZE_MODE_IMAGE else " (scr)"
-            )
+            if self.manual_bbox_mode:
+                mode_suffix = (
+                    " (manual square)" if self.manual_square_mode else " (manual)"
+                )
+            else:
+                mode_suffix = (
+                    " (img)" if self.size_mode == self.SIZE_MODE_IMAGE else " (scr)"
+                )
             lock_suffix = " [SET]" if self.selection_locked else ""
             self.selection_label.setText(
                 f"Selection: {self.selection_size.width()} × {self.selection_size.height()}{mode_suffix}{lock_suffix}"
@@ -506,6 +822,7 @@ class YoloWindow(QMainWindow):
         """Create the overlay widget if it doesn't exist."""
         if self.overlay is None:
             self.overlay = YoloOverlay(self.image_label)
+            self.overlay.installEventFilter(self)
             self.overlay.selection_changed.connect(self._on_selection_changed)
             self.overlay.annotations_changed.connect(self._on_annotations_changed)
             # Set initial size mode
@@ -516,6 +833,10 @@ class YoloWindow(QMainWindow):
             )
             # Set selection locked state (drawing only allowed when locked)
             self.overlay.set_selection_locked(self.selection_locked)
+            self.overlay.set_manual_resize_enabled(self.manual_bbox_mode)
+            self.overlay.set_square_resize_enabled(self.manual_square_mode)
+            self.overlay.set_paint_mode_enabled(self.paint_annotations_mode)
+            self.overlay.set_brush_radius(max(1, self.brush_size_spin.value() // 2))
             # Set current draw label if one is selected
             selected_label = self.label_panel.get_selected_label()
             if selected_label:
@@ -580,9 +901,22 @@ class YoloWindow(QMainWindow):
         self.overlay.raise_()
 
     def _on_selection_changed(self):
-        """Handle selection box movement."""
-        # Update any dependent UI (will be used more in later phases)
-        pass
+        """Handle selection box movement/resize."""
+        # In manual mode the box can be resized, not just moved - keep
+        # selection_size (used for the status bar and saved source_info) in
+        # sync with the actual current ratios
+        if (
+            self.manual_bbox_mode
+            and self.overlay
+            and self.overlay.selection_ratios
+            and not self.original_pixmap.isNull()
+        ):
+            _, _, w_ratio, h_ratio = self.overlay.selection_ratios
+            self.selection_size = QSize(
+                max(1, int(round(w_ratio * self.original_pixmap.width()))),
+                max(1, int(round(h_ratio * self.original_pixmap.height()))),
+            )
+            self._update_selection_display()
 
     def _on_label_selected(self, class_id, color, name):
         """Handle label selection from the label panel."""
@@ -1015,21 +1349,28 @@ class YoloWindow(QMainWindow):
                 sel_y = source_info.get("sel_y", 0)
                 sel_w = source_info.get("sel_w", 0)
                 sel_h = source_info.get("sel_h", 0)
+            else:
+                sel_w = sel_h = 0
 
+            if not self.original_pixmap.isNull():
                 if sel_w > 0 and sel_h > 0:
                     # Compute selection size in original image pixels
                     sel_width_px = int(sel_w * self.original_pixmap.width())
                     sel_height_px = int(sel_h * self.original_pixmap.height())
 
-                    # Set selection size and mode
+                    # Set selection size and mode. This only reflects how
+                    # *this specific* saved extraction's box is displayed
+                    # (always image-ratio-based, since that's how sel_x/y/w/h
+                    # are stored) - it must NOT overwrite _last_size_mode /
+                    # _last_selection_size, or merely viewing an old extraction
+                    # would silently discard the user's actual last-used
+                    # Image/Screen preference for *new* selections on the next
+                    # fresh image (this used to happen here and was the cause
+                    # of Image/Screen mode seemingly "resetting" on navigation).
                     self.selection_size = QSize(sel_width_px, sel_height_px)
                     self.size_mode = self.SIZE_MODE_IMAGE
                     self.image_mode_radio.setChecked(True)
                     self.screen_mode_radio.setChecked(False)
-
-                    # Save as last used selection for restoring on new images
-                    self._last_selection_size = QSize(self.selection_size)
-                    self._last_size_mode = self.size_mode
 
                     # Lock the selection
                     self.selection_locked = True
@@ -1049,10 +1390,37 @@ class YoloWindow(QMainWindow):
                         sel_y + sel_h / 2,
                     )
                     self.overlay.set_size_mode(YoloOverlay.SIZE_MODE_IMAGE)
+                    self.overlay.set_manual_resize_enabled(self.manual_bbox_mode)
+                    self.overlay.set_square_resize_enabled(self.manual_square_mode)
                     self.overlay.set_selection_locked(True)
 
                     self._update_overlay()
                     self._update_selection_display()
+                else:
+                    # This extraction's label file has no (or invalid) saved
+                    # box info - e.g. an older/external extraction made
+                    # before source_info existed, or a hand-edited file.
+                    # Previously this branch did nothing at all, silently
+                    # leaving whatever was locked/shown for a *different*
+                    # image still active: a stuck bounding-box-mode menu, a
+                    # disabled resolution combo, and a selection box drawn at
+                    # another image's ratios. Fall back to the same restore
+                    # used for images with no extractions at all instead.
+                    if self._last_selection_size is not None:
+                        self._restore_unlocked_selection()
+                    else:
+                        self.selection_locked = False
+                        self.set_btn.setEnabled(self.selection_size is not None)
+                        self.clear_btn.setEnabled(False)
+                        if not self.manual_bbox_mode:
+                            self.resolution_combo.setEnabled(True)
+                            self.image_mode_radio.setEnabled(True)
+                            self.screen_mode_radio.setEnabled(True)
+                        if self.overlay:
+                            self.overlay.set_selection_locked(False)
+                            self.overlay.selection_ratios = None
+                            self.overlay.selection_position_ratios = None
+                        self._update_selection_display()
 
             # Load annotations
             if self.overlay:
@@ -1117,8 +1485,15 @@ class YoloWindow(QMainWindow):
             return
 
         if not self.selection_locked:
-            self.status_bar.showMessage("Please set a selection size first", 3000)
-            return
+            if self.manual_bbox_mode and self.selection_size is not None:
+                # Manual mode has no separate "choose then lock" phase - the
+                # box the user drew by hand is already the final size, so
+                # saving implicitly confirms/locks it instead of requiring a
+                # separate Set click first
+                self._on_set_clicked()
+            else:
+                self.status_bar.showMessage("Please set a selection size first", 3000)
+                return
 
         if not self.overlay:
             self.status_bar.showMessage("No overlay available", 3000)
@@ -1151,8 +1526,11 @@ class YoloWindow(QMainWindow):
                 self.status_bar.showMessage("Failed to crop image", 3000)
                 return
 
-            # Scale to exact selection size if needed (in case of rounding)
-            if self.selection_size:
+            # Scale to exact selection size if needed (in case of rounding).
+            # Manual Square is exempt: the whole point is a crop saved at
+            # native resolution, whatever square pixel size that turns out
+            # to be - never resized to a fixed target dimension.
+            if self.selection_size and not self.manual_square_mode:
                 cropped_pixmap = cropped_pixmap.scaled(
                     self.selection_size,
                     Qt.AspectRatioMode.IgnoreAspectRatio,
@@ -1364,17 +1742,50 @@ class YoloWindow(QMainWindow):
 
         This allows the user to position and adjust before clicking Set.
         """
-        # Restore selection size and mode from last used
-        self.selection_size = QSize(self._last_selection_size)
-        self.size_mode = self._last_size_mode
+        self.manual_bbox_mode = self._last_manual_bbox_mode
+        self.manual_square_mode = self._last_manual_square_mode
 
         # Set UI to unlocked state
         self.selection_locked = False
         self.set_btn.setEnabled(True)
         self.clear_btn.setEnabled(False)
+
+        if self.manual_bbox_mode:
+            # Manual mode is purely ratio-driven and never uses the fixed
+            # preset / screen-mode pixel-size machinery below - restoring by
+            # ratio is also what keeps the box in the same relative spot even
+            # if the new image has different pixel dimensions
+            self.fixed_bbox_act.setChecked(False)
+            self.manual_bbox_act.setChecked(not self.manual_square_mode)
+            self.manual_square_bbox_act.setChecked(self.manual_square_mode)
+            self.resolution_combo.setEnabled(False)
+            self.image_mode_radio.setEnabled(False)
+            self.screen_mode_radio.setEnabled(False)
+            self.resolution_group.setTitle(
+                "Selection Size (Manual Square)"
+                if self.manual_square_mode
+                else "Selection Size (Manual)"
+            )
+
+            self._start_manual_selection(ratios=self._last_manual_ratios)
+
+            self.status_bar.showMessage(
+                f"Selection restored: {self.selection_size.width()} × {self.selection_size.height()} (not set - position and click Set)",
+                4000,
+            )
+            return
+
+        self.fixed_bbox_act.setChecked(True)
+        self.manual_bbox_act.setChecked(False)
+        self.manual_square_bbox_act.setChecked(False)
         self.resolution_combo.setEnabled(True)
         self.image_mode_radio.setEnabled(True)
         self.screen_mode_radio.setEnabled(True)
+        self.resolution_group.setTitle("Selection Size")
+
+        # Restore selection size and mode from last used
+        self.selection_size = QSize(self._last_selection_size)
+        self.size_mode = self._last_size_mode
 
         # Update radio buttons to match mode
         if self.size_mode == self.SIZE_MODE_IMAGE:
@@ -1420,6 +1831,8 @@ class YoloWindow(QMainWindow):
                 if self.size_mode == self.SIZE_MODE_IMAGE
                 else YoloOverlay.SIZE_MODE_SCREEN
             )
+            self.overlay.set_manual_resize_enabled(self.manual_bbox_mode)
+            self.overlay.set_square_resize_enabled(self.manual_square_mode)
             self.overlay.set_selection_locked(False)
             # Clear any previous position - will center on next update
             self.overlay.selection_ratios = None
@@ -1613,10 +2026,46 @@ class YoloWindow(QMainWindow):
             self._resize_timer.start(50)
 
     def eventFilter(self, source, event):
-        """Event filter for scroll area key events."""
+        """Event filter for scroll area key events and middle-drag panning."""
         if event.type() == event.Type.KeyPress and source is self.scroll_area:
             self.keyPressEvent(event)
             return True
+
+        # Middle-mouse-button drag to pan, as an additional way to move the
+        # image around alongside the scrollbars. Installed on image_label
+        # (before an overlay exists) and on the overlay itself (once
+        # created), since whichever is on top is what actually receives
+        # mouse events over the image.
+        if (
+            event.type() == event.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.MiddleButton
+        ):
+            self._panning = True
+            self._pan_start_pos = event.globalPosition().toPoint()
+            self._pan_start_h_value = self.scroll_area.horizontalScrollBar().value()
+            self._pan_start_v_value = self.scroll_area.verticalScrollBar().value()
+            source.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return True
+
+        if event.type() == event.Type.MouseMove and self._panning:
+            delta = event.globalPosition().toPoint() - self._pan_start_pos
+            self.scroll_area.horizontalScrollBar().setValue(
+                self._pan_start_h_value - delta.x()
+            )
+            self.scroll_area.verticalScrollBar().setValue(
+                self._pan_start_v_value - delta.y()
+            )
+            return True
+
+        if (
+            event.type() == event.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.MiddleButton
+            and self._panning
+        ):
+            self._panning = False
+            source.unsetCursor()
+            return True
+
         return super().eventFilter(source, event)
 
     def showEvent(self, event):

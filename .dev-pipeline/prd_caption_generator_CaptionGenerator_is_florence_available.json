@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionGenerator.is_florence_available",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionGenerator.is_florence_available() functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionGenerator.is_florence_available`  \n**Size**: 17 lines, complexity 2 (low)\n\n```python\n    def is_florence_available(self) -> Tuple[bool, str]:\n        \"\"\"Check if Florence2 dependencies are available.\n\n        Returns:\n            Tuple of (available, message)\n        \"\"\"\n        try:\n            import torch  # noqa: F401\n            import transformers  # noqa: F401\n\n            return True, \"Florence2 ready\"\n        except ImportError as e:\n            missing = str(e).split(\"'\")[1] if \"'\" in str(e) else str(e)\n            return (\n                False,\n                f\"Missing '{missing}' — install with: pip install transformers torch\",\n            )\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionGenerator_is_florence_available.py\n\nTests for CaptionGenerator.is_florence_available() method.\n\nIMPORTANT: CaptionGenerator constructor is CaptionGenerator(). It does NOT take any parameters.\nImport: from caption_generator import CaptionGenerator\n\n1. test_is_florence_available_with_torch_and_transformers — Create CaptionGenerator(). Call is_florence_available(). Assert returns (True, 'Florence2 ready') when torch and transformers are available.\n2. test_is_florence_available_with_missing_torch — Mock torch import to fail. Call is_florence_available(). Assert returns (False, message) where message contains 'torch'.\n3. test_is_florence_available_with_missing_transformers — Mock transformers import to fail. Call is_florence_available(). Assert returns (False, message) where message contains 'transformers'.\n4. test_is_florence_available_with_both_missing — Mock both torch and transformers imports to fail. Call is_florence_available(). Assert returns (False, message) where message contains both 'torch' and 'transformers'.\n5. test_is_florence_available_message_format — Create CaptionGenerator(). Call is_florence_available(). Assert the message is a non-empty string.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_is_florence_available.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_is_florence_available.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T10:02:44.447Z"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionGenerator.is_wd14_available",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionGenerator.is_wd14_available() functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionGenerator.is_wd14_available`  \n**Size**: 47 lines, complexity 8 (medium)\n\n```python\n    def is_wd14_available(self) -> Tuple[bool, str]:\n        \"\"\"Check if WD14 dependencies are available.\n\n        Returns:\n            Tuple of (available, message)\n        \"\"\"\n        # Check for at least one model loading backend\n        has_onnx = False\n        has_torch = False\n\n        try:\n            import onnxruntime  # noqa: F401\n\n            has_onnx = True\n        except ImportError:\n            pass\n\n        try:\n            import torch  # noqa: F401\n\n            has_torch = True\n        except ImportError:\n            pass\n\n        # Need huggingface_hub for downloading\n        try:\n            import huggingface_hub  # noqa: F401\n        except ImportError:\n            return (\n                False,\n                \"Missing: huggingface_hub. Install with: pip install huggingface-hub\",\n            )\n\n        # Need at least one backend\n        if not has_onnx and not has_torch:\n            return (\n                False,\n                \"Missing model backend. Install onnxruntime or torch: pip install onnxruntime\",\n            )\n\n        backends = []\n        if has_onnx:\n            backends.append(\"ONNX\")\n        if has_torch:\n            backends.append(\"PyTorch\")\n\n        return True, f\"WD14 ready ({', '.join(backends)})\"\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionGenerator_is_wd14_available.py\n\nTests for CaptionGenerator.is_wd14_available() method.\n\nIMPORTANT: CaptionGenerator constructor is CaptionGenerator(). It does NOT take any parameters.\nImport: from caption_generator import CaptionGenerator\n\n1. test_wd14_available_with_onnx_and_torch — Create CaptionGenerator(). Mock onnxruntime and torch as available. Call is_wd14_available(). Assert returns (True, 'WD14 ready (ONNX, PyTorch)'.)\n2. test_wd14_available_with_only_onnx — Create CaptionGenerator(). Mock onnxruntime as available, torch as unavailable. Call is_wd14_available(). Assert returns (True, 'WD14 ready (ONNX)'.)\n3. test_wd14_available_with_only_torch — Create CaptionGenerator(). Mock torch as available, onnxruntime as unavailable. Call is_wd14_available(). Assert returns (True, 'WD14 ready (PyTorch)'.)\n4. test_wd14_available_without_backends — Create CaptionGenerator(). Mock both onnxruntime and torch as unavailable. Call is_wd14_available(). Assert returns (False, 'Missing model backend. Install onnxruntime or torch: pip install onnxruntime').\n5. test_wd14_available_without_huggingface_hub — Create CaptionGenerator(). Mock huggingface_hub as unavailable. Call is_wd14_available(). Assert returns (False, 'Missing: huggingface_hub. Install with: pip install huggingface-hub').\n6. test_wd14_available_with_all_dependencies — Create CaptionGenerator(). Mock onnxruntime, torch, and huggingface_hub as available. Call is_wd14_available(). Assert returns (True, 'WD14 ready (ONNX, PyTorch)'.)\n7. test_wd14_available_return_type — Create CaptionGenerator(). Mock all dependencies. Call is_wd14_available(). Assert the return type is Tuple[bool, str].\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_is_wd14_available.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_is_wd14_available.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-11T16:16:40.929Z"
+  }
+}

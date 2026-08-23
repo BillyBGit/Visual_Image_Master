@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionGenerator.unload_wd14",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionGenerator.unload_wd14 functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionGenerator.unload_wd14`  \n**Size**: 43 lines, complexity 7 (medium)\n\n```python\n    def unload_wd14(self):\n        \"\"\"Unload the current WD14 model to free memory.\"\"\"\n        if self._wd14_loaded:\n            _debug(f\"Unloading WD14 model (format: {self.wd14_format})...\")\n            import gc\n\n            # Explicitly delete ONNX session if it exists\n            if self.wd14_format == \"onnx\" and self.wd14_model is not None:\n                try:\n                    # ONNX Runtime sessions should be explicitly closed\n                    del self.wd14_model\n                    _debug(\"ONNX session deleted\")\n                except Exception as e:\n                    _debug(f\"Error deleting ONNX session: {e}\")\n\n            # Clear all model state\n            self.wd14_model = None\n            self.wd14_tags = None\n            self.wd14_format = None\n            self.wd14_img_size = 448  # Reset to default\n            self._wd14_loaded = False\n            self._current_wd14_model = None\n\n            # Force garbage collection\n            gc.collect()\n            gc.collect()  # Run twice to catch cyclic references\n\n            # Clear PyTorch cache if using PyTorch format\n            try:\n                import torch\n\n                if torch.cuda.is_available():\n                    torch.cuda.empty_cache()\n                    _debug(\"PyTorch CUDA cache cleared\")\n            except Exception:\n                pass\n\n            # Give system time to release resources (helps prevent crashes when switching models)\n            import time\n\n            time.sleep(0.1)\n\n            _debug(\"WD14 model unloaded\")\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionGenerator_unload_wd14.py\n\nTests for CaptionGenerator.unload_wd14 method.\n\nIMPORTANT: CaptionGenerator constructor is CaptionGenerator(). It does NOT take any parameters.\nImport: from caption_generator import CaptionGenerator\n\n1. test_unload_wd14_when_not_loaded — Create CaptionGenerator(). Call unload_wd14(). Assert no exceptions are raised and _wd14_loaded is False.\n2. test_unload_wd14_clears_model_state — Create CaptionGenerator(). Set _wd14_loaded=True, wd14_model=mock_model, wd14_tags=['tag1'], wd14_format='onnx', _current_wd14_model='vit-v2'. Call unload_wd14(). Assert wd14_model is None, wd14_tags is None, wd14_format is None, _wd14_loaded is False, _current_wd14_model is None.\n3. test_unload_wd14_handles_onnx_session_deletion — Create CaptionGenerator(). Set _wd14_loaded=True, wd14_format='onnx', wd14_model=mock_onnx_session. Call unload_wd14(). Assert wd14_model is None and no exceptions are raised.\n4. test_unload_wd14_calls_gc_collect_twice — Create CaptionGenerator(). Set _wd14_loaded=True. Mock gc.collect(). Call unload_wd14(). Assert gc.collect() was called twice.\n5. test_unload_wd14_clears_cuda_cache — Create CaptionGenerator(). Set _wd14_loaded=True. Mock torch.cuda.empty_cache(). Call unload_wd14(). Assert torch.cuda.empty_cache() was called.\n6. test_unload_wd14_sleeps_0_1_seconds — Create CaptionGenerator(). Set _wd14_loaded=True. Mock time.sleep(). Call unload_wd14(). Assert time.sleep() was called with 0.1.\n7. test_unload_wd14_resets_wd14_img_size — Create CaptionGenerator(). Set _wd14_loaded=True, wd14_img_size=512. Call unload_wd14(). Assert wd14_img_size is 448.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_unload_wd14.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_unload_wd14.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-11T22:40:24.612Z"
+  }
+}

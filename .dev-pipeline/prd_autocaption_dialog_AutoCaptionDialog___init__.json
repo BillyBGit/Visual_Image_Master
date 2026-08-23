@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog.__init__",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog.__init__ initialization and setup",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog.__init__`  \n**Size**: 14 lines, complexity 1 (low)\n\n```python\n    def __init__(self, image_paths, parent=None):\n        super().__init__(parent)\n        self.image_paths = image_paths\n        self.generator = get_caption_generator()\n        self.caption_worker = None\n        self.current_index = 0\n        self.results = []  # List of (path, caption, success) tuples\n\n        self.setWindowTitle(f\"Auto Caption - {len(image_paths)} image(s)\")\n        self.setMinimumWidth(450)\n        self.setModal(True)\n\n        self._setup_ui()\n        self._load_settings()\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog___init__.py\n\nTests for AutoCaptionDialog.__init__ method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None).\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_init_sets_image_paths — Create AutoCaptionDialog with a list of image paths. Assert self.image_paths equals the provided list.\n2. test_init_sets_generator — Create AutoCaptionDialog. Assert self.generator is not None (mock get_caption_generator).\n3. test_init_sets_initial_state — Create AutoCaptionDialog. Assert self.caption_worker is None, self.current_index is 0, and self.results is an empty list.\n4. test_init_sets_window_title — Create AutoCaptionDialog with 3 image paths. Assert window title is 'Auto Caption - 3 image(s)'.\n5. test_init_sets_minimum_width — Create AutoCaptionDialog. Assert minimum width is 450.\n6. test_init_sets_modal — Create AutoCaptionDialog. Assert window is modal.\n7. test_init_calls_setup_ui — Create AutoCaptionDialog. Mock _setup_ui and assert it was called once.\n8. test_init_calls_load_settings — Create AutoCaptionDialog. Mock _load_settings and assert it was called once.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog___init__.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog___init__.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T03:55:18.014Z"
+  }
+}

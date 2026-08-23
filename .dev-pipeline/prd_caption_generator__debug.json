@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - _debug",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test _debug function behavior",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `_debug`  \n**Size**: 4 lines, complexity 2 (low)\n\n```python\ndef _debug(message: str):\n    \"\"\"Print debug message if debug mode is enabled via IMG_SORT_DEBUG env var.\"\"\"\n    if os.environ.get(\"IMG_SORT_DEBUG\") == \"1\":\n        print(f\"[DEBUG] {message}\")\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator__debug.py\n\nTests for the _debug function in caption_generator.py.\n\nIMPORTANT: The _debug function is a simple helper that prints messages only when IMG_SORT_DEBUG environment variable is set to '1'. It does NOT take any additional parameters or return values.\nImport: from caption_generator import _debug\n\n1. test_debug_prints_when_enabled — Set os.environ['IMG_SORT_DEBUG'] = '1'. Call _debug('test message'). Assert that print was called with '[DEBUG] test message'.\n2. test_debug_silence_when_disabled — Set os.environ['IMG_SORT_DEBUG'] = '0'. Call _debug('test message'). Assert that print was NOT called.\n3. test_debug_silence_when_undefined — Remove 'IMG_SORT_DEBUG' from os.environ. Call _debug('test message'). Assert that print was NOT called.\n4. test_debug_with_empty_message — Set os.environ['IMG_SORT_DEBUG'] = '1'. Call _debug(''). Assert that print was called with '[DEBUG] '.\n5. test_debug_with_special_characters — Set os.environ['IMG_SORT_DEBUG'] = '1'. Call _debug('test\\nmessage\\twith\\tspecial\\nchars'). Assert that print was called with the exact formatted string.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator__debug.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator__debug.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T07:01:24.847Z"
+  }
+}

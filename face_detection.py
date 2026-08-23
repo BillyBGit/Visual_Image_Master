@@ -272,6 +272,53 @@ class FaceDetector:
         faces = self._detect_dnn_faces(img)
         return len(faces) > 0
 
+    def get_face_area_ratio(self, image_path):
+        """
+        Get the ratio of image area occupied by the largest detected face.
+
+        Uses the single largest face box rather than summing all faces, so a
+        tightly-framed solo portrait ranks above a group shot with several
+        small faces — useful for picking portrait-training candidates.
+
+        Args:
+            image_path: Path to the image file
+
+        Returns:
+            float: Largest face area / image area, in [0.0, 1.0]. 0.0 if no
+                face is detected or the image can't be read.
+        """
+        cache_key = f"{image_path}_{self.preset}_face_ratio"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        try:
+            img = cv2.imread(image_path)
+            if img is None:
+                self._cache[cache_key] = 0.0
+                return 0.0
+
+            img_h, img_w = img.shape[:2]
+            img_area = img_w * img_h
+            if img_area == 0:
+                self._cache[cache_key] = 0.0
+                return 0.0
+
+            faces = self.detect_faces(image_path)
+            if not faces:
+                self._cache[cache_key] = 0.0
+                return 0.0
+
+            largest_face_area = max(w * h for (_x, _y, w, h) in faces)
+            ratio = min(1.0, largest_face_area / img_area)
+
+            self._cache[cache_key] = ratio
+            return ratio
+
+        except Exception as e:
+            print(f"Error computing face area ratio for {image_path}: {e}")
+            self._cache[cache_key] = 0.0
+            return 0.0
+
     def clear_cache(self):
         """Clear the face detection cache."""
         self._cache.clear()

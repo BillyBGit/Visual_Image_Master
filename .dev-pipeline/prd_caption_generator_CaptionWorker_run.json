@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionWorker.run",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionWorker.run method for different backends",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionWorker.run`  \n**Size**: 31 lines, complexity 5 (low)\n\n```python\n    def run(self):\n        try:\n            # Validate image first\n            self.progress.emit(\"Validating image...\")\n            valid, message = self.generator.validate_image(self.image_path)\n            if not valid:\n                self.error.emit(f\"Image validation failed: {message}\")\n                return\n\n            if self.backend == \"florence2\":\n                self.progress.emit(\"Loading Florence2 model...\")\n                caption = self.generator.generate_florence(\n                    self.image_path,\n                    model_key=self.florence_model,\n                    detail_level=self.florence_detail,\n                )\n            elif self.backend == \"wd14\":\n                self.progress.emit(\"Loading WD14 tagger...\")\n                caption = self.generator.generate_wd14(\n                    self.image_path,\n                    model_key=self.wd14_model,\n                    threshold=self.wd14_threshold,\n                )\n            else:  # ollama\n                self.progress.emit(f\"Connecting to Ollama ({self.ollama_model})...\")\n                caption = self.generator.generate_ollama(\n                    self.image_path, self.ollama_url, self.ollama_model\n                )\n            self.finished.emit(caption)\n        except Exception as e:\n            self.error.emit(str(e))\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionWorker_run.py\n\nTests for CaptionWorker.run method.\n\nIMPORTANT: CaptionWorker constructor is CaptionWorker(generator, image_path, backend, ollama_url='', ollama_model='', florence_model='base', florence_detail='detailed', wd14_model='vit-v2', wd14_threshold=0.35).\nImport: from caption_generator import CaptionWorker, CaptionGenerator\n\n1. test_run_with_florence2_backend — Create CaptionWorker with florence2 backend. Mock generator.validate_image to return (True, 'OK') and generator.generate_florence to return 'test caption'. Assert finished signal is emitted with 'test caption'.\n2. test_run_with_wd14_backend — Create CaptionWorker with wd14 backend. Mock generator.validate_image to return (True, 'OK') and generator.generate_wd14 to return 'test caption'. Assert finished signal is emitted with 'test caption'.\n3. test_run_with_ollama_backend — Create CaptionWorker with ollama backend. Mock generator.validate_image to return (True, 'OK') and generator.generate_ollama to return 'test caption'. Assert finished signal is emitted with 'test caption'.\n4. test_run_with_invalid_image — Create CaptionWorker with any backend. Mock generator.validate_image to return (False, 'Invalid image'). Assert error signal is emitted with 'Image validation failed: Invalid image'.\n5. test_run_with_exception — Create CaptionWorker with any backend. Make generator.generate_florence raise an exception. Assert error signal is emitted with the exception message.\n6. test_run_progress_signals — Create CaptionWorker with any backend. Assert progress signal is emitted with appropriate messages before finished/error signals.\n7. test_run_with_custom_florence_model — Create CaptionWorker with florence2 backend and custom florence_model. Mock generator.generate_florence to return 'test caption'. Assert finished signal is emitted with 'test caption'.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionWorker_run.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionWorker_run.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T09:20:59.777Z"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.browse_custom_model",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog.browse_custom_model functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.browse_custom_model`  \n**Size**: 10 lines, complexity 2 (low)\n\n```python\n    def browse_custom_model(self):\n        \"\"\"Browse for custom YOLO model file.\"\"\"\n        file_path, _ = QFileDialog.getOpenFileName(\n            self,\n            \"Select Custom YOLO Model\",\n            \"\",\n            \"YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx);;All Files (*)\",\n        )\n        if file_path:\n            self.custom_model_path_edit.setText(file_path)\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_browse_custom_model.py\n\nTests for AdvancedFilterDialog.browse_custom_model method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_browse_custom_model_updates_path_edit — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('/path/to/model.pt', 'YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx)'). Call browse_custom_model(). Assert custom_model_path_edit.text() == '/path/to/model.pt'.\n2. test_browse_custom_model_with_empty_path — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('', ''). Call browse_custom_model(). Assert custom_model_path_edit.text() == ''.\n3. test_browse_custom_model_with_different_file_types — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('/path/to/model.onnx', 'YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx)'). Call browse_custom_model(). Assert custom_model_path_edit.text() == '/path/to/model.onnx'.\n4. test_browse_custom_model_with_all_files_filter — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('/path/to/model.weights', 'All Files (*)'). Call browse_custom_model(). Assert custom_model_path_edit.text() == '/path/to/model.weights'.\n5. test_browse_custom_model_updates_filter_settings — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('/path/to/model.pt', 'YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx)'). Call browse_custom_model(). Assert filter_settings['custom_model_path'] == '/path/to/model.pt'.\n6. test_browse_custom_model_with_no_selection — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('', ''). Call browse_custom_model(). Assert filter_settings['custom_model_path'] is None.\n7. test_browse_custom_model_with_invalid_path — Create AdvancedFilterDialog(parent=None). Mock QFileDialog.getOpenFileName to return ('/invalid/path/model.pt', 'YOLO Models (*.pt *.pth *.safetensors *.weights *.onnx)'). Call browse_custom_model(). Assert custom_model_path_edit.text() == '/invalid/path/model.pt'.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_browse_custom_model.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_browse_custom_model.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T00:10:45.220Z"
+  }
+}

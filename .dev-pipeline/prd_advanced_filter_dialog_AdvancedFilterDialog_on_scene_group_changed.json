@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.on_scene_group_changed",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog.on_scene_group_changed functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.on_scene_group_changed`  \n**Size**: 6 lines, complexity 4 (low)\n\n```python\n    def on_scene_group_changed(self):\n        \"\"\"Auto-enable scene recognition when a group is selected.\"\"\"\n        any_checked = any(cb.isChecked() for cb in self.scene_group_cbs.values())\n        if any_checked and not self.scene_enable_cb.isChecked():\n            self.scene_enable_cb.setChecked(True)\n        self.update_filter_settings()\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_on_scene_group_changed.py\n\nTests for AdvancedFilterDialog.on_scene_group_changed method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_on_scene_group_changed_auto_enables_scene_detection — Create AdvancedFilterDialog(). Call on_scene_group_changed(). Assert scene_enable_cb.isChecked() is True when any scene group checkbox is checked.\n2. test_on_scene_group_changed_does_not_disable_scene_detection — Create AdvancedFilterDialog(). Set scene_enable_cb to True. Call on_scene_group_changed(). Assert scene_enable_cb.isChecked() remains True.\n3. test_on_scene_group_changed_updates_filter_settings — Create AdvancedFilterDialog(). Call on_scene_group_changed(). Assert update_filter_settings was called.\n4. test_on_scene_group_changed_with_no_checked_groups — Create AdvancedFilterDialog(). Call on_scene_group_changed(). Assert scene_enable_cb.isChecked() is False when no scene group checkboxes are checked.\n5. test_on_scene_group_changed_with_multiple_groups — Create AdvancedFilterDialog(). Check multiple scene group checkboxes. Call on_scene_group_changed(). Assert scene_enable_cb.isChecked() is True.\n6. test_on_scene_group_changed_with_custom_model_path — Create AdvancedFilterDialog(). Set custom_model_path_edit text. Call on_scene_group_changed(). Assert filter_settings contains the custom_model_path.\n7. test_on_scene_group_changed_with_confidence_threshold — Create AdvancedFilterDialog(). Set scene_conf_slider value. Call on_scene_group_changed(). Assert filter_settings contains the correct confidence value.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_on_scene_group_changed.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_on_scene_group_changed.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T01:57:31.972Z"
+  }
+}

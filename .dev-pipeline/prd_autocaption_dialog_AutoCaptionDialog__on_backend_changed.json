@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog._on_backend_changed",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog._on_backend_changed visibility logic",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog._on_backend_changed`  \n**Size**: 6 lines, complexity 1 (low)\n\n```python\n    def _on_backend_changed(self, index):\n        \"\"\"Handle backend selection change.\"\"\"\n        backend = self.backend_combo.currentData()\n        self.florence_widget.setVisible(backend == \"florence2\")\n        self.wd14_widget.setVisible(backend == \"wd14\")\n        self.ollama_widget.setVisible(backend == \"ollama\")\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_backend_changed.py\n\nTests for AutoCaptionDialog._on_backend_changed method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None). It does NOT take any other parameters.\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_florence2_backend_shows_florence_widget — Create AutoCaptionDialog with mock image paths. Set backend_combo to 'florence2'. Call _on_backend_changed(0). Assert florence_widget is visible, wd14_widget is hidden, ollama_widget is hidden.\n2. test_wd14_backend_shows_wd14_widget — Create AutoCaptionDialog with mock image paths. Set backend_combo to 'wd14'. Call _on_backend_changed(1). Assert wd14_widget is visible, florence_widget is hidden, ollama_widget is hidden.\n3. test_ollama_backend_shows_ollama_widget — Create AutoCaptionDialog with mock image paths. Set backend_combo to 'ollama'. Call _on_backend_changed(2). Assert ollama_widget is visible, florence_widget is hidden, wd14_widget is hidden.\n4. test_backend_changed_updates_visibility_correctly — Create AutoCaptionDialog with mock image paths. Test all three backends in sequence, verifying visibility changes each time.\n5. test_initial_state_all_hidden — Create AutoCaptionDialog with mock image paths. Verify all backend-specific widgets are hidden initially.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_backend_changed.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_backend_changed.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T16:15:15.074Z"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.select_indoor_scenes",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog.select_indoor_scenes functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.select_indoor_scenes`  \n**Size**: 6 lines, complexity 2 (low)\n\n```python\n    def select_indoor_scenes(self):\n        \"\"\"Quick select indoor scene types.\"\"\"\n        indoor_groups = [\"indoor_home\", \"indoor_commercial\", \"entertainment\"]\n        for group_name, cb in self.scene_group_cbs.items():\n            cb.setChecked(group_name in indoor_groups)\n        self.update_filter_settings()\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_select_indoor_scenes.py\n\nTests for AdvancedFilterDialog.select_indoor_scenes method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_select_indoor_scenes_checks_indoor_groups — Create AdvancedFilterDialog(). Call select_indoor_scenes(). Assert that scene_group_cbs contains checked boxes for 'indoor_home', 'indoor_commercial', and 'entertainment'.\n2. test_select_indoor_scenes_unchecks_non_indoor_groups — Create AdvancedFilterDialog(). Call select_indoor_scenes(). Assert that scene_group_cbs does NOT contain checked boxes for any groups other than 'indoor_home', 'indoor_commercial', and 'entertainment'.\n3. test_select_indoor_scenes_calls_update_filter_settings — Create AdvancedFilterDialog(). Mock update_filter_settings(). Call select_indoor_scenes(). Assert that update_filter_settings was called once.\n4. test_select_indoor_scenes_preserves_other_filter_settings — Create AdvancedFilterDialog(). Set some other filter settings (e.g., face_detection). Call select_indoor_scenes(). Assert that other filter settings remain unchanged.\n5. test_select_indoor_scenes_initial_state — Create AdvancedFilterDialog(). Assert that initially, no scene groups are checked.\n6. test_select_indoor_scenes_multiple_calls — Create AdvancedFilterDialog(). Call select_indoor_scenes() twice. Assert that the scene groups remain checked after the second call.\n7. test_select_indoor_scenes_filter_settings_updated — Create AdvancedFilterDialog(). Call select_indoor_scenes(). Get filter_settings. Assert that scene_groups contains 'indoor_home', 'indoor_commercial', and 'entertainment'.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_select_indoor_scenes.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_select_indoor_scenes.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T00:34:52.030Z"
+  }
+}

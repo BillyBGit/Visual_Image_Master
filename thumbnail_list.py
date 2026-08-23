@@ -10,13 +10,170 @@ from PySide6.QtWidgets import (
     QMenu,
     QInputDialog,
     QDialog,
+    QDialogButtonBox,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QTextEdit,
+    QRadioButton,
+    QButtonGroup,
+    QGroupBox,
+    QFrame,
 )
 from PySide6.QtCore import Qt, QSize, QUrl, QMimeData
 from PySide6.QtGui import QIcon, QDrag, QAction
 from PIL import Image
 
-from utils import find_main_window
+from utils import find_main_window, reset_link_list, append_to_link_list
 from preview_window import ImagePreviewWindow
+
+
+class ManualCaptionDialog(QDialog):
+    """Dialog for entering a caption to write alongside selected image files."""
+
+    def __init__(self, image_paths, parent=None):
+        super().__init__(parent)
+        self.image_paths = image_paths
+        self.setWindowTitle("Manual Caption")
+        self.setMinimumWidth(480)
+        self.setMinimumHeight(280)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
+        n = len(image_paths)
+        layout.addWidget(
+            QLabel(
+                f"Caption text to write for {n} selected image{'s' if n != 1 else ''}:"
+            )
+        )
+
+        self.text_edit = QTextEdit()
+        self.text_edit.setAcceptRichText(False)
+        self.text_edit.setPlaceholderText("Enter caption text here…")
+        layout.addWidget(self.text_edit, stretch=1)
+
+        # Mode group
+        mode_box = QGroupBox("Write mode")
+        mode_layout = QHBoxLayout(mode_box)
+        self._mode_group = QButtonGroup(self)
+        self._rb_overwrite = QRadioButton("Overwrite")
+        self._rb_prepend = QRadioButton("Prepend")
+        self._rb_append = QRadioButton("Append")
+        self._rb_overwrite.setChecked(True)
+        for rb in (self._rb_overwrite, self._rb_prepend, self._rb_append):
+            self._mode_group.addButton(rb)
+            mode_layout.addWidget(rb)
+        mode_layout.addStretch()
+        layout.addWidget(mode_box)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.text_edit.setFocus()
+
+    @property
+    def caption_text(self):
+        return self.text_edit.toPlainText()
+
+    @property
+    def mode(self):
+        if self._rb_prepend.isChecked():
+            return "prepend"
+        if self._rb_append.isChecked():
+            return "append"
+        return "overwrite"
+
+
+class ImagePropertiesDialog(QDialog):
+    """Dialog showing file/image properties for one or more selected thumbnails."""
+
+    def __init__(self, image_paths, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Properties")
+        self.setMinimumWidth(480)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        for i, path in enumerate(image_paths):
+            if i > 0:
+                divider = QFrame()
+                divider.setFrameShape(QFrame.Shape.HLine)
+                divider.setFrameShadow(QFrame.Shadow.Sunken)
+                layout.addWidget(divider)
+            layout.addLayout(self._build_properties_block(path))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(self.accept)
+        layout.addWidget(buttons)
+
+    def _build_properties_block(self, path):
+        block = QVBoxLayout()
+        for label_text, value in self._get_image_info(path):
+            row = QHBoxLayout()
+            key_label = QLabel(f"{label_text}:")
+            key_label.setStyleSheet("font-weight: bold;")
+            key_label.setMinimumWidth(90)
+            value_label = QLabel(value)
+            value_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+                | Qt.TextInteractionFlag.TextSelectableByKeyboard
+            )
+            value_label.setWordWrap(True)
+            row.addWidget(key_label)
+            row.addWidget(value_label, stretch=1)
+            block.addLayout(row)
+        return block
+
+    @staticmethod
+    def _get_image_info(path):
+        """Gather path/format/dimensions/size/modified info for one file."""
+        import os
+
+        rows = [("Path", path)]
+        try:
+            with Image.open(path) as img:
+                rows.append(("Format", img.format or "Unknown"))
+                rows.append(("Dimensions", f"{img.width} x {img.height} px"))
+                rows.append(("Color Mode", img.mode))
+        except Exception:
+            rows.append(("Format", "Unable to read"))
+            rows.append(("Dimensions", "Unable to read"))
+
+        try:
+            size_bytes = os.path.getsize(path)
+            rows.append(("File Size", ImagePropertiesDialog._format_size(size_bytes)))
+        except OSError:
+            rows.append(("File Size", "Unknown"))
+
+        try:
+            import datetime
+
+            mtime = os.path.getmtime(path)
+            modified = datetime.datetime.fromtimestamp(mtime).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            rows.append(("Modified", modified))
+        except OSError:
+            pass
+
+        return rows
+
+    @staticmethod
+    def _format_size(size_bytes):
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
 class ThumbnailList(QListWidget):
@@ -78,6 +235,10 @@ class ThumbnailList(QListWidget):
                 last = self.count() - 1
                 self.setCurrentRow(last)
                 self.scrollToItem(self.item(last))
+        elif Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_5:
+            self.rate_selected_images(event.key() - Qt.Key.Key_0)
+        elif event.key() == Qt.Key.Key_0:
+            self.rate_selected_images(None)
         else:
             super().keyPressEvent(event)
 
@@ -227,6 +388,91 @@ class ThumbnailList(QListWidget):
                     f"Rotated {success_count} image(s) 90° clockwise", 3000
                 )
 
+    def resize_to_padded_square(self, size=1024):
+        """Resize selected images to size×size with black padding, retaining aspect ratio."""
+        import os
+        from PySide6.QtGui import QPixmap
+
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+
+        count = len(selected_items)
+        confirm = QMessageBox.question(
+            self,
+            "Resize Images",
+            f"Resize {count} image(s) to {size}×{size} with black padding?\n\nThis overwrites the original files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        main_win = self.parent_app or find_main_window()
+        success_count = 0
+
+        for item in selected_items:
+            file_path = item.data(Qt.ItemDataRole.UserRole)
+            try:
+                from io import BytesIO
+
+                # Read entire file into memory first so there is no open file
+                # handle when we write back to the same path
+                with open(file_path, "rb") as fh:
+                    raw = fh.read()
+
+                img = Image.open(BytesIO(raw))
+                img.load()
+
+                # Always work in RGB — handles L, P, RGBA, LA, CMYK, etc.
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+
+                w, h = img.size
+                if w == 0 or h == 0:
+                    raise ValueError(f"Image has zero dimension ({w}×{h})")
+
+                # Scale to fit within size×size keeping aspect ratio (up or down)
+                scale = min(size / w, size / h)
+                new_w = min(size, max(1, round(w * scale)))
+                new_h = min(size, max(1, round(h * scale)))
+                img = img.resize((new_w, new_h), Image.LANCZOS)
+
+                # Paste centred onto black canvas
+                canvas = Image.new("RGB", (size, size), (0, 0, 0))
+                canvas.paste(img, ((size - new_w) // 2, (size - new_h) // 2))
+
+                # Determine output format from file extension (more reliable
+                # than img.format which becomes None after PIL operations)
+                ext = os.path.splitext(file_path)[1].lower()
+                if ext == ".png":
+                    canvas.save(file_path, format="PNG")
+                elif ext == ".webp":
+                    canvas.save(file_path, format="WEBP", quality=95)
+                elif ext in (".bmp",):
+                    canvas.save(file_path, format="BMP")
+                elif ext in (".tiff", ".tif"):
+                    canvas.save(file_path, format="TIFF")
+                else:
+                    canvas.save(file_path, format="JPEG", quality=95)
+
+                item.setIcon(QIcon(QPixmap(file_path)))
+                success_count += 1
+
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    f"Could not resize {os.path.basename(file_path)}:\n{e}",
+                )
+
+        if success_count > 0:
+            self.scheduleDelayedItemsLayout()
+            self.viewport().update()
+            if main_win and hasattr(main_win, "status_bar"):
+                main_win.status_bar.showMessage(
+                    f"Resized {success_count} image(s) to {size}×{size}", 3000
+                )
+
     def open_preview(self, item):
         all_paths = [
             self.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.count())
@@ -250,15 +496,29 @@ class ThumbnailList(QListWidget):
             super().wheelEvent(event)
 
     def startDrag(self, supportedActions):
+        items = self.selectedItems()
+        if not items:
+            return
+
         drag = QDrag(self)
         mime_data = QMimeData()
         urls = [
             QUrl.fromLocalFile(i.data(Qt.ItemDataRole.UserRole))
-            for i in self.selectedItems()
+            for i in items
+            if i.data(Qt.ItemDataRole.UserRole)
         ]
         mime_data.setUrls(urls)
         drag.setMimeData(mime_data)
-        drag.exec(Qt.DropAction.MoveAction | Qt.DropAction.CopyAction)
+
+        # Drag pixmap from the first selected thumbnail — required for external
+        # apps (file managers, image editors) to recognise and accept the drag.
+        icon = items[0].icon()
+        if not icon.isNull():
+            px = icon.pixmap(96, 96)
+            drag.setPixmap(px)
+            drag.setHotSpot(px.rect().center())
+
+        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
 
     def show_context_menu(self, position):
         """Show context menu for thumbnail operations."""
@@ -292,15 +552,66 @@ class ThumbnailList(QListWidget):
 
         menu.addSeparator()
 
+        # Copy Path
+        copy_path_act = QAction("Copy Path", self)
+        copy_path_act.triggered.connect(self.copy_selected_paths)
+        menu.addAction(copy_path_act)
+
+        # Link list (clipboard-based running list of paths)
+        start_link_act = QAction("Start Link List", self)
+        start_link_act.triggered.connect(self.start_link_list)
+        menu.addAction(start_link_act)
+
+        add_link_act = QAction("Add to Link List", self)
+        add_link_act.triggered.connect(self.add_to_link_list)
+        menu.addAction(add_link_act)
+
+        menu.addSeparator()
+
+        # Rating
+        rate_menu = QMenu("Rate", self)
+        for score in range(1, 6):
+            stars = "★" * score + "☆" * (5 - score)
+            rate_act = QAction(f"{stars}  ({score})", self)
+            rate_act.triggered.connect(
+                lambda checked=False, s=score: self.rate_selected_images(s)
+            )
+            rate_menu.addAction(rate_act)
+        rate_menu.addSeparator()
+        clear_rating_act = QAction("Clear Rating", self)
+        clear_rating_act.triggered.connect(lambda: self.rate_selected_images(None))
+        rate_menu.addAction(clear_rating_act)
+        menu.addMenu(rate_menu)
+
+        menu.addSeparator()
+
         # Auto Caption
         caption_act = QAction("Auto Caption...", self)
         caption_act.triggered.connect(self.show_autocaption_dialog)
         menu.addAction(caption_act)
 
+        # Manual Caption
+        manual_caption_act = QAction("Manual Caption...", self)
+        manual_caption_act.triggered.connect(self.show_manual_caption_dialog)
+        menu.addAction(manual_caption_act)
+
         # Enhance
         enhance_act = QAction("Enhance...", self)
         enhance_act.triggered.connect(self.show_enhance_dialog)
         menu.addAction(enhance_act)
+
+        # Join Images
+        join_act = QAction("Join Images...", self)
+        join_act.triggered.connect(self.show_join_images_dialog)
+        join_act.setEnabled(2 <= len(selected_items) <= 6)
+        if not join_act.isEnabled():
+            join_act.setToolTip("Select between 2 and 6 images to join.")
+        menu.addAction(join_act)
+
+        # Resize to padded square
+        resize_act = QAction("Resize to 1024×1024 (padded)", self)
+        resize_act.triggered.connect(lambda: self.resize_to_padded_square())
+        menu.addAction(resize_act)
 
         menu.addSeparator()
 
@@ -309,8 +620,105 @@ class ThumbnailList(QListWidget):
         delete_act.triggered.connect(self.delete_selected_files)
         menu.addAction(delete_act)
 
+        menu.addSeparator()
+
+        # Properties
+        properties_act = QAction("Properties", self)
+        properties_act.triggered.connect(self.show_properties_dialog)
+        menu.addAction(properties_act)
+
         # Show menu at cursor position
         menu.exec(self.mapToGlobal(position))
+
+    def copy_selected_paths(self):
+        """Copy the full file path(s) of the selected thumbnail(s) to the clipboard."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+        paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+        QApplication.clipboard().setText("\n".join(paths))
+
+    def start_link_list(self):
+        """Start a fresh link list seeded with the selected thumbnail path(s)."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+        paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+        reset_link_list(self, "\n".join(paths))
+
+    def add_to_link_list(self):
+        """Append the selected thumbnail path(s) to the link list."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+        paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+        append_to_link_list("\n".join(paths))
+
+    def rate_selected_images(self, rating):
+        """Set (or clear, if rating is None) the rating for selected thumbnails."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+
+        from rating_manager import get_rating_manager
+
+        mgr = get_rating_manager()
+        for item in selected_items:
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                mgr.set_rating(path, rating)
+
+        self._refresh_rating_display(selected_items)
+
+        main_win = self.parent_app or find_main_window()
+        if main_win and hasattr(main_win, "status_bar"):
+            if rating:
+                main_win.status_bar.showMessage(
+                    f"Rated {len(selected_items)} image(s) {rating}/5", 3000
+                )
+            else:
+                main_win.status_bar.showMessage(
+                    f"Cleared rating for {len(selected_items)} image(s)", 3000
+                )
+
+    def _refresh_rating_display(self, items):
+        """Update items' displayed text to reflect their current rating."""
+        from rating_manager import get_rating_manager, combine_display_text
+
+        mgr = get_rating_manager()
+        for item in items:
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if not path:
+                continue
+            base_text = item.data(Qt.ItemDataRole.UserRole + 1) or ""
+            rating = mgr.get_rating(path)
+            item.setText(combine_display_text(base_text, rating))
+
+    def refresh_rating_display_for_path(self, path):
+        """Update the thumbnail's displayed star suffix for a single path,
+        if it's currently shown. Called by the preview window after rating
+        an image there, so the thumbnail grid doesn't go stale until the
+        next full refresh_thumbnails()."""
+        if not path:
+            return
+        import os
+
+        target = os.path.normpath(os.path.abspath(path))
+        for i in range(self.count()):
+            item = self.item(i)
+            item_path = item.data(Qt.ItemDataRole.UserRole)
+            if item_path and os.path.normpath(os.path.abspath(item_path)) == target:
+                self._refresh_rating_display([item])
+                return
+
+    def show_properties_dialog(self):
+        """Show a Properties popup with path/format/dimensions for the selection."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+        paths = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+        dialog = ImagePropertiesDialog(paths, self)
+        dialog.exec()
 
     def get_selected_dest_folder(self):
         """Get the currently selected destination folder from main window."""
@@ -320,7 +728,9 @@ class ThumbnailList(QListWidget):
 
         current_index = main_win.dest_tree.currentIndex()
         if current_index.isValid():
-            return main_win.dest_model.filePath(current_index)
+            return main_win.dest_model.filePath(
+                main_win.dest_proxy.mapToSource(current_index)
+            )
         return main_win.dest_root_path
 
     def move_to_selected(self):
@@ -477,6 +887,69 @@ class ThumbnailList(QListWidget):
         dialog = AutoCaptionDialog(image_paths, self)
         dialog.exec()
 
+    def show_manual_caption_dialog(self):
+        """Show the manual caption dialog for selected images."""
+        import os
+
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+
+        image_paths = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in selected_items
+            if item.data(Qt.ItemDataRole.UserRole)
+        ]
+        if not image_paths:
+            return
+
+        dialog = ManualCaptionDialog(image_paths, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        text = dialog.caption_text
+        mode = dialog.mode
+        if not text and mode == "overwrite":
+            # Overwriting with empty string is allowed (clears the caption)
+            pass
+
+        written, skipped, errors = 0, 0, []
+        for img_path in image_paths:
+            base = os.path.splitext(img_path)[0]
+            txt_path = base + ".txt"
+            try:
+                existing = ""
+                if os.path.exists(txt_path) and mode != "overwrite":
+                    with open(txt_path, "r", encoding="utf-8") as fh:
+                        existing = fh.read()
+
+                if mode == "prepend":
+                    content = text + (" " if existing and text else "") + existing
+                elif mode == "append":
+                    content = existing + (" " if existing and text else "") + text
+                else:
+                    content = text
+
+                with open(txt_path, "w", encoding="utf-8") as fh:
+                    fh.write(content)
+                written += 1
+            except Exception as e:
+                errors.append(f"{os.path.basename(img_path)}: {e}")
+                skipped += 1
+
+        if errors:
+            QMessageBox.warning(
+                self,
+                "Caption Errors",
+                f"Wrote {written} caption(s). {skipped} failed:\n" + "\n".join(errors),
+            )
+        else:
+            main_win = self.parent_app or find_main_window()
+            if main_win and hasattr(main_win, "status_bar"):
+                main_win.status_bar.showMessage(
+                    f"Caption written to {written} file(s)  [{mode}]", 3000
+                )
+
     def show_enhance_dialog(self):
         """Show the enhancement dialog for selected images."""
         selected_items = self.selectedItems()
@@ -503,3 +976,32 @@ class ThumbnailList(QListWidget):
             main_win = self.parent_app or find_main_window()
             if main_win and hasattr(main_win, "refresh_thumbnails"):
                 main_win.refresh_thumbnails()
+
+    def show_join_images_dialog(self):
+        """Show the join-images dialog for 2-6 selected images."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+
+        image_paths = []
+        for item in selected_items:
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path:
+                image_paths.append(path)
+
+        if not (2 <= len(image_paths) <= 6):
+            QMessageBox.warning(
+                self, "Join Images", "Select between 2 and 6 images to join."
+            )
+            return
+
+        from join_images_dialog import JoinImagesDialog
+
+        dialog = JoinImagesDialog(image_paths, self)
+        # The dialog stays open after a join/move/delete (so the user can
+        # keep managing the source tiles) and refreshes the main grid live
+        # as those happen; refresh once more here in case it closes early.
+        dialog.exec()
+        main_win = self.parent_app or find_main_window()
+        if main_win and hasattr(main_win, "refresh_thumbnails"):
+            main_win.refresh_thumbnails()

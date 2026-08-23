@@ -29,6 +29,17 @@ class CropOverlay(QWidget):
         # Crop mode: None, "rectangle", or fixed sizes like "1024x1024"
         self.crop_mode = None
 
+        # For fixed-size modes: whether the box represents a constant number
+        # of real image pixels ("image", zoom-invariant — what you want for
+        # producing consistently-sized extracts) or a constant number of
+        # on-screen pixels ("screen" — the box shrinks/grows on screen as
+        # you zoom, tracking a variable amount of real image content).
+        self.align_mode = "image"
+
+        # True pixel dimensions of the source image (not the possibly-zoomed
+        # displayed pixmap) — needed to make "image" alignment zoom-invariant.
+        self.native_size = None
+
         # Current image size for ratio calculations
         self.image_size = None
 
@@ -42,9 +53,23 @@ class CropOverlay(QWidget):
         # Original rect for resize operations
         self.original_rect = QRect()
 
-    def set_crop_mode(self, mode, image_size):
-        """Set crop mode and initialize crop rectangle."""
+    def set_crop_mode(self, mode, image_size, native_size=None, align_mode="image"):
+        """Set crop mode and initialize crop rectangle.
+
+        native_size/align_mode only matter for fixed-size modes (e.g.
+        "1024x1024"): with align_mode="image" the box is resized on every
+        call to represent exactly that many *native* image pixels regardless
+        of the current zoom level; with "screen" it stays a constant number
+        of display pixels instead (so the real crop size varies with zoom).
+        """
+        # Reset stored ratios when the mode or alignment changes so we always
+        # initialise fresh geometry rather than restoring a stale shape.
+        if mode != self.crop_mode or align_mode != self.align_mode:
+            self.crop_ratios = None
+
         self.crop_mode = mode
+        self.align_mode = align_mode
+        self.native_size = native_size
         self.image_size = image_size
 
         if mode is None:
@@ -55,29 +80,56 @@ class CropOverlay(QWidget):
 
         self.show()
 
-        # If we have existing ratios and just resized, restore from ratios
-        if self.crop_ratios is not None:
-            self._apply_ratios_to_rect()
-        else:
-            # Initialize new crop
-            if mode == "rectangle":
-                # Rectangle mode: ~30% of image size, centered
-                width = int(image_size.width() * 0.3)
-                height = int(image_size.height() * 0.3)
+        if mode in ("rectangle", "square"):
+            # If we have existing ratios (same mode, window resize) restore them.
+            if self.crop_ratios is not None:
+                self._apply_ratios_to_rect()
             else:
-                # Fixed size mode like "1024x1024"
-                parts = mode.split("x")
-                width = int(parts[0])
-                height = int(parts[1])
+                if mode == "rectangle":
+                    width = int(image_size.width() * 0.3)
+                    height = int(image_size.height() * 0.3)
+                else:  # square
+                    side = int(min(image_size.width(), image_size.height()) * 0.3)
+                    width = height = side
+                x = (image_size.width() - width) // 2
+                y = (image_size.height() - height) // 2
+                self.crop_rect = QRect(x, y, width, height)
+                self._update_ratios_from_rect()
+        else:
+            # Fixed size mode like "1024x1024". Size is always recomputed
+            # fresh (never restored from stale ratios) so it stays accurate
+            # to the requested dimensions under align_mode="image"; only the
+            # box's center position is preserved across zoom changes.
+            parts = mode.split("x")
+            req_w, req_h = int(parts[0]), int(parts[1])
 
-                # Ensure it fits within image
-                width = min(width, image_size.width())
-                height = min(height, image_size.height())
+            if align_mode == "image" and native_size and not native_size.isEmpty():
+                scale_x = image_size.width() / native_size.width()
+                scale_y = image_size.height() / native_size.height()
+                width = max(1, round(req_w * scale_x))
+                height = max(1, round(req_h * scale_y))
+            else:
+                width = req_w
+                height = req_h
 
-            # Center the crop rectangle
-            x = (image_size.width() - width) // 2
-            y = (image_size.height() - height) // 2
+            width = min(width, image_size.width())
+            height = min(height, image_size.height())
 
+            if self.crop_ratios is not None:
+                cx = (
+                    self.crop_ratios[0] + self.crop_ratios[2] / 2
+                ) * image_size.width()
+                cy = (
+                    self.crop_ratios[1] + self.crop_ratios[3] / 2
+                ) * image_size.height()
+            else:
+                cx = image_size.width() / 2
+                cy = image_size.height() / 2
+
+            x = int(cx - width / 2)
+            y = int(cy - height / 2)
+            x = max(0, min(x, image_size.width() - width))
+            y = max(0, min(y, image_size.height() - height))
             self.crop_rect = QRect(x, y, width, height)
             self._update_ratios_from_rect()
 
@@ -156,36 +208,33 @@ class CropOverlay(QWidget):
         painter.setBrush(Qt.BrushStyle.NoBrush)  # No fill
         painter.drawRect(self.crop_rect)
 
-        # Draw resize handles for rectangle mode
-        if self.crop_mode == "rectangle":
+        # Draw resize handles for free-form modes
+        if self.crop_mode in ("rectangle", "square"):
             self.draw_handles(painter)
 
     def draw_handles(self, painter):
-        """Draw resize handles at corners and edge midpoints."""
+        """Draw resize handles. Square mode gets corners only; rectangle gets all eight."""
         painter.setBrush(QColor(255, 0, 0))
         size = self.HANDLE_SIZE
 
-        # Corner handles
         corners = [
             self.crop_rect.topLeft(),
             self.crop_rect.topRight(),
             self.crop_rect.bottomLeft(),
             self.crop_rect.bottomRight(),
         ]
-
         for corner in corners:
             painter.drawRect(corner.x() - size // 2, corner.y() - size // 2, size, size)
 
-        # Edge midpoint handles
-        edges = [
-            QPoint(self.crop_rect.center().x(), self.crop_rect.top()),  # Top
-            QPoint(self.crop_rect.center().x(), self.crop_rect.bottom()),  # Bottom
-            QPoint(self.crop_rect.left(), self.crop_rect.center().y()),  # Left
-            QPoint(self.crop_rect.right(), self.crop_rect.center().y()),  # Right
-        ]
-
-        for edge in edges:
-            painter.drawRect(edge.x() - size // 2, edge.y() - size // 2, size, size)
+        if self.crop_mode == "rectangle":
+            edges = [
+                QPoint(self.crop_rect.center().x(), self.crop_rect.top()),
+                QPoint(self.crop_rect.center().x(), self.crop_rect.bottom()),
+                QPoint(self.crop_rect.left(), self.crop_rect.center().y()),
+                QPoint(self.crop_rect.right(), self.crop_rect.center().y()),
+            ]
+            for edge in edges:
+                painter.drawRect(edge.x() - size // 2, edge.y() - size // 2, size, size)
 
     def mousePressEvent(self, event):
         """Handle mouse press for dragging and resizing."""
@@ -194,8 +243,8 @@ class CropOverlay(QWidget):
 
         pos = event.position().toPoint()
 
-        # Check if clicking on a handle (rectangle mode only)
-        if self.crop_mode == "rectangle":
+        # Check if clicking on a handle (free-form modes)
+        if self.crop_mode in ("rectangle", "square"):
             handle = self.get_handle_at_pos(pos)
             if handle:
                 self.dragging = True
@@ -220,16 +269,16 @@ class CropOverlay(QWidget):
             delta = pos - self.drag_start
 
             if self.drag_handle:
-                # Resizing
-                self.resize_crop_rect(delta)
+                if self.crop_mode == "square":
+                    self.resize_crop_rect_square(delta)
+                else:
+                    self.resize_crop_rect(delta)
             else:
-                # Moving
                 self.move_crop_rect(delta)
 
             self.update()
         else:
-            # Update cursor based on position
-            if self.crop_mode == "rectangle":
+            if self.crop_mode in ("rectangle", "square"):
                 handle = self.get_handle_at_pos(pos)
                 if handle:
                     self.set_cursor_for_handle(handle)
@@ -268,19 +317,22 @@ class CropOverlay(QWidget):
             ).contains(pos):
                 return (self.HANDLE_CORNER, corner_name)
 
-        # Check edges
-        edges = [
-            (QPoint(self.crop_rect.center().x(), self.crop_rect.top()), "top"),
-            (QPoint(self.crop_rect.center().x(), self.crop_rect.bottom()), "bottom"),
-            (QPoint(self.crop_rect.left(), self.crop_rect.center().y()), "left"),
-            (QPoint(self.crop_rect.right(), self.crop_rect.center().y()), "right"),
-        ]
-
-        for edge_pos, edge_name in edges:
-            if QRect(
-                edge_pos.x() - size // 2, edge_pos.y() - size // 2, size, size
-            ).contains(pos):
-                return (self.HANDLE_EDGE, edge_name)
+        # Edge handles only for rectangle mode (square uses corners only)
+        if self.crop_mode == "rectangle":
+            edges = [
+                (QPoint(self.crop_rect.center().x(), self.crop_rect.top()), "top"),
+                (
+                    QPoint(self.crop_rect.center().x(), self.crop_rect.bottom()),
+                    "bottom",
+                ),
+                (QPoint(self.crop_rect.left(), self.crop_rect.center().y()), "left"),
+                (QPoint(self.crop_rect.right(), self.crop_rect.center().y()), "right"),
+            ]
+            for edge_pos, edge_name in edges:
+                if QRect(
+                    edge_pos.x() - size // 2, edge_pos.y() - size // 2, size, size
+                ).contains(pos):
+                    return (self.HANDLE_EDGE, edge_name)
 
         return None
 
@@ -367,6 +419,53 @@ class CropOverlay(QWidget):
             new_rect.setRight(self.width())
         if new_rect.bottom() > self.height():
             new_rect.setBottom(self.height())
+
+        self.crop_rect = new_rect
+        self._update_ratios_from_rect()
+
+    def resize_crop_rect_square(self, delta):
+        """Resize crop rectangle maintaining a 1:1 aspect ratio.
+
+        Only corner handles are used.  The fixed corner (diagonally opposite
+        to the one being dragged) stays anchored.  The dominant axis of the
+        drag (whichever of dx/dy has the larger absolute value) determines the
+        new side length so the box feels natural to drag.
+        """
+        _, position = self.drag_handle
+        r = self.original_rect
+        dx, dy = delta.x(), delta.y()
+        min_side = 20
+
+        if position == "bottom_right":
+            # Fixed corner: top-left.
+            d = dx if abs(dx) >= abs(dy) else dy
+            side = max(min_side, r.width() + d)
+            side = min(side, self.width() - r.left(), self.height() - r.top())
+            new_rect = QRect(r.left(), r.top(), side, side)
+
+        elif position == "top_left":
+            # Fixed corner: bottom-right.
+            d = dx if abs(dx) >= abs(dy) else dy
+            side = max(min_side, r.width() - d)
+            side = min(side, r.right(), r.bottom())
+            new_rect = QRect(r.right() - side, r.bottom() - side, side, side)
+
+        elif position == "bottom_left":
+            # Fixed corner: top-right. Left edge moves (−dx grows), bottom moves (+dy grows).
+            d = -dx if abs(dx) >= abs(dy) else dy
+            side = max(min_side, r.width() + d)
+            side = min(side, r.right(), self.height() - r.top())
+            new_rect = QRect(r.right() - side, r.top(), side, side)
+
+        elif position == "top_right":
+            # Fixed corner: bottom-left. Right edge moves (+dx grows), top moves (−dy grows).
+            d = dx if abs(dx) >= abs(dy) else -dy
+            side = max(min_side, r.width() + d)
+            side = min(side, self.width() - r.left(), r.bottom())
+            new_rect = QRect(r.left(), r.bottom() - side, side, side)
+
+        else:
+            return
 
         self.crop_rect = new_rect
         self._update_ratios_from_rect()

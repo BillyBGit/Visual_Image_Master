@@ -1,0 +1,20 @@
+{
+  "name": "Unit Tests for img_sort - get_caption_generator",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test get_caption_generator singleton behavior",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `get_caption_generator`  \n**Size**: 6 lines, complexity 2 (low)\n\n```python\ndef get_caption_generator() -> CaptionGenerator:\n    \"\"\"Get or create the singleton caption generator instance.\"\"\"\n    global _generator_instance\n    if _generator_instance is None:\n        _generator_instance = CaptionGenerator()\n    return _generator_instance\n```\n\n---\n\n### Project-Specific Setup Notes\n\nThis is a PyQt6 GUI application. Critical setup rules:\n- tests/conftest.py sets QT_QPA_PLATFORM=offscreen and creates a QApplication — do NOT create QApplication in test files\n- tests/unit/conftest.py adds the project root to sys.path — import classes directly, e.g. `from autocaption_dialog import AutoCaptionDialog`\n- Do NOT import torch, torchvision, transformers, or PIL directly in tests — mock them using patch('caption_generator.torch') etc.\n- ML model loading functions (load_florence, load_wd14, etc.) must have torch/transformers mocked — they will fail or hang if real models are loaded\n- Use patch.object(instance, 'method_name') to mock self.X() calls within the class under test\n- Qt signals (emit, connect) can be called safely in offscreen mode — no need to mock them\n\n---\n\nCreate file: tests/unit/test_caption_generator_get_caption_generator.py\n\nTests for the get_caption_generator function which provides a singleton CaptionGenerator instance.\n\nIMPORTANT: The function has no parameters and returns a CaptionGenerator instance. It does NOT take any arguments or configuration.\nImport: from caption_generator import get_caption_generator, CaptionGenerator\n\n1. test_get_caption_generator_returns_instance — Call get_caption_generator(). Assert the return value is an instance of CaptionGenerator.\n2. test_get_caption_generator_singleton — Call get_caption_generator() twice. Assert both calls return the same instance (identity comparison).\n3. test_get_caption_generator_initialization — Call get_caption_generator() and verify the returned instance has all expected attributes (florence_model=None, wd14_model=None, etc.).\n4. test_get_caption_generator_no_side_effects — Call get_caption_generator() multiple times. Assert no additional CaptionGenerator instances are created.\n5. test_get_caption_generator_thread_safety — Call get_caption_generator() from multiple threads concurrently. Assert all threads receive the same instance.\n6. test_get_caption_generator_global_state — Verify the function uses a global variable _generator_instance to maintain the singleton.\n7. test_get_caption_generator_initial_state — Call get_caption_generator() and verify the returned instance has _florence_loaded=False and _wd14_loaded=False initially.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_get_caption_generator.py -v",
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_get_caption_generator.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": false
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-13T10:00:04.097Z"
+  }
+}

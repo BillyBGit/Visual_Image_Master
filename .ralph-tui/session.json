@@ -1,24 +1,24 @@
 {
   "version": 1,
-  "sessionId": "b0bb6ced-72c1-47d2-b0df-c92f3f4f4a50",
-  "status": "running",
-  "startedAt": "2026-03-05T22:38:02.261Z",
-  "updatedAt": "2026-03-05T23:15:59.499Z",
-  "currentIteration": 2,
+  "sessionId": "b7bbed59-3c30-4978-b400-f0651c86f40c",
+  "status": "interrupted",
+  "startedAt": "2026-03-24T16:50:00.505Z",
+  "updatedAt": "2026-03-24T18:18:15.971Z",
+  "currentIteration": 14,
   "maxIterations": 50,
-  "tasksCompleted": 1,
+  "tasksCompleted": 0,
   "isPaused": false,
   "agentPlugin": "ollama-bridge",
   "trackerState": {
     "plugin": "json",
-    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog_create_quality_filter_section.json",
+    "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_caption_window_CaptionWindow__on_caption_changed.json",
     "totalTasks": 2,
     "tasks": [
       {
         "id": "US-001",
-        "title": "Test AdvancedFilterDialog.create_quality_filter_section",
-        "status": "completed",
-        "completedInSession": true
+        "title": "Test CaptionWindow._on_caption_changed",
+        "status": "open",
+        "completedInSession": false
       },
       {
         "id": "US-002",
@@ -33,21 +33,141 @@
       "iteration": 1,
       "status": "completed",
       "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_quality_filter_section",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
       "taskCompleted": false,
-      "durationMs": 2273257,
-      "startedAt": "2026-03-05T22:38:02.306Z",
-      "endedAt": "2026-03-05T23:15:55.563Z"
+      "durationMs": 362791,
+      "startedAt": "2026-03-24T16:50:00.521Z",
+      "endedAt": "2026-03-24T16:56:03.312Z"
     },
     {
       "iteration": 2,
       "status": "completed",
       "taskId": "US-001",
-      "taskTitle": "Test AdvancedFilterDialog.create_quality_filter_section",
-      "taskCompleted": true,
-      "durationMs": 894,
-      "startedAt": "2026-03-05T23:15:56.568Z",
-      "endedAt": "2026-03-05T23:15:57.462Z"
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362422,
+      "startedAt": "2026-03-24T16:56:04.317Z",
+      "endedAt": "2026-03-24T17:02:06.739Z"
+    },
+    {
+      "iteration": 3,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362491,
+      "startedAt": "2026-03-24T17:02:07.741Z",
+      "endedAt": "2026-03-24T17:08:10.232Z"
+    },
+    {
+      "iteration": 4,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362522,
+      "startedAt": "2026-03-24T17:08:11.238Z",
+      "endedAt": "2026-03-24T17:14:13.760Z"
+    },
+    {
+      "iteration": 5,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362404,
+      "startedAt": "2026-03-24T17:14:14.762Z",
+      "endedAt": "2026-03-24T17:20:17.166Z"
+    },
+    {
+      "iteration": 6,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362773,
+      "startedAt": "2026-03-24T17:20:18.168Z",
+      "endedAt": "2026-03-24T17:26:20.941Z"
+    },
+    {
+      "iteration": 7,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362575,
+      "startedAt": "2026-03-24T17:26:21.943Z",
+      "endedAt": "2026-03-24T17:32:24.518Z"
+    },
+    {
+      "iteration": 8,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362705,
+      "startedAt": "2026-03-24T17:32:25.521Z",
+      "endedAt": "2026-03-24T17:38:28.226Z"
+    },
+    {
+      "iteration": 9,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362403,
+      "startedAt": "2026-03-24T17:38:29.230Z",
+      "endedAt": "2026-03-24T17:44:31.633Z"
+    },
+    {
+      "iteration": 10,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362473,
+      "startedAt": "2026-03-24T17:44:32.637Z",
+      "endedAt": "2026-03-24T17:50:35.110Z"
+    },
+    {
+      "iteration": 11,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362515,
+      "startedAt": "2026-03-24T17:50:36.113Z",
+      "endedAt": "2026-03-24T17:56:38.628Z"
+    },
+    {
+      "iteration": 12,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362365,
+      "startedAt": "2026-03-24T17:56:39.630Z",
+      "endedAt": "2026-03-24T18:02:41.995Z"
+    },
+    {
+      "iteration": 13,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362473,
+      "startedAt": "2026-03-24T18:02:42.996Z",
+      "endedAt": "2026-03-24T18:08:45.469Z"
+    },
+    {
+      "iteration": 14,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Test CaptionWindow._on_caption_changed",
+      "taskCompleted": false,
+      "durationMs": 362365,
+      "startedAt": "2026-03-24T18:08:46.471Z",
+      "endedAt": "2026-03-24T18:14:48.836Z"
     }
   ],
   "skippedTaskIds": [],

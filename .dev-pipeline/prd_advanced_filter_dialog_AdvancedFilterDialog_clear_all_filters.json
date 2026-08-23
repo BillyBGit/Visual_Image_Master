@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.clear_all_filters",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog.clear_all_filters functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.clear_all_filters`  \n**Size**: 31 lines, complexity 3 (low)\n\n```python\n    def clear_all_filters(self):\n        \"\"\"Clear all filter selections.\"\"\"\n        # Face detection\n        self.face_enable_cb.setChecked(False)\n        self.face_count_slider.setValue(0)\n\n        # Object detection\n        self.object_enable_cb.setChecked(False)\n        for cb in self.object_category_cbs.values():\n            cb.setChecked(False)\n        self.object_conf_slider.setValue(50)\n\n        # Scene recognition\n        self.scene_enable_cb.setChecked(False)\n        for cb in self.scene_group_cbs.values():\n            cb.setChecked(False)\n        self.scene_conf_slider.setValue(30)\n\n        # Quality\n        self.quality_enable_cb.setChecked(False)\n        self.quality_score_slider.setValue(60)\n        self.quality_sharp_slider.setValue(40)\n        self.quality_bright_min_slider.setValue(50)\n        self.quality_bright_max_slider.setValue(200)\n\n        # File size\n        self.filesize_enable_cb.setChecked(False)\n        self.filesize_min_slider.setValue(0)\n        self.filesize_max_slider.setValue(10240)\n\n        self.update_filter_settings()\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_clear_all_filters.py\n\nTests for AdvancedFilterDialog.clear_all_filters() method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_clear_all_filters_resets_face_detection — Create AdvancedFilterDialog(). Call clear_all_filters(). Assert face_enable_cb.isChecked() is False and face_count_slider.value() is 0.\n2. test_clear_all_filters_resets_object_detection — Create AdvancedFilterDialog(). Call clear_all_filters(). Assert object_enable_cb.isChecked() is False, all object category checkboxes are unchecked, and object_conf_slider.value() is 50.\n3. test_clear_all_filters_resets_scene_recognition — Create AdvancedFilterDialog(). Call clear_all_filters(). Assert scene_enable_cb.isChecked() is False, all scene group checkboxes are unchecked, and scene_conf_slider.value() is 30.\n4. test_clear_all_filters_resets_quality_filter — Create AdvancedFilterDialog(). Call clear_all_filters(). Assert quality_enable_cb.isChecked() is False, quality_score_slider.value() is 60, quality_sharp_slider.value() is 40, quality_bright_min_slider.value() is 50, and quality_bright_max_slider.value() is 200.\n5. test_clear_all_filters_resets_filesize_filter — Create AdvancedFilterDialog(). Call clear_all_filters(). Assert filesize_enable_cb.isChecked() is False, filesize_min_slider.value() is 0, and filesize_max_slider.value() is 10240.\n6. test_clear_all_filters_updates_filter_settings — Create AdvancedFilterDialog(). Call clear_all_filters(). Assert get_filter_settings() returns default values for all filter settings.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_clear_all_filters.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_clear_all_filters.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T02:34:49.487Z"
+  }
+}

@@ -1,14 +1,15 @@
 {
-  "id": "b0bb6ced-72c1-47d2-b0df-c92f3f4f4a50",
-  "status": "running",
-  "startedAt": "2026-03-05T22:38:01.892Z",
-  "updatedAt": "2026-03-05T23:15:57.595Z",
+  "id": "b7bbed59-3c30-4978-b400-f0651c86f40c",
+  "status": "interrupted",
+  "startedAt": "2026-03-24T16:50:00.221Z",
+  "updatedAt": "2026-03-24T18:18:15.977Z",
   "agentPlugin": "ollama-bridge",
   "trackerPlugin": "json",
-  "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_advanced_filter_dialog_AdvancedFilterDialog_create_quality_filter_section.json",
-  "currentIteration": 2,
+  "prdPath": "/home/hephaestus/Documents/scripts/img_sort/.dev-pipeline/prd_caption_window_CaptionWindow__on_caption_changed.json",
+  "currentIteration": 14,
   "maxIterations": 50,
   "totalTasks": 0,
-  "tasksCompleted": 1,
-  "cwd": "/home/hephaestus/Documents/scripts/img_sort"
+  "tasksCompleted": 0,
+  "cwd": "/home/hephaestus/Documents/scripts/img_sort",
+  "endedAt": "2026-03-24T18:18:15.975Z"
 }

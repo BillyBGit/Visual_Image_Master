@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog._start_generation",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog._start_generation functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog._start_generation`  \n**Size**: 16 lines, complexity 1 (low)\n\n```python\n    def _start_generation(self):\n        \"\"\"Start the caption generation process.\"\"\"\n        self._save_settings()\n\n        self.current_index = 0\n        self.results = []\n\n        # Update UI\n        self.generate_btn.setEnabled(False)\n        self.cancel_btn.setEnabled(True)\n        self.close_btn.setEnabled(False)\n        self.backend_combo.setEnabled(False)\n        self.progress_bar.setValue(0)\n\n        # Start processing first image\n        self._process_next_image()\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog__start_generation.py\n\nTests for AutoCaptionDialog._start_generation method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None).\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_start_generation_initializes_state — Create AutoCaptionDialog with mock image paths. Call _start_generation(). Assert current_index is 0, results is empty list, and UI buttons are disabled/enabled correctly.\n2. test_start_generation_saves_settings — Create AutoCaptionDialog with mock. Call _start_generation(). Assert _save_settings was called.\n3. test_start_generation_starts_processing — Create AutoCaptionDialog with mock. Call _start_generation(). Assert _process_next_image was called.\n4. test_start_generation_disables_ui_elements — Create AutoCaptionDialog with mock. Call _start_generation(). Assert generate_btn is disabled, cancel_btn is enabled, close_btn is disabled, and backend_combo is disabled.\n5. test_start_generation_resets_progress — Create AutoCaptionDialog with mock. Call _start_generation(). Assert progress_bar value is 0.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__start_generation.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__start_generation.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T02:31:37.033Z"
+  }
+}

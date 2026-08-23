@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - BlendWorker.__init__",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test BlendWorker initialization with valid parameters",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `BlendWorker.__init__`  \n**Size**: 16 lines, complexity 1 (low)\n\n```python\n    def __init__(\n        self,\n        generator,\n        ollama_url: str,\n        model: str,\n        instructions: str,\n        generated_caption: str,\n        saved_caption: str,\n    ):\n        super().__init__()\n        self.generator = generator\n        self.ollama_url = ollama_url\n        self.model = model\n        self.instructions = instructions\n        self.generated_caption = generated_caption\n        self.saved_caption = saved_caption\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_BlendWorker___init__.py\n\nTests for BlendWorker.__init__ method.\n\nIMPORTANT: BlendWorker constructor is BlendWorker(generator, ollama_url, model, instructions, generated_caption, saved_caption).\nImport: from caption_generator import BlendWorker\n\n1. test_init_sets_generator — Create BlendWorker with mock generator. Assert self.generator equals the passed generator.\n2. test_init_sets_ollama_url — Create BlendWorker with mock generator and ollama_url='http://localhost:11434'. Assert self.ollama_url equals 'http://localhost:11434'.\n3. test_init_sets_model — Create BlendWorker with mock generator and model='llava'. Assert self.model equals 'llava'.\n4. test_init_sets_instructions — Create BlendWorker with mock generator and instructions='Combine these captions'. Assert self.instructions equals 'Combine these captions'.\n5. test_init_sets_generated_caption — Create BlendWorker with mock generator and generated_caption='A cat sitting'. Assert self.generated_caption equals 'A cat sitting'.\n6. test_init_sets_saved_caption — Create BlendWorker with mock generator and saved_caption='A black cat'. Assert self.saved_caption equals 'A black cat'.\n7. test_init_inherits_qthread — Create BlendWorker with mock generator. Assert isinstance(instance, QThread).\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_BlendWorker___init__.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_BlendWorker___init__.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T09:28:51.895Z"
+  }
+}

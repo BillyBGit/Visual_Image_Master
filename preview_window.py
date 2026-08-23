@@ -16,12 +16,15 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QDialogButtonBox,
     QFileDialog,
+    QMenu,
+    QDockWidget,
+    QTextEdit,
 )
 from PySide6.QtCore import Qt, QTimer, QSize, QRect
 from PySide6.QtGui import QAction, QPixmap, QActionGroup, QIcon, QIntValidator
 from PIL import Image
 
-from utils import find_main_window
+from utils import find_main_window, reset_link_list, append_to_link_list
 from crop_overlay import CropOverlay
 
 
@@ -58,13 +61,47 @@ class ImagePreviewWindow(QMainWindow):
             else False
         )
 
+        # Fixed-size crop alignment: "image" (zoom-invariant real-pixel size,
+        # the useful default for producing consistently-sized extracts) or
+        # "screen" (constant on-screen size; real crop size varies with zoom).
+        self.crop_align_mode = (
+            getattr(self.parent_app, "preview_crop_align_mode", "image")
+            if self.parent_app
+            else "image"
+        )
+
+        # Dedicated folder for extracted crops. Empty means "next to the
+        # original". Persisted on the main window so it survives across
+        # images and across closing/reopening this window.
+        self.extract_save_dir = (
+            getattr(self.parent_app, "preview_extract_save_dir", "")
+            if self.parent_app
+            else ""
+        )
+
         # 4. UI Setup
         self.scroll_area = QScrollArea()
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.image_label.customContextMenuRequested.connect(self.show_context_menu)
         self.scroll_area.setWidget(self.image_label)
         self.scroll_area.setWidgetResizable(True)
         self.setCentralWidget(self.scroll_area)
+
+        # ComfyUI info dock (LoRAs + prompt text embedded in the PNG) - only
+        # populated/shown when the main window's "Show ComfyUI Info" toggle
+        # is on; hidden by default and whenever there's nothing to show
+        self.comfyui_dock = QDockWidget("ComfyUI Info", self)
+        self.comfyui_dock.setAllowedAreas(
+            Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.BottomDockWidgetArea
+        )
+        self.comfyui_info_text = QTextEdit()
+        self.comfyui_info_text.setReadOnly(True)
+        self.comfyui_dock.setWidget(self.comfyui_info_text)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.comfyui_dock)
+        self.comfyui_dock.hide()
 
         # Status bar with clickable label
         self.status_bar = QStatusBar()
@@ -79,14 +116,30 @@ class ImagePreviewWindow(QMainWindow):
         self.zoom_label.setStyleSheet("QLabel { padding: 2px; margin-left: 10px; }")
         self.status_bar.addWidget(self.zoom_label)
 
+        # Rating display (press 1-5 to rate, 0 to clear)
+        self.rating_label = QLabel()
+        self.rating_label.setStyleSheet(
+            "QLabel { padding: 2px; margin-left: 10px; color: #e8b923; }"
+        )
+        self.rating_label.setToolTip("Press 1-5 to rate this image, 0 to clear")
+        self.status_bar.addWidget(self.rating_label)
+
+        # Extract save-folder display
+        self.save_dir_label = QLabel()
+        self.save_dir_label.setStyleSheet("QLabel { padding: 2px; margin-left: 10px; }")
+        self.status_bar.addPermanentWidget(self.save_dir_label)
+        self._update_save_dir_label()
+
         self.setStatusBar(self.status_bar)
 
         # 5. Setup Menu and Sync Checkbox
         self.setup_menu()
-        if hasattr(self, "fit_act"):
-            self.fit_act.setChecked(self.fit_to_window)
-        if hasattr(self, "native_act"):
-            self.native_act.setChecked(not self.fit_to_window)
+        if self.fit_to_window:
+            if hasattr(self, "fit_act"):
+                self.fit_act.setChecked(True)
+        else:
+            if hasattr(self, "native_act"):
+                self.native_act.setChecked(True)
 
         # 6. Handle Window Geometry BEFORE loading image
         saved_geo = (
@@ -113,14 +166,19 @@ class ImagePreviewWindow(QMainWindow):
         menubar = self.menuBar()
         options_menu = menubar.addMenu("Options")
 
-        # Fit to Window Action
+        # Fit / Native are mutually exclusive — use an action group so Qt
+        # manages the checked state automatically.
+        self.view_action_group = QActionGroup(self)
+        self.view_action_group.setExclusive(True)
+
         self.fit_act = QAction("Fit to Window", self, checkable=True)
         self.fit_act.triggered.connect(self.toggle_fit_mode)
+        self.view_action_group.addAction(self.fit_act)
         options_menu.addAction(self.fit_act)
 
-        # Native Size Action
         self.native_act = QAction("Native Size", self, checkable=True)
         self.native_act.triggered.connect(self.set_native_size)
+        self.view_action_group.addAction(self.native_act)
         options_menu.addAction(self.native_act)
 
         options_menu.addSeparator()
@@ -182,6 +240,12 @@ class ImagePreviewWindow(QMainWindow):
         self.crop_action_group.addAction(rect_act)
         crop_menu.addAction(rect_act)
 
+        # Square crop (free-resize, 1:1 constrained)
+        square_act = QAction("Square", self, checkable=True)
+        square_act.triggered.connect(lambda: self.set_crop_mode("square"))
+        self.crop_action_group.addAction(square_act)
+        crop_menu.addAction(square_act)
+
         crop_menu.addSeparator()
 
         # Fixed size crops
@@ -193,15 +257,59 @@ class ImagePreviewWindow(QMainWindow):
 
         crop_menu.addSeparator()
 
+        # Fixed-size alignment: real image pixels (zoom-invariant) vs a
+        # constant number of on-screen pixels.
+        align_menu = crop_menu.addMenu("Fixed Size Aligns To")
+        self.align_action_group = QActionGroup(self)
+        self.align_action_group.setExclusive(True)
+
+        align_image_act = QAction("Image (constant real size)", self, checkable=True)
+        align_image_act.setChecked(self.crop_align_mode == "image")
+        align_image_act.triggered.connect(lambda: self._set_crop_align_mode("image"))
+        self.align_action_group.addAction(align_image_act)
+        align_menu.addAction(align_image_act)
+
+        align_screen_act = QAction(
+            "Screen (constant on-screen size)", self, checkable=True
+        )
+        align_screen_act.setChecked(self.crop_align_mode == "screen")
+        align_screen_act.triggered.connect(lambda: self._set_crop_align_mode("screen"))
+        self.align_action_group.addAction(align_screen_act)
+        align_menu.addAction(align_screen_act)
+
+        crop_menu.addSeparator()
+
         # Clear crop
         clear_act = QAction("Clear Crop", self)
         clear_act.triggered.connect(self.clear_crop)
         crop_menu.addAction(clear_act)
 
+        crop_menu.addSeparator()
+
+        # Extract crop to new file (original untouched)
+        self.extract_act = QAction("Extract Crop to New File", self)
+        self.extract_act.setShortcut("Ctrl+E")
+        self.extract_act.triggered.connect(self.extract_crop)
+        crop_menu.addAction(self.extract_act)
+
+        # Save crop over original
+        self.save_crop_act = QAction("Save Crop over Original", self)
+        self.save_crop_act.setShortcut("Ctrl+S")
+        self.save_crop_act.triggered.connect(self.save_crop)
+        crop_menu.addAction(self.save_crop_act)
+
+        crop_menu.addSeparator()
+
+        set_save_dir_act = QAction("Set Extract Save Folder...", self)
+        set_save_dir_act.triggered.connect(self._choose_extract_save_dir)
+        crop_menu.addAction(set_save_dir_act)
+
+        clear_save_dir_act = QAction("Clear Extract Save Folder", self)
+        clear_save_dir_act.triggered.connect(self._clear_extract_save_dir)
+        crop_menu.addAction(clear_save_dir_act)
+
     def toggle_fit_mode(self, checked):
         self.fit_to_window = checked
-        if hasattr(self, "native_act"):
-            self.native_act.setChecked(not checked)
         self.update_image()
         self.update_zoom_display()
 
@@ -214,10 +322,6 @@ class ImagePreviewWindow(QMainWindow):
 
     def set_native_size(self):
         self.fit_to_window = False
-        if hasattr(self, "fit_act"):
-            self.fit_act.setChecked(False)
-        if hasattr(self, "native_act"):
-            self.native_act.setChecked(True)
         self.zoom_factor = 1.0
         self.update_image()
         self.update_zoom_display()
@@ -242,18 +346,55 @@ class ImagePreviewWindow(QMainWindow):
     def set_crop_mode(self, mode):
         """Set crop mode and show overlay."""
         self.crop_mode = mode
-
-        # Disable fit-to-window when cropping
-        if mode and self.fit_to_window:
-            self.fit_to_window = False
-            self.zoom_factor = 1.0
-            if hasattr(self, "fit_act"):
-                self.fit_act.setChecked(False)
-            if hasattr(self, "native_act"):
-                self.native_act.setChecked(True)
-            self.update_image()
-
         self.update_crop_overlay()
+
+    def _set_crop_align_mode(self, mode):
+        """Switch whether fixed-size crop boxes track real image pixels or screen pixels."""
+        self.crop_align_mode = mode
+        if self.crop_mode:
+            self.update_crop_overlay()
+
+        main_win = self.parent_app or find_main_window()
+        if main_win:
+            main_win.preview_crop_align_mode = mode
+            main_win.write_settings()
+
+    def _choose_extract_save_dir(self):
+        """Prompt for a dedicated folder to save extracted crops into."""
+        start = self.extract_save_dir
+        if not start and self.image_list:
+            start = os.path.dirname(self.image_list[self.current_index])
+        start = start or os.path.expanduser("~")
+
+        path = QFileDialog.getExistingDirectory(
+            self, "Select Extract Save Folder", start
+        )
+        if not path:
+            return
+
+        self.extract_save_dir = path
+        self._update_save_dir_label()
+
+        main_win = self.parent_app or find_main_window()
+        if main_win:
+            main_win.preview_extract_save_dir = path
+            main_win.write_settings()
+
+    def _clear_extract_save_dir(self):
+        """Revert extracted crops to saving next to the original image."""
+        self.extract_save_dir = ""
+        self._update_save_dir_label()
+
+        main_win = self.parent_app or find_main_window()
+        if main_win:
+            main_win.preview_extract_save_dir = ""
+            main_win.write_settings()
+
+    def _update_save_dir_label(self):
+        if self.extract_save_dir:
+            self.save_dir_label.setText(f"Save to: {self.extract_save_dir}")
+        else:
+            self.save_dir_label.setText("Save to: (next to original)")
 
     def clear_crop(self):
         """Clear crop selection."""
@@ -290,7 +431,12 @@ class ImagePreviewWindow(QMainWindow):
 
         # Resize overlay to match image label
         self.crop_overlay.setGeometry(self.image_label.rect())
-        self.crop_overlay.set_crop_mode(self.crop_mode, image_size)
+        self.crop_overlay.set_crop_mode(
+            self.crop_mode,
+            image_size,
+            native_size=self.original_pixmap.size(),
+            align_mode=self.crop_align_mode,
+        )
         self.crop_overlay.raise_()
         self.update_crop_dimensions_display()
 
@@ -443,18 +589,29 @@ class ImagePreviewWindow(QMainWindow):
                 return
 
     def load_image(self):
-        if not self.image_list:
-            self.image_label.setText("No images to display")
+        if not self.image_list or self.current_index >= len(self.image_list):
+            self.original_pixmap = QPixmap()
+            self.image_label.setStyleSheet(
+                "QLabel { color: red; font-size: 24px; font-weight: bold; }"
+            )
+            # setPixmap()/setText() are mutually exclusive on QLabel - whichever
+            # is called last wins, so clear the pixmap before setting the text
             self.image_label.setPixmap(QPixmap())
+            self.image_label.setText("NO IMAGES TO DISPLAY")
             self.setWindowTitle("Preview: Empty")
             self.update_zoom_display()
+            self.comfyui_dock.hide()
+            self.rating_label.setText("")
             return
 
+        self.image_label.setStyleSheet("")
         path = self.image_list[self.current_index]
         self.setWindowTitle(
             f"Preview [{self.current_index + 1}/{len(self.image_list)}]: {os.path.basename(path)}"
         )
         self.original_pixmap = QPixmap(path)
+        self._update_comfyui_panel(path)
+        self._update_rating_label(path)
 
         # Reset zoom when loading new image in non-fit mode
         if not self.fit_to_window:
@@ -465,6 +622,62 @@ class ImagePreviewWindow(QMainWindow):
 
         self.update_image()
         self.update_zoom_display()
+
+    def _update_comfyui_panel(self, path):
+        """Populate/show the ComfyUI info dock, or hide it if disabled or empty."""
+        main_win = self.parent_app
+        enabled = bool(
+            main_win
+            and getattr(main_win, "comfyui_info_act", None)
+            and main_win.comfyui_info_act.isChecked()
+        )
+        if not enabled:
+            self.comfyui_dock.hide()
+            return
+
+        from comfyui_metadata import extract_comfyui_info
+
+        info = extract_comfyui_info(path)
+        if not info:
+            self.comfyui_info_text.setPlainText(
+                "No ComfyUI metadata found in this image."
+            )
+            self.comfyui_dock.show()
+            return
+
+        lines = []
+        lines.append(f"Model: {info.get('model_name') or '(not detected)'}")
+        lines.append("")
+        if info["loras"]:
+            lines.append("LoRAs:")
+            for lora in info["loras"]:
+                strengths = []
+                if lora["strength_model"] is not None:
+                    strengths.append(f"model {lora['strength_model']}")
+                if lora["strength_clip"] is not None:
+                    strengths.append(f"clip {lora['strength_clip']}")
+                suffix = f" ({', '.join(strengths)})" if strengths else ""
+                lines.append(f"  - {lora['name']}{suffix}")
+        else:
+            lines.append("LoRAs: none found")
+
+        lines.append("")
+        lines.append("Positive Prompt:")
+        lines.append(info["positive_prompt"] or "(none found)")
+
+        if info["negative_prompt"]:
+            lines.append("")
+            lines.append("Negative Prompt:")
+            lines.append(info["negative_prompt"])
+
+        if info["other_prompts"]:
+            lines.append("")
+            lines.append("Other Text:")
+            for text in info["other_prompts"]:
+                lines.append(f"  - {text}")
+
+        self.comfyui_info_text.setPlainText("\n".join(lines))
+        self.comfyui_dock.show()
 
     def update_image(self):
         if not self.image_list or self.original_pixmap.isNull():
@@ -646,7 +859,11 @@ class ImagePreviewWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Could not rotate image:\n{e}")
 
     def generate_extract_filename(self, original_path):
-        """Generate a unique filename for extracted crop with _e0, _e1, etc. suffix."""
+        """Generate a unique filename for extracted crop with _e0, _e1, etc. suffix.
+
+        Used when saving next to the original — the suffix distinguishes the
+        extract from its sibling source file in the same folder.
+        """
         directory = os.path.dirname(original_path)
         basename = os.path.basename(original_path)
         name, ext = os.path.splitext(basename)
@@ -659,6 +876,29 @@ class ImagePreviewWindow(QMainWindow):
             if not os.path.exists(new_path):
                 return new_path
             n += 1
+
+    def _resolve_extract_target(self, original_path):
+        """Return a unique destination path for the extracted crop.
+
+        Dedicated save folder (self.extract_save_dir): keeps the original's
+        filename, de-duplicating with a "_N" suffix on collision (matching
+        the app's smart_transfer convention) since there's no longer a
+        same-named sibling source file to distinguish from.
+
+        No dedicated folder: falls back to the existing next-to-original
+        "_eN" naming.
+        """
+        if self.extract_save_dir and os.path.isdir(self.extract_save_dir):
+            basename = os.path.basename(original_path)
+            name, ext = os.path.splitext(basename)
+            candidate = os.path.join(self.extract_save_dir, basename)
+            n = 1
+            while os.path.exists(candidate):
+                candidate = os.path.join(self.extract_save_dir, f"{name}_{n}{ext}")
+                n += 1
+            return candidate
+
+        return self.generate_extract_filename(original_path)
 
     def extract_crop(self):
         """Extract the cropped area to a new file, leaving the original intact."""
@@ -701,7 +941,7 @@ class ImagePreviewWindow(QMainWindow):
         image_path = self.image_list[self.current_index]
 
         # Generate automatic filename
-        auto_filename = self.generate_extract_filename(image_path)
+        auto_filename = self._resolve_extract_target(image_path)
 
         # Determine final filename
         if self.autoname_extract:
@@ -877,20 +1117,6 @@ class ImagePreviewWindow(QMainWindow):
         ):
             self.close()
         elif (
-            event.key() == Qt.Key.Key_S
-            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
-        ):
-            # Ctrl+S to save crop
-            if self.crop_mode:
-                self.save_crop()
-        elif (
-            event.key() == Qt.Key.Key_E
-            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
-        ):
-            # Ctrl+E to extract crop
-            if self.crop_mode:
-                self.extract_crop()
-        elif (
             event.key() == Qt.Key.Key_R
             and event.modifiers() == Qt.KeyboardModifier.ControlModifier
         ):
@@ -918,8 +1144,60 @@ class ImagePreviewWindow(QMainWindow):
             if self.image_list:
                 self.current_index = len(self.image_list) - 1
                 self.load_image()
+        elif Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_5:
+            self.rate_current_image(event.key() - Qt.Key.Key_0)
+        elif event.key() == Qt.Key.Key_0:
+            self.rate_current_image(None)
         else:
             super().keyPressEvent(event)
+
+    def rate_current_image(self, rating):
+        """Set (or clear, if rating is None) the rating for the current image.
+
+        Rating auto-advances to the next image, for quickly working through
+        a batch; clearing stays put.
+        """
+        if not self.image_list or self.current_index >= len(self.image_list):
+            return
+
+        path = self.image_list[self.current_index]
+
+        from rating_manager import get_rating_manager
+
+        get_rating_manager().set_rating(path, rating)
+        self._update_rating_label(path)
+
+        if self.parent_app and hasattr(self.parent_app, "thumb_list"):
+            self.parent_app.thumb_list.refresh_rating_display_for_path(path)
+
+        if rating:
+            self.status_bar.showMessage(
+                f"Rated {os.path.basename(path)} {rating}/5", 2000
+            )
+            if len(self.image_list) > 1:
+                self.current_index = (self.current_index + 1) % len(self.image_list)
+                self.load_image()
+        else:
+            self.status_bar.showMessage(
+                f"Cleared rating for {os.path.basename(path)}", 2000
+            )
+
+    def _update_rating_label(self, path):
+        show = bool(
+            self.parent_app
+            and getattr(self.parent_app, "preview_rating_display_act", None)
+            and self.parent_app.preview_rating_display_act.isChecked()
+        )
+        if not show or not path:
+            self.rating_label.setText("")
+            self.rating_label.setVisible(False)
+            return
+
+        from rating_manager import format_stars, get_rating_manager
+
+        rating = get_rating_manager().get_rating(path)
+        self.rating_label.setVisible(True)
+        self.rating_label.setText(format_stars(rating) if rating else "")
 
     def resizeEvent(self, event):
         """Handle preview window resize - triggers image update for fit mode."""
@@ -954,6 +1232,116 @@ class ImagePreviewWindow(QMainWindow):
         else:
             # Pass to scroll area for normal scrolling
             super().wheelEvent(event)
+
+    def show_context_menu(self, position):
+        """Show right-click menu for the currently displayed image."""
+        menu = QMenu(self)
+
+        copy_selected_act = QAction("Copy to Selected", self)
+        copy_selected_act.triggered.connect(self.copy_to_selected)
+        menu.addAction(copy_selected_act)
+
+        move_selected_act = QAction("Move to Selected", self)
+        move_selected_act.triggered.connect(self.move_to_selected)
+        menu.addAction(move_selected_act)
+
+        menu.addSeparator()
+
+        start_link_act = QAction("Start Link List", self)
+        start_link_act.triggered.connect(self.start_link_list)
+        menu.addAction(start_link_act)
+
+        add_link_act = QAction("Add to Link List", self)
+        add_link_act.triggered.connect(self.add_to_link_list)
+        menu.addAction(add_link_act)
+
+        menu.exec(self.image_label.mapToGlobal(position))
+
+    def _get_selected_dest_folder(self):
+        """Get the currently selected destination folder from the main window."""
+        main_win = self.parent_app or find_main_window()
+        if not main_win:
+            return None
+
+        current_index = main_win.dest_tree.currentIndex()
+        if current_index.isValid():
+            return main_win.dest_model.filePath(
+                main_win.dest_proxy.mapToSource(current_index)
+            )
+        return main_win.dest_root_path
+
+    def copy_to_selected(self):
+        """Copy the currently displayed image to the selected destination folder."""
+        self._transfer_current_image(is_copy=True)
+
+    def move_to_selected(self):
+        """Move the currently displayed image to the selected destination folder.
+
+        Advances to the next image in the current set afterward. If there is
+        no next image, shows the "NO IMAGES TO DISPLAY" empty state instead.
+        """
+        self._transfer_current_image(is_copy=False)
+
+    def _transfer_current_image(self, is_copy):
+        if not self.image_list:
+            return
+
+        dest_folder = self._get_selected_dest_folder()
+        if not dest_folder:
+            QMessageBox.warning(
+                self, "No Destination", "Please select a destination folder first."
+            )
+            return
+
+        main_win = self.parent_app or find_main_window()
+        if not main_win:
+            return
+
+        src_path = self.image_list[self.current_index]
+
+        operation_type = "copy" if is_copy else "move"
+        if hasattr(main_win, "start_operation_batch"):
+            main_win.start_operation_batch(operation_type)
+
+        try:
+            main_win.smart_transfer(src_path, dest_folder, is_copy)
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Error",
+                f"Could not transfer {os.path.basename(src_path)}:\n{e}",
+            )
+            return
+
+        operation = "Copied" if is_copy else "Moved"
+        if hasattr(main_win, "status_bar"):
+            main_win.status_bar.showMessage(
+                f"{operation} {os.path.basename(src_path)} to "
+                f"{os.path.basename(dest_folder)}",
+                3000,
+            )
+
+        if is_copy:
+            return
+
+        # Move: sync the main window's thumbnail list, then advance to the
+        # next image in the current set (without wrapping back to a previous
+        # one if there isn't a next image)
+        if hasattr(main_win, "remove_thumbnails_by_path"):
+            main_win.remove_thumbnails_by_path([src_path])
+
+        self.image_list.pop(self.current_index)
+        self.load_image()
+
+    def start_link_list(self):
+        """Start a fresh link list seeded with the currently displayed image's path."""
+        path = self.image_list[self.current_index]
+        reset_link_list(self, path)
+
+    def add_to_link_list(self):
+        """Append the currently displayed image's path to the link list."""
+        path = self.image_list[self.current_index]
+        append_to_link_list(path)
 
     def eventFilter(self, source, event):
         if event.type() == event.Type.KeyPress and source is self.scroll_area:

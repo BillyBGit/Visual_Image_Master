@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog.has_active_filters",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AdvancedFilterDialog.has_active_filters",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog.has_active_filters`  \n**Size**: 9 lines, complexity 5 (low)\n\n```python\n    def has_active_filters(self):\n        \"\"\"Check if any filters are enabled.\"\"\"\n        return (\n            self.filter_settings[\"face_detection\"]\n            or self.filter_settings[\"object_detection\"]\n            or self.filter_settings[\"scene_recognition\"]\n            or self.filter_settings[\"quality_filter\"]\n            or self.filter_settings[\"filesize_filter\"]\n        )\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_has_active_filters.py\n\nTests for AdvancedFilterDialog.has_active_filters() method.\n\nIMPORTANT: AdvancedFilterDialog constructor is AdvancedFilterDialog(parent=None).\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_has_active_filters_no_filters — Create AdvancedFilterDialog(). Assert has_active_filters() returns False.\n2. test_has_active_filters_face_detection — Create AdvancedFilterDialog(). Call set_filter_settings({\"face_detection\": True}). Assert has_active_filters() returns True.\n3. test_has_active_filters_object_detection — Create AdvancedFilterDialog(). Call set_filter_settings({\"object_detection\": True}). Assert has_active_filters() returns True.\n4. test_has_active_filters_scene_recognition — Create AdvancedFilterDialog(). Call set_filter_settings({\"scene_recognition\": True}). Assert has_active_filters() returns True.\n5. test_has_active_filters_quality_filter — Create AdvancedFilterDialog(). Call set_filter_settings({\"quality_filter\": True}). Assert has_active_filters() returns True.\n6. test_has_active_filters_filesize_filter — Create AdvancedFilterDialog(). Call set_filter_settings({\"filesize_filter\": True}). Assert has_active_filters() returns True.\n7. test_has_active_filters_multiple_filters — Create AdvancedFilterDialog(). Call set_filter_settings({\"face_detection\": True, \"object_detection\": True}). Assert has_active_filters() returns True.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_has_active_filters.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog_has_active_filters.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-06T03:21:54.751Z"
+  }
+}

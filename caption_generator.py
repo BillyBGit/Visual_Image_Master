@@ -422,17 +422,44 @@ class CaptionGenerator:
             _debug(f"Using device: {self.device}")
 
             # Load processor
+            # use_fast=False is required: transformers 5.x switched CLIPImageProcessor
+            # to a "fast" (Rust) implementation by default, but Florence-2 was trained
+            # with the slow (Python) processor. The fast processor produces different
+            # pixel value ranges that corrupt the vision encoder output → garbage captions.
             _debug("Loading processor...")
-            self.florence_processor = AutoProcessor.from_pretrained(model_name)
+            self.florence_processor = AutoProcessor.from_pretrained(
+                model_name, use_fast=False
+            )
             _debug(f"Processor type: {type(self.florence_processor)}")
             _debug(f"Processor class: {self.florence_processor.__class__.__name__}")
 
             # Load model using native Florence2ForConditionalGeneration class
             _debug("Loading model (this may take a while)...")
-            self.florence_model = Florence2ForConditionalGeneration.from_pretrained(
-                model_name,
-                dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                device_map="auto" if self.device != "cpu" else None,
+            # Suppress the "LOAD REPORT" warning: it goes through Python logging,
+            # not stdout/stderr, so stream redirection doesn't work.
+            import logging
+
+            _lr_logger = logging.getLogger("transformers.utils.loading_report")
+            _lr_level = _lr_logger.level
+            _lr_logger.setLevel(logging.ERROR)
+            try:
+                self.florence_model = Florence2ForConditionalGeneration.from_pretrained(
+                    model_name,
+                    torch_dtype=torch.float16
+                    if self.device == "cuda"
+                    else torch.float32,
+                )
+            finally:
+                _lr_logger.setLevel(_lr_level)
+            if self.device != "cpu":
+                self.florence_model = self.florence_model.to(self.device)
+            # Transformers 5.0 bug: Florence2ForConditionalGeneration._tied_weights_keys
+            # declares lm_head.weight → model.language_model.shared.weight, but
+            # get_expanded_tied_weights_keys() drops it from all_tied_weights_keys,
+            # so tie_weights() never runs for lm_head.  The weight stays randomly
+            # initialized → garbage output.  Manually fix the tie here.
+            self.florence_model.lm_head.weight = (
+                self.florence_model.model.language_model.shared.weight
             )
             _debug(f"Model type: {type(self.florence_model)}")
             _debug(f"Model class: {self.florence_model.__class__.__name__}")

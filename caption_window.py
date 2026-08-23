@@ -376,6 +376,31 @@ class CaptionWindow(QMainWindow):
 
         self.right_panel_layout.addWidget(saved_group, 1)  # Give this stretch factor
 
+        # Navigation bar — always clickable regardless of which widget has focus
+        nav_widget = QWidget()
+        nav_layout = QHBoxLayout(nav_widget)
+        nav_layout.setContentsMargins(0, 4, 0, 0)
+        nav_layout.setSpacing(6)
+
+        self.nav_prev_btn = QPushButton("◀  Prev")
+        self.nav_prev_btn.setToolTip("Previous image  (← when text box not focused)")
+        self.nav_prev_btn.setMinimumHeight(32)
+        self.nav_prev_btn.clicked.connect(self._navigate_previous)
+        nav_layout.addWidget(self.nav_prev_btn)
+
+        self.nav_label = QLabel("— / —")
+        self.nav_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.nav_label.setMinimumWidth(70)
+        nav_layout.addWidget(self.nav_label)
+
+        self.nav_next_btn = QPushButton("Next  ▶")
+        self.nav_next_btn.setToolTip("Next image  (→ when text box not focused)")
+        self.nav_next_btn.setMinimumHeight(32)
+        self.nav_next_btn.clicked.connect(self._navigate_next)
+        nav_layout.addWidget(self.nav_next_btn)
+
+        self.right_panel_layout.addWidget(nav_widget)
+
         self.splitter.addWidget(self.right_panel)
 
         # Set splitter proportions (70% image, 30% panel)
@@ -1169,12 +1194,20 @@ class CaptionWindow(QMainWindow):
         self._update_window_title()
 
     def _update_window_title(self):
-        """Update window title with current image and unsaved indicator."""
+        """Update window title and nav label with current image and unsaved indicator."""
         if self.image_list and self.current_index < len(self.image_list):
             filename = os.path.basename(self.image_list[self.current_index])
-            title = f"Auto Caption - {filename} [{self.current_index + 1}/{len(self.image_list)}]"
+            n = len(self.image_list)
+            pos = self.current_index + 1
+            title = f"Auto Caption - {filename} [{pos}/{n}]"
+            self.nav_label.setText(f"{pos} / {n}")
+            self.nav_prev_btn.setEnabled(True)
+            self.nav_next_btn.setEnabled(True)
         else:
             title = "Auto Caption Tool"
+            self.nav_label.setText("— / —")
+            self.nav_prev_btn.setEnabled(False)
+            self.nav_next_btn.setEnabled(False)
 
         if self.has_unsaved_changes:
             title = "* " + title

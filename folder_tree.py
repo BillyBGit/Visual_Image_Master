@@ -3,6 +3,7 @@ Folder tree widget and delegate for displaying directory structures with image c
 """
 
 import os
+import re
 import shutil
 from PySide6.QtWidgets import (
     QTreeView,
@@ -15,9 +16,138 @@ from PySide6.QtWidgets import (
     QApplication,
     QFileSystemModel,
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QSortFilterProxyModel, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtGui import QDropEvent
+
+
+class FolderSortFilterProxyModel(QSortFilterProxyModel):
+    """Proxy model that adds name-filter and name/date-sort to a QFileSystemModel."""
+
+    # Emitted once a filter change (including any prefetch below) has been
+    # fully applied. invalidateFilter() can leave a previously-captured root
+    # QModelIndex stale, silently resetting the QTreeView to show the whole
+    # filesystem from "/" - the owner (ImageSorter) listens for this to
+    # re-assert the tree's scoped root index from the known path string.
+    filter_applied = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._filter_text = ""
+        self._regex_mode = False
+        self._scope_root = None  # folder the tree is scoped to (plain path string)
+        self._sort_mode = "name"  # "name" or "date_modified"
+        self._sort_order = Qt.SortOrder.AscendingOrder
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setDynamicSortFilter(True)
+        # Without this, a folder whose own name doesn't match the filter is
+        # hidden along with everything under it - even if a descendant does
+        # match. Recursive filtering keeps the ancestor path to any match
+        # visible instead of blanking the whole tree.
+        self.setRecursiveFilteringEnabled(True)
+
+        # Debounced prefetch: QFileSystemModel only knows about directories
+        # it has already been asked about, so recursive filtering can only
+        # reveal matches among rows it's already fetched. Before applying a
+        # filter we walk the scope root ourselves and touch every matching
+        # path via model.index(), forcing it (and its ancestors) to load.
+        self._prefetch_timer = QTimer(self)
+        self._prefetch_timer.setSingleShot(True)
+        self._prefetch_timer.timeout.connect(self._prefetch_and_apply)
+
+    def setSourceModel(self, model):
+        super().setSourceModel(model)
+        # Safe to sort now that the source model is attached
+        self.sort(0, self._sort_order)
+
+    def filePath(self, proxy_index):
+        if not proxy_index.isValid():
+            return ""
+        return self.sourceModel().filePath(self.mapToSource(proxy_index))
+
+    def set_scope_root(self, path):
+        """Record the folder the tree is scoped to (as a plain path string).
+
+        Used both as the starting point for the prefetch walk and by the
+        owner to re-derive a fresh root QModelIndex after filtering.
+        """
+        self._scope_root = path
+
+    def set_filter_text(self, text):
+        self._filter_text = text.strip()
+        self._schedule_apply()
+
+    def set_regex_mode(self, enabled):
+        self._regex_mode = enabled
+        self._schedule_apply()
+
+    def _schedule_apply(self):
+        if not self._filter_text:
+            self.invalidateFilter()
+            self.filter_applied.emit()
+            return
+        self._prefetch_timer.start(250)
+
+    def _prefetch_and_apply(self):
+        self._prefetch_matches()
+        self.invalidateFilter()
+        self.filter_applied.emit()
+
+    def _prefetch_matches(self):
+        model = self.sourceModel()
+        if model is None or not self._scope_root or not os.path.isdir(self._scope_root):
+            return
+        self._walk_and_populate(model, self._scope_root)
+
+    def _walk_and_populate(self, model, directory):
+        """Recurse into directory, forcing any name-matching subdirectory
+        (and thus its ancestors) into the source model's fetched cache."""
+        try:
+            entries = list(os.scandir(directory))
+        except OSError:
+            return
+        for entry in entries:
+            try:
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+            except OSError:
+                continue
+            if self._name_matches(entry.name):
+                model.index(entry.path)
+            self._walk_and_populate(model, entry.path)
+
+    def set_sort_mode(self, mode, ascending=True):
+        self._sort_mode = mode
+        self._sort_order = (
+            Qt.SortOrder.AscendingOrder if ascending else Qt.SortOrder.DescendingOrder
+        )
+        self.sort(0, self._sort_order)
+
+    def _name_matches(self, name):
+        if self._regex_mode:
+            try:
+                return re.search(self._filter_text, name, re.IGNORECASE) is not None
+            except re.error:
+                # Invalid/incomplete regex (e.g. still being typed) - don't
+                # blank the whole tree, just show everything until it's valid
+                return True
+        return self._filter_text.lower() in name.lower()
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        if not self._filter_text:
+            return True
+        model = self.sourceModel()
+        index = model.index(source_row, 0, source_parent)
+        return self._name_matches(model.fileName(index))
+
+    def lessThan(self, left, right):
+        model = self.sourceModel()
+        if self._sort_mode == "date_modified":
+            return (
+                model.fileInfo(left).lastModified()
+                < model.fileInfo(right).lastModified()
+            )
+        return model.fileName(left).lower() < model.fileName(right).lower()
 
 
 class FolderCountDelegate(QStyledItemDelegate):
@@ -66,32 +196,30 @@ class FolderCountDelegate(QStyledItemDelegate):
 
         return 0
 
-    def displayText(self, value, locale):
-        """Override display text to append image count."""
-        if not self.show_counts:
-            return super().displayText(value, locale)
+    def initStyleOption(self, option, index):
+        """Append image count to the folder name for every visible item."""
+        super().initStyleOption(option, index)
+        if not self.show_counts or index.column() != 0:
+            return
 
-        # Get the tree view
         tree_view = self.parent()
         if not tree_view or not isinstance(tree_view, QTreeView):
-            return value
+            return
 
         model = tree_view.model()
-        if not model or not isinstance(model, QFileSystemModel):
-            return value
+        if not model:
+            return
 
-        # Search for the index with this display value
-        root_index = tree_view.rootIndex()
-        for row in range(model.rowCount(root_index)):
-            index = model.index(row, 0, root_index)
-            if model.data(index, Qt.ItemDataRole.DisplayRole) == value:
-                path = model.filePath(index)
-                count = self.get_image_count(path)
-                if count > 0:
-                    return f"{value} ({count})"
-                break
+        fs_model = model.sourceModel() if hasattr(model, "sourceModel") else model
+        if not isinstance(fs_model, QFileSystemModel):
+            return
 
-        return value
+        src_index = model.mapToSource(index) if hasattr(model, "mapToSource") else index
+        path = fs_model.filePath(src_index)
+
+        count = self.get_image_count(path)
+        if count > 0:
+            option.text = f"{os.path.basename(path)} ({count})"
 
 
 class FolderTree(QTreeView):
@@ -113,6 +241,13 @@ class FolderTree(QTreeView):
         # Zoom level (font size multiplier)
         self.zoom_level = 1.0  # 1.0 = default, range 0.8 to 2.0
         self.apply_zoom()
+
+    def _file_path(self, index):
+        """Return the filesystem path for index, proxy-model-aware."""
+        model = self.model()
+        if hasattr(model, "sourceModel"):
+            return model.sourceModel().filePath(model.mapToSource(index))
+        return model.filePath(index)
 
     def set_show_counts(self, show):
         """Update the delegate to show/hide counts and refresh display."""
@@ -234,7 +369,7 @@ class FolderTree(QTreeView):
         if not index.isValid():
             return
 
-        dest_path = self.model().filePath(index)
+        dest_path = self._file_path(index)
         urls = event.mimeData().urls()
         is_copy = event.modifiers() & Qt.KeyboardModifier.ControlModifier
 
@@ -270,6 +405,9 @@ class FolderTree(QTreeView):
         new_folder_act.triggered.connect(lambda: self.create_folder_prompt(index))
         menu.addAction(new_folder_act)
         if index.isValid():
+            copy_path_act = QAction("Copy Path", self)
+            copy_path_act.triggered.connect(lambda: self.copy_path_to_clipboard(index))
+            menu.addAction(copy_path_act)
             rename_act = QAction("Rename", self)
             rename_act.triggered.connect(lambda: self.rename_prompt(index))
             menu.addAction(rename_act)
@@ -278,9 +416,14 @@ class FolderTree(QTreeView):
             menu.addAction(delete_act)
         menu.exec(self.viewport().mapToGlobal(point))
 
+    def copy_path_to_clipboard(self, index):
+        """Copy the full filesystem path of the folder to the clipboard."""
+        path = self._file_path(index)
+        QApplication.clipboard().setText(path)
+
     def create_folder_prompt(self, index):
         parent_p = (
-            self.model().filePath(index) if index.isValid() else self.model().rootPath()
+            self._file_path(index) if index.isValid() else self.model().rootPath()
         )
         name, ok = QInputDialog.getText(
             self, "New Folder", "Folder name:", QLineEdit.EchoMode.Normal, "New Folder"
@@ -291,7 +434,7 @@ class FolderTree(QTreeView):
                 os.makedirs(new_p)
 
     def rename_prompt(self, index):
-        old_path = self.model().filePath(index)
+        old_path = self._file_path(index)
         new_name, ok = QInputDialog.getText(
             self,
             "Rename",
@@ -310,9 +453,7 @@ class FolderTree(QTreeView):
         selected_indexes = [i for i in self.selectedIndexes() if i.column() == 0]
         if not selected_indexes:
             return
-        paths = sorted(
-            [self.model().filePath(i) for i in selected_indexes], reverse=True
-        )
+        paths = sorted([self._file_path(i) for i in selected_indexes], reverse=True)
         reply = QMessageBox.question(
             self,
             "Delete",

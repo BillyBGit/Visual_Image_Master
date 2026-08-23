@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionGenerator.__init__",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionGenerator initialization state",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionGenerator.__init__`  \n**Size**: 19 lines, complexity 1 (low)\n\n```python\n    def __init__(self):\n        # Florence2 state\n        self.florence_model = None\n        self.florence_processor = None\n        self.device = None\n        self._florence_loaded = False\n        self._current_florence_model = None  # Track which Florence model is loaded\n        self.custom_model_path = None  # User-specified custom model path\n\n        # WD14 state\n        self.wd14_model = None\n        self.wd14_tags = None  # Tag names from CSV\n        self.wd14_format = (\n            None  # Track model format: \"onnx\", \"safetensors\", or \"pytorch\"\n        )\n        self.wd14_img_size = 448  # Model input image size (detected from model)\n        self._wd14_loaded = False\n        self._current_wd14_model = None  # Track which WD14 model is loaded\n        self.wd14_custom_paths = {}  # Dict mapping model_key to custom model file path\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionGenerator___init__.py\n\nTests for CaptionGenerator.__init__ method.\n\nIMPORTANT: CaptionGenerator constructor is CaptionGenerator(). It does NOT take any parameters.\nImport: from caption_generator import CaptionGenerator\n\n1. test_init_sets_florence_attributes_to_none — Create CaptionGenerator(). Assert self.florence_model is None, self.florence_processor is None, self.device is None, self._florence_loaded is False, self._current_florence_model is None, self.custom_model_path is None.\n2. test_init_sets_wd14_attributes_to_none — Create CaptionGenerator(). Assert self.wd14_model is None, self.wd14_tags is None, self.wd14_format is None, self._wd14_loaded is False, self._current_wd14_model is None.\n3. test_init_sets_wd14_img_size_to_448 — Create CaptionGenerator(). Assert self.wd14_img_size equals 448.\n4. test_init_sets_wd14_custom_paths_to_empty_dict — Create CaptionGenerator(). Assert self.wd14_custom_paths is an empty dict.\n5. test_init_creates_new_instance — Create CaptionGenerator(). Assert isinstance(instance, CaptionGenerator).\n6. test_init_does_not_require_parameters — Call CaptionGenerator() without any arguments. Assert no exception is raised.\n7. test_init_state_is_consistent — Create CaptionGenerator(). Assert all attributes are set to their expected initial values in a single assertion.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator___init__.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator___init__.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T09:47:48.696Z"
+  }
+}

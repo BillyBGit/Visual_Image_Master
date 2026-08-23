@@ -1,0 +1,42 @@
+# Iteration 1 Log
+
+## Metadata
+
+- **Task ID**: US-001
+- **Task Title**: Test CaptionGenerator.is_wd14_available()
+- **Description**: ## PROVIDED CONTEXT — do NOT explore source files
+
+The function you need to test is provided below. Write the test file directly without reading or searching source files.
+
+**File**: `caption_generato...
+- **Status**: completed
+- **Task Completed**: No
+- **Promise Detected**: No
+- **Started At**: 2026-03-11T14:12:13.833Z
+- **Ended At**: 2026-03-11T14:19:01.878Z
+- **Duration**: 6m 48s
+- **Agent**: ollama-bridge
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+{"type":"step_start","timestamp":1773238335288,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-start","turn":1}}
+{"type":"step_finish","timestamp":1773238539641,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-finish","reason":"tool-calls","tokens":{"input":1941,"output":1010}}}
+{"type":"tool_use","timestamp":1773238539641,"sessionID":"ses_8eb1d7064a9a","part":{"type":"tool","callID":"call_11pkx4k5","tool":"write","state":{"status":"completed","input":{"file_path":"tests/unit/test_caption_generator_CaptionGenerator_is_wd14_available.py","content":"\"\"\"Tests for CaptionGenerator.is_wd14_available() method.\"\"\"\n\nimport sys\nfrom unittest.mock import patch\nimport pytest\n\nfrom caption_generator import CaptionGenerator\n\n\nclass TestCaptionGeneratorIsWd14Available:\n    \"\"\"Test suite for CaptionGenerator.is_wd14_available() method.\"\"\"\n\n    def test_is_wd14_available_with_onnx_and_torch(self):\n        \"\"\"Test with both ONNX and PyTorch backends available.\"\"\"\n        with patch.dict(sys.modules, {\n            'onnxruntime': type(sys)('onnxruntime'),\n            'torch': type(sys)('torch'),\n            'huggingface_hub': type(sys)('huggingface_hub')\n        }):\n            generator = CaptionGenerator()\n            result = generator.is_wd14_available()\n            assert result == (True, 'WD14 ready (ONNX, PyTorch)')\n\n    def test_is_wd14_available_with_only_onnx(self):\n        \"\"\"Test with only ONNX backend available.\"\"\"\n        with patch.dict(sys.modules, {\n            'onnxruntime': type(sys)('onnxruntime'),\n            'huggingface_hub': type(sys)('huggingface_hub')\n        }):\n            generator = CaptionGenerator()\n            result = generator.is_wd14_available()\n            assert result == (True, 'WD14 ready (ONNX)')\n\n    def test_is_wd14_available_with_only_torch(self):\n        \"\"\"Test with only PyTorch backend available.\"\"\"\n        with patch.dict(sys.modules, {\n            'torch': type(sys)('torch'),\n            'huggingface_hub': type(sys)('huggingface_hub')\n        }):\n            generator = CaptionGenerator()\n            result = generator.is_wd14_available()\n            assert result == (True, 'WD14 ready (PyTorch)')\n\n    def test_is_wd14_available_without_onnx_or_torch(self):\n        \"\"\"Test with neither ONNX nor PyTorch backend available.\"\"\"\n        with patch.dict(sys.modules, {\n            'huggingface_hub': type(sys)('huggingface_hub')\n        }):\n            generator = CaptionGenerator()\n            result = generator.is_wd14_available()\n            assert result == (\n                False,\n                \"Missing model backend. Install onnxruntime or torch: pip install onnxruntime\"\n            )\n\n    def test_is_wd14_available_without_huggingface_hub(self):\n        \"\"\"Test with huggingface_hub unavailable.\"\"\"\n        generator = CaptionGenerator()\n        result = generator.is_wd14_available()\n        assert result == (\n            False,\n            \"Missing: huggingface_hub. Install with: pip install huggingface-hub\"\n        )\n\n    def test_is_wd14_available_without_onnx_or_torch_and_huggingface_hub(self):\n        \"\"\"Test with all dependencies unavailable.\"\"\"\n        generator = CaptionGenerator()\n        result = generator.is_wd14_available()\n        assert result == (\n            False,\n            \"Missing: huggingface_hub. Install with: pip install huggingface-hub\"\n        )\n\n    def test_is_wd14_available_with_all_dependencies(self):\n        \"\"\"Test with all dependencies available.\"\"\"\n        with patch.dict(sys.modules, {\n            'onnxruntime': type(sys)('onnxruntime'),\n            'torch': type(sys)('torch'),\n            'huggingface_hub': type(sys)('huggingface_hub')\n        }):\n            generator = CaptionGenerator()\n            result = generator.is_wd14_available()\n            assert result == (True, 'WD14 ready (ONNX, PyTorch)')\n"},"output":"Wrote 3285 bytes to tests/unit/test_caption_generator_CaptionGenerator_is_wd14_available.py","time":{"start":1773238539641,"end":1773238539641}}}}
+{"type":"step_start","timestamp":1773238539641,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-start","turn":2}}
+{"type":"step_finish","timestamp":1773238634751,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-finish","reason":"tool-calls","tokens":{"input":4919,"output":1040}}}
+{"type":"tool_use","timestamp":1773238634751,"sessionID":"ses_8eb1d7064a9a","part":{"type":"tool","callID":"call_v6u6wqbd","tool":"read","state":{"status":"completed","input":{"file_path":".ralph-tui/progress.md"},"output":"     1\t# Ralph Progress Log\n     2\t\n     3\tThis file tracks progress across iterations. Agents update this file\n     4\tafter each iteration and it's included in prompts for context.\n     5\t\n     6\t## Codebase Patterns (Study These First)\n     7\t\n     8\t*Add reusable patterns discovered during development here.*\n     9\t\n    10\t---\n    11\t","time":{"start":1773238634751,"end":1773238634751}}}}
+{"type":"step_start","timestamp":1773238634751,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-start","turn":3}}
+{"type":"step_finish","timestamp":1773238690488,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-finish","reason":"tool-calls","tokens":{"input":8027,"output":1150}}}
+{"type":"tool_use","timestamp":1773238690488,"sessionID":"ses_8eb1d7064a9a","part":{"type":"tool","callID":"call_j1ktulit","tool":"edit","state":{"status":"completed","input":{"file_path":".ralph-tui/progress.md","old_string":"*Add reusable patterns discovered during development here.*","new_string":"*Add reusable patterns discovered during development here.*\n\n## Codebase Patterns\n- Use `unittest.mock.patch.dict(sys.modules, {...})` for mocking module imports in tests\n- Test dependency checking functions by mocking the actual imports rather than the entire module\n- Return tuple format `(bool, str)` for availability checks with message for user action"},"output":"Edited .ralph-tui/progress.md: replaced 1 occurrence","time":{"start":1773238690488,"end":1773238690488}}}}
+{"type":"step_start","timestamp":1773238690488,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-start","turn":4}}
+{"type":"text","timestamp":1773238741821,"sessionID":"ses_8eb1d7064a9a","part":{"type":"text","text":"API error: Connection error.","time":{"start":1773238741821,"end":1773238741821}}}
+{"type":"step_finish","timestamp":1773238741821,"sessionID":"ses_8eb1d7064a9a","part":{"type":"step-finish","reason":"error","tokens":{"input":0,"output":0}}}
+
+--- STDERR ---
+[ollama-bridge] model=devstral-small-2:24b-48k cwd=/home/hephaestus/Documents/scripts/img_sort
+[ollama-bridge] Pre-flight: test file exists, running tests/unit/test_caption_generator_CaptionGenerator_is_wd14_available.py
+[ollama-bridge] Turn 1/30
+[ollama-bridge] Turn 2/30
+[ollama-bridge] Turn 3/30
+[ollama-bridge] Turn 4/30
+[ollama-bridge] API error: Connection error.

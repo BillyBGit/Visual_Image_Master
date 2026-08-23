@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - BlendWorker.run",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test BlendWorker.run method",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `BlendWorker.run`  \n**Size**: 33 lines, complexity 6 (medium)\n\n```python\n    def run(self):\n        import os\n\n        debug = os.environ.get(\"IMG_SORT_DEBUG\") == \"1\"\n\n        try:\n            if debug:\n                print(f\"[DEBUG] BlendWorker starting with model: {self.model}\")\n\n            # Construct the prompt with both captions\n            prompt = (\n                f\"{self.instructions}\\n\\n\"\n                f\"Generated caption:\\n{self.generated_caption}\\n\\n\"\n                f\"Saved caption:\\n{self.saved_caption}\"\n            )\n\n            if debug:\n                print(f\"[DEBUG] BlendWorker prompt length: {len(prompt)}\")\n\n            # Call Ollama (text-only, no image)\n            blended = self.generator.generate_ollama_text(\n                self.ollama_url, self.model, prompt\n            )\n\n            if debug:\n                print(f\"[DEBUG] BlendWorker received response length: {len(blended)}\")\n\n            self.finished.emit(blended)\n\n        except Exception as e:\n            if debug:\n                print(f\"[DEBUG] BlendWorker error: {e}\")\n            self.error.emit(str(e))\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_BlendWorker_run.py\n\nTests for BlendWorker.run method.\n\nIMPORTANT: BlendWorker constructor is BlendWorker(generator, ollama_url, model, instructions, generated_caption, saved_caption).\nImport: from caption_generator import BlendWorker, CaptionGenerator\n\n1. test_blendworker_run_success — Create BlendWorker with mock generator. Call run(). Assert finished signal emitted with blended caption.\n2. test_blendworker_run_error — Create BlendWorker with mock generator that raises exception. Call run(). Assert error signal emitted.\n3. test_blendworker_debug_mode — Set IMG_SORT_DEBUG=1. Create BlendWorker with mock generator. Call run(). Assert debug prints are called.\n4. test_blendworker_prompt_construction — Create BlendWorker with mock generator. Verify prompt construction in run method.\n5. test_blendworker_ollama_text_call — Create BlendWorker with mock generator. Verify generate_ollama_text is called with correct arguments.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_BlendWorker_run.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_BlendWorker_run.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T09:37:18.439Z"
+  }
+}

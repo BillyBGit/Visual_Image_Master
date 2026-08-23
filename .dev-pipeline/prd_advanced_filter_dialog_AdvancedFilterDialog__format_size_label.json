@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AdvancedFilterDialog._format_size_label",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test file size label formatting in AdvancedFilterDialog._format_size_label",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `advanced_filter_dialog.py`  \n**Function**: `AdvancedFilterDialog._format_size_label`  \n**Size**: 6 lines, complexity 2 (low)\n\n```python\n    def _format_size_label(self, kb):\n        \"\"\"Format file size label from KB value.\"\"\"\n        if kb < 1024:\n            return f\"{kb}KB\"\n        else:\n            return f\"{kb / 1024:.1f}MB\"\n```\n\n---\n\nCreate file: tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog__format_size_label.py\n\nTests for AdvancedFilterDialog._format_size_label method.\n\nIMPORTANT: The method is a private method of AdvancedFilterDialog class. It takes one parameter 'kb' (integer or float) representing file size in kilobytes. It does NOT take any other parameters.\nImport: from advanced_filter_dialog import AdvancedFilterDialog\n\n1. test_format_size_label_less_than_1024_kb — Create AdvancedFilterDialog(). Call _format_size_label(512). Assert returns '512KB'.\n2. test_format_size_label_exactly_1024_kb — Create AdvancedFilterDialog(). Call _format_size_label(1024). Assert returns '1.0MB'.\n3. test_format_size_label_greater_than_1024_kb — Create AdvancedFilterDialog(). Call _format_size_label(2048). Assert returns '2.0MB'.\n4. test_format_size_label_with_decimal_kb — Create AdvancedFilterDialog(). Call _format_size_label(1536). Assert returns '1.5MB'.\n5. test_format_size_label_zero_kb — Create AdvancedFilterDialog(). Call _format_size_label(0). Assert returns '0KB'.\n6. test_format_size_label_large_value — Create AdvancedFilterDialog(). Call _format_size_label(5120). Assert returns '5.0MB'.\n7. test_format_size_label_negative_value — Create AdvancedFilterDialog(). Call _format_size_label(-100). Assert returns '-100KB' (no validation in source code).\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog__format_size_label.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_advanced_filter_dialog_AdvancedFilterDialog__format_size_label.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-05T23:53:22.575Z"
+  }
+}

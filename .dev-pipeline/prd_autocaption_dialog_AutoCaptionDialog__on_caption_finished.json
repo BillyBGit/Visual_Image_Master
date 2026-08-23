@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog._on_caption_finished",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog._on_caption_finished functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog._on_caption_finished`  \n**Size**: 25 lines, complexity 3 (low)\n\n```python\n    def _on_caption_finished(self, caption):\n        \"\"\"Handle successful caption generation.\"\"\"\n        image_path = self.image_paths[self.current_index]\n\n        # Save caption to file\n        base_name = os.path.splitext(image_path)[0]\n        caption_path = base_name + \".txt\"\n\n        try:\n            with open(caption_path, \"w\", encoding=\"utf-8\") as f:\n                f.write(caption)\n            self.results.append((image_path, caption, \"success\"))\n        except OSError as e:\n            self.results.append((image_path, None, f\"save error: {e}\"))\n\n        # Cleanup worker\n        if self.caption_worker:\n            self.caption_worker.wait()\n            self.caption_worker.deleteLater()\n            self.caption_worker = None\n\n        # Move to next\n        self.current_index += 1\n        self.progress_bar.setValue(self.current_index)\n        QTimer.singleShot(10, self._process_next_image)\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_caption_finished.py\n\nTests for AutoCaptionDialog._on_caption_finished method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None).\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_on_caption_finished_saves_caption — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Call _on_caption_finished with a caption. Assert the caption file was created with correct content.\n2. test_on_caption_finished_handles_save_error — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Make the caption directory unwritable. Call _on_caption_finished. Assert results contains a save error entry.\n3. test_on_caption_finished_updates_results_success — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Call _on_caption_finished with a caption. Assert results contains a success entry with the correct image path and caption.\n4. test_on_caption_finished_updates_results_error — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Simulate a save error. Call _on_caption_finished. Assert results contains an error entry with the correct image path.\n5. test_on_caption_finished_increments_index — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Call _on_caption_finished. Assert self.current_index was incremented by 1.\n6. test_on_caption_finished_updates_progress_bar — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Call _on_caption_finished. Assert self.progress_bar.setValue was called with the correct value.\n7. test_on_caption_finished_calls_process_next_image — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Call _on_caption_finished. Assert QTimer.singleShot was called with _process_next_image.\n8. test_on_caption_finished_cleans_up_worker — Create AutoCaptionDialog with a list containing one image path. Mock self.caption_worker. Call _on_caption_finished. Assert self.caption_worker was set to None after cleanup.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_caption_finished.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__on_caption_finished.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T04:09:24.963Z"
+  }
+}

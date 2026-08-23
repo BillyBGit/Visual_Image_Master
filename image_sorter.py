@@ -7,6 +7,7 @@ import shutil
 import tempfile
 import atexit
 from PySide6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QSplitter,
     QWidget,
@@ -21,8 +22,10 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QFileDialog,
+    QLabel,
+    QCheckBox,
 )
-from PySide6.QtCore import Qt, QSize, QDir
+from PySide6.QtCore import Qt, QSize, QDir, QTimer, QFileSystemWatcher
 from PySide6.QtGui import QAction
 from PIL import Image
 
@@ -151,8 +154,9 @@ class DeleteUndoManager:
 
 
 from thumbnail_list import ThumbnailList  # noqa: E402
-from folder_tree import FolderTree  # noqa: E402
+from folder_tree import FolderTree, FolderSortFilterProxyModel  # noqa: E402
 from face_detection import FaceDetector, ImageQualityAnalyzer  # noqa: E402
+from composition_similarity import CompositionAnalyzer  # noqa: E402
 from face_detection_dialog import FaceDetectionDialog  # noqa: E402
 from settings_manager import SettingsManager  # noqa: E402
 from image_sorter_filters import FilteringMixin  # noqa: E402
@@ -168,6 +172,8 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         # --- Persistence Placeholders ---
         self.preview_fit_default = False
         self.preview_autoname_extract = False
+        self.preview_crop_align_mode = "image"
+        self.preview_extract_save_dir = ""
         self.preview_geometry = None
         self.yolo_geometry = None
         self.yolo_labels = []
@@ -201,6 +207,12 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.filter_mode = None  # None, "has_face", "no_face", "advanced"
         self.advanced_filter_settings = {}  # Settings from advanced filter dialog
 
+        # Folder tree sort state (persisted per pane)
+        self.src_tree_sort_mode = "name"
+        self.src_tree_sort_ascending = True
+        self.dest_tree_sort_mode = "name"
+        self.dest_tree_sort_ascending = True
+
         # Face detection preset
         self.face_detection_preset = "balanced"
 
@@ -209,6 +221,9 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
 
         # Image quality analyzer
         self.quality_analyzer = ImageQualityAnalyzer()
+
+        # Composition (colour-independent structural) similarity analyzer
+        self.composition_analyzer = CompositionAnalyzer()
 
         # Advanced AI detectors (lazy-loaded)
         self._object_detector = None
@@ -275,6 +290,15 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.conf_delete_act.triggered.connect(self.toggle_conf_del)
         options_menu.addAction(self.conf_delete_act)
 
+        self.comfyui_info_act = QAction("Show ComfyUI Info", self, checkable=True)
+        self.comfyui_info_act.setChecked(False)
+        self.comfyui_info_act.setToolTip(
+            "Read LoRAs and prompt text embedded in ComfyUI-generated PNGs, "
+            "shown in the preview window"
+        )
+        self.comfyui_info_act.triggered.connect(self.toggle_comfyui_info)
+        options_menu.addAction(self.comfyui_info_act)
+
         options_menu.addSeparator()
 
         face_detect_settings_act = QAction("Face Detection Settings...", self)
@@ -288,6 +312,10 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         yolo_labeling_act.triggered.connect(self.open_yolo_window)
         tools_menu.addAction(yolo_labeling_act)
 
+        slideshow_act = QAction("&Slideshow...", self)
+        slideshow_act.triggered.connect(self.open_slideshow)
+        tools_menu.addAction(slideshow_act)
+
         auto_caption_act = QAction("&Auto Caption...", self)
         auto_caption_act.triggered.connect(self.open_caption_window)
         tools_menu.addAction(auto_caption_act)
@@ -295,6 +323,51 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         enhance_act = QAction("Image &Enhance...", self)
         enhance_act.triggered.connect(self.open_enhance_dialog)
         tools_menu.addAction(enhance_act)
+
+        pair_act = QAction("&Pair Selector...", self)
+        pair_act.triggered.connect(self.open_pair_selector)
+        tools_menu.addAction(pair_act)
+
+        letterbox_act = QAction("Remove &Letterbox...", self)
+        letterbox_act.triggered.connect(self.open_letterbox_dialog)
+        tools_menu.addAction(letterbox_act)
+
+        filename_matcher_act = QAction("&Filename Matcher...", self)
+        filename_matcher_act.triggered.connect(self.open_filename_matcher)
+        tools_menu.addAction(filename_matcher_act)
+
+        re_extract_matcher_act = QAction("&Re-Extract Matcher...", self)
+        re_extract_matcher_act.triggered.connect(self.open_re_extract_matcher)
+        tools_menu.addAction(re_extract_matcher_act)
+
+        analyze_ratings_act = QAction("&Analyze Ratings...", self)
+        analyze_ratings_act.setToolTip(
+            "Correlate rated images' ComfyUI LoRAs/strengths and prompt "
+            "keywords with their ratings"
+        )
+        analyze_ratings_act.triggered.connect(self.open_rating_analysis)
+        tools_menu.addAction(analyze_ratings_act)
+
+        export_ratings_csv_act = QAction("Export Ratings &CSV...", self)
+        export_ratings_csv_act.setToolTip(
+            "Export rated images' ComfyUI LoRAs/strengths/prompts as CSV "
+            "(one row per image-LoRA pair) for analysis in Excel/pandas/etc."
+        )
+        export_ratings_csv_act.triggered.connect(self.export_ratings_csv)
+        tools_menu.addAction(export_ratings_csv_act)
+
+        self.preview_rating_display_act = QAction(
+            "Show Rating in Preview", self, checkable=True
+        )
+        self.preview_rating_display_act.setChecked(True)
+        self.preview_rating_display_act.setToolTip(
+            "Show the star rating for the current image in the preview "
+            "window's status bar"
+        )
+        self.preview_rating_display_act.triggered.connect(
+            self.toggle_preview_rating_display
+        )
+        tools_menu.addAction(self.preview_rating_display_act)
 
         # Help Menu
         help_menu = menu_bar.addMenu("&Help")
@@ -317,6 +390,24 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.progress_bar.setVisible(False)
         self.progress_bar.setMaximumWidth(300)
         self.status_bar.addPermanentWidget(self.progress_bar)
+
+        # Simple text spinner shown alongside status messages during long operations
+        self._spinner_chars = "|/-\\"
+        self._spinner_index = 0
+        self._spinner_base_message = ""
+        self._spinner_timer = QTimer(self)
+        self._spinner_timer.setInterval(120)
+        self._spinner_timer.timeout.connect(self._advance_spinner)
+
+        # Watches the currently displayed source folder so files added by an
+        # external app (e.g. an export from another tool) appear in the
+        # thumbnail grid without requiring a full manual reload.
+        self.source_watcher = QFileSystemWatcher(self)
+        self.source_watcher.directoryChanged.connect(self.on_source_directory_changed)
+        self._pending_new_files = {}  # path -> last-seen size, for new-file debounce
+        self._new_file_check_timer = QTimer(self)
+        self._new_file_check_timer.setSingleShot(True)
+        self._new_file_check_timer.timeout.connect(self._check_for_new_thumbnails)
 
         # --- Main Layout ---
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -354,9 +445,50 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.src_model = QFileSystemModel()
         self.src_model.setRootPath(QDir.rootPath())
         self.src_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
+        self.src_proxy = FolderSortFilterProxyModel()
+        self.src_proxy.setSourceModel(self.src_model)
         self.src_tree = FolderTree(self, is_source=True)
-        self.src_tree.set_model_and_clean_columns(self.src_model)
+        self.src_tree.set_model_and_clean_columns(self.src_proxy)
+        self.src_proxy.filter_applied.connect(self._reassert_src_tree_root)
+
+        # Source filter + sort row
+        self.src_filter_row = QHBoxLayout()
+        self.src_filter_row.setContentsMargins(0, 2, 0, 0)
+        self.src_filter_edit = QLineEdit()
+        self.src_filter_edit.setPlaceholderText("Filter folders...")
+        self.src_filter_edit.textChanged.connect(
+            lambda t: self.src_proxy.set_filter_text(t)
+        )
+        self.src_sort_btn = QToolButton()
+        self.src_sort_btn.setText("⇅")
+        self.src_sort_btn.setToolTip("Sort folder tree")
+        self.src_sort_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.src_sort_menu = QMenu(self.src_sort_btn)
+        self.src_tree_sort_actions = self._setup_tree_sort_menu(
+            self.src_sort_menu, "src"
+        )
+        self.src_sort_btn.setMenu(self.src_sort_menu)
+        self.src_regex_check = QCheckBox("Regex")
+        self.src_regex_check.setToolTip(
+            "Treat filter text as a regular expression instead of plain substring"
+        )
+        self.src_regex_check.toggled.connect(self.src_proxy.set_regex_mode)
+        self.src_expand_btn = QToolButton()
+        self.src_expand_btn.setCheckable(True)
+        self.src_expand_btn.setText("+")
+        self.src_expand_btn.setToolTip("Expand all matching directories")
+        self.src_expand_btn.toggled.connect(
+            lambda checked: self._on_expand_toggled(
+                self.src_tree, self.src_expand_btn, checked
+            )
+        )
+        self.src_filter_row.addWidget(self.src_filter_edit)
+        self.src_filter_row.addWidget(self.src_regex_check)
+        self.src_filter_row.addWidget(self.src_expand_btn)
+        self.src_filter_row.addWidget(self.src_sort_btn)
+
         self.src_layout.addLayout(self.src_path_row)
+        self.src_layout.addLayout(self.src_filter_row)
         self.src_layout.addWidget(self.src_tree)
 
         # Thumbnail View (Middle)
@@ -429,13 +561,19 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
             self.show_caption_settings_menu
         )
 
+        # Selection count label
+        self.selection_count_label = QLabel("Selected: 0")
+        self.selection_count_label.setContentsMargins(8, 0, 0, 0)
+
         self.toolbar_layout.addWidget(self.filter_btn)
         self.toolbar_layout.addWidget(self.sort_btn)
         self.toolbar_layout.addWidget(self.dedup_btn)
         self.toolbar_layout.addWidget(self.batch_caption_btn)
+        self.toolbar_layout.addWidget(self.selection_count_label)
         self.toolbar_layout.addStretch()
 
         self.thumb_list = ThumbnailList(self)
+        self.thumb_list.itemSelectionChanged.connect(self.update_selection_count)
         self.mid_layout.addLayout(self.toolbar_layout)
         self.mid_layout.addWidget(self.thumb_list)
 
@@ -472,9 +610,50 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.dest_model = QFileSystemModel()
         self.dest_model.setRootPath(QDir.rootPath())
         self.dest_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
+        self.dest_proxy = FolderSortFilterProxyModel()
+        self.dest_proxy.setSourceModel(self.dest_model)
         self.dest_tree = FolderTree(self, is_source=False)
-        self.dest_tree.set_model_and_clean_columns(self.dest_model)
+        self.dest_tree.set_model_and_clean_columns(self.dest_proxy)
+        self.dest_proxy.filter_applied.connect(self._reassert_dest_tree_root)
+
+        # Destination filter + sort row
+        self.dest_filter_row = QHBoxLayout()
+        self.dest_filter_row.setContentsMargins(0, 2, 0, 0)
+        self.dest_filter_edit = QLineEdit()
+        self.dest_filter_edit.setPlaceholderText("Filter folders...")
+        self.dest_filter_edit.textChanged.connect(
+            lambda t: self.dest_proxy.set_filter_text(t)
+        )
+        self.dest_sort_btn = QToolButton()
+        self.dest_sort_btn.setText("⇅")
+        self.dest_sort_btn.setToolTip("Sort folder tree")
+        self.dest_sort_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.dest_sort_menu = QMenu(self.dest_sort_btn)
+        self.dest_tree_sort_actions = self._setup_tree_sort_menu(
+            self.dest_sort_menu, "dest"
+        )
+        self.dest_sort_btn.setMenu(self.dest_sort_menu)
+        self.dest_regex_check = QCheckBox("Regex")
+        self.dest_regex_check.setToolTip(
+            "Treat filter text as a regular expression instead of plain substring"
+        )
+        self.dest_regex_check.toggled.connect(self.dest_proxy.set_regex_mode)
+        self.dest_expand_btn = QToolButton()
+        self.dest_expand_btn.setCheckable(True)
+        self.dest_expand_btn.setText("+")
+        self.dest_expand_btn.setToolTip("Expand all matching directories")
+        self.dest_expand_btn.toggled.connect(
+            lambda checked: self._on_expand_toggled(
+                self.dest_tree, self.dest_expand_btn, checked
+            )
+        )
+        self.dest_filter_row.addWidget(self.dest_filter_edit)
+        self.dest_filter_row.addWidget(self.dest_regex_check)
+        self.dest_filter_row.addWidget(self.dest_expand_btn)
+        self.dest_filter_row.addWidget(self.dest_sort_btn)
+
         self.dest_layout.addLayout(self.dest_path_row)
+        self.dest_layout.addLayout(self.dest_filter_row)
         self.dest_layout.addWidget(self.dest_tree)
 
         self.main_splitter.addWidget(self.src_widget)
@@ -505,6 +684,31 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         # Initial Load
         self.refresh_thumbnails()
 
+    def start_loading_spinner(self, message):
+        """Start showing an animated text spinner alongside a status message."""
+        self._spinner_base_message = message
+        self._spinner_index = 0
+        self._advance_spinner()
+        self._spinner_timer.start()
+
+    def set_loading_spinner_message(self, message):
+        """Change the base message shown next to the running spinner."""
+        self._spinner_base_message = message
+
+    def _advance_spinner(self):
+        char = self._spinner_chars[self._spinner_index % len(self._spinner_chars)]
+        self._spinner_index += 1
+        self.status_bar.showMessage(f"{self._spinner_base_message} {char}")
+
+    def stop_loading_spinner(self):
+        """Stop the animated spinner. Caller is responsible for the final status message."""
+        self._spinner_timer.stop()
+
+    def update_selection_count(self):
+        """Update the thumbnail selection count label shown above the grid."""
+        count = len(self.thumb_list.selectedItems())
+        self.selection_count_label.setText(f"Selected: {count}")
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for main window."""
         if (
@@ -514,6 +718,42 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
             self.undo_last_operation()
         else:
             super().keyPressEvent(event)
+
+    def _setup_tree_sort_menu(self, menu, side):
+        """Build the sort popup menu for a folder tree pane. Returns {(mode,asc): action}."""
+        options = [
+            ("Name (A→Z)", "name", True),
+            ("Name (Z→A)", "name", False),
+            ("Date Modified (Newest first)", "date_modified", False),
+            ("Date Modified (Oldest first)", "date_modified", True),
+        ]
+        sort_actions = {}
+        for label, mode, asc in options:
+            act = QAction(label, menu, checkable=True)
+            act.triggered.connect(
+                lambda checked, m=mode, a=asc, s=side: self._set_tree_sort(s, m, a)
+            )
+            menu.addAction(act)
+            sort_actions[(mode, asc)] = act
+        sort_actions[("name", True)].setChecked(True)
+        return sort_actions
+
+    def _set_tree_sort(self, side, mode, ascending):
+        """Apply a sort mode to a folder tree pane and update menu check state."""
+        if side == "src":
+            self.src_proxy.set_sort_mode(mode, ascending)
+            self.src_tree_sort_mode = mode
+            self.src_tree_sort_ascending = ascending
+            actions = self.src_tree_sort_actions
+        else:
+            self.dest_proxy.set_sort_mode(mode, ascending)
+            self.dest_tree_sort_mode = mode
+            self.dest_tree_sort_ascending = ascending
+            actions = self.dest_tree_sort_actions
+        for (m, a), act in actions.items():
+            act.setChecked(m == mode and a == ascending)
+        if self._settings_loaded:
+            self.write_settings()
 
     def write_settings(self):
         """Delegate to settings manager."""
@@ -527,7 +767,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         """Get the currently selected path in the source tree for loading thumbnails."""
         current_index = self.src_tree.currentIndex()
         if current_index.isValid():
-            return self.src_model.filePath(current_index)
+            return self.src_model.filePath(self.src_proxy.mapToSource(current_index))
         return self.src_root_path if self.src_root_path else "/"
 
     def on_source_folder_changed(self, index):
@@ -535,6 +775,48 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.refresh_thumbnails()
         if self._settings_loaded:
             self.write_settings()
+
+    def _on_expand_toggled(self, tree, button, checked):
+        """Expand/collapse all directories currently visible in tree.
+
+        Shared by both the source and destination panes' +/- toggle button.
+        """
+        if checked:
+            tree.expandAll()
+            button.setText("-")
+            button.setToolTip("Collapse directory tree")
+        else:
+            tree.collapseAll()
+            button.setText("+")
+            button.setToolTip("Expand all matching directories")
+
+    def _reassert_src_tree_root(self):
+        """Re-derive the source tree's root index from src_root_path.
+
+        A previously-captured proxy QModelIndex can go stale when the filter
+        proxy rebuilds its row mapping (e.g. after invalidateFilter()),
+        silently resetting the QTreeView to show the whole filesystem.
+        """
+        if not self.src_root_path:
+            return
+        proxy_index = self.src_proxy.mapFromSource(
+            self.src_model.index(self.src_root_path)
+        )
+        if proxy_index.isValid():
+            self.src_tree.setRootIndex(proxy_index)
+
+    def _reassert_dest_tree_root(self):
+        """Re-derive the destination tree's root index from dest_root_path.
+
+        See _reassert_src_tree_root for why this is necessary.
+        """
+        if not self.dest_root_path:
+            return
+        proxy_index = self.dest_proxy.mapFromSource(
+            self.dest_model.index(self.dest_root_path)
+        )
+        if proxy_index.isValid():
+            self.dest_tree.setRootIndex(proxy_index)
 
     def on_source_path_change(self):
         """Called when user manually edits the source path and presses Enter."""
@@ -555,12 +837,12 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
 
         self.src_tree.blockSignals(True)
         self.src_root_path = new_path
-        self.src_tree.setRootIndex(self.src_model.index(new_path))
-
-        index = self.src_model.index(new_path)
-        if index.isValid():
-            self.src_tree.setCurrentIndex(index)
-            self.src_tree.scrollTo(index)
+        self.src_proxy.set_scope_root(new_path)
+        proxy_index = self.src_proxy.mapFromSource(self.src_model.index(new_path))
+        self.src_tree.setRootIndex(proxy_index)
+        if proxy_index.isValid():
+            self.src_tree.setCurrentIndex(proxy_index)
+            self.src_tree.scrollTo(proxy_index)
 
         self.src_tree.blockSignals(False)
         self.refresh_thumbnails()
@@ -587,12 +869,12 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
 
         self.dest_tree.blockSignals(True)
         self.dest_root_path = new_path
-        self.dest_tree.setRootIndex(self.dest_model.index(new_path))
-
-        index = self.dest_model.index(new_path)
-        if index.isValid():
-            self.dest_tree.setCurrentIndex(index)
-            self.dest_tree.scrollTo(index)
+        self.dest_proxy.set_scope_root(new_path)
+        proxy_index = self.dest_proxy.mapFromSource(self.dest_model.index(new_path))
+        self.dest_tree.setRootIndex(proxy_index)
+        if proxy_index.isValid():
+            self.dest_tree.setCurrentIndex(proxy_index)
+            self.dest_tree.scrollTo(proxy_index)
 
         self.dest_tree.blockSignals(False)
 
@@ -612,11 +894,12 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
             # Directly update the tree instead of calling on_source_path_change
             self.src_tree.blockSignals(True)
             self.src_root_path = folder
-            self.src_tree.setRootIndex(self.src_model.index(folder))
-            index = self.src_model.index(folder)
-            if index.isValid():
-                self.src_tree.setCurrentIndex(index)
-                self.src_tree.scrollTo(index)
+            self.src_proxy.set_scope_root(folder)
+            proxy_index = self.src_proxy.mapFromSource(self.src_model.index(folder))
+            self.src_tree.setRootIndex(proxy_index)
+            if proxy_index.isValid():
+                self.src_tree.setCurrentIndex(proxy_index)
+                self.src_tree.scrollTo(proxy_index)
             self.src_tree.blockSignals(False)
             self.refresh_thumbnails()
 
@@ -636,11 +919,12 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
             # Directly update the tree instead of calling on_dest_path_change
             self.dest_tree.blockSignals(True)
             self.dest_root_path = folder
-            self.dest_tree.setRootIndex(self.dest_model.index(folder))
-            index = self.dest_model.index(folder)
-            if index.isValid():
-                self.dest_tree.setCurrentIndex(index)
-                self.dest_tree.scrollTo(index)
+            self.dest_proxy.set_scope_root(folder)
+            proxy_index = self.dest_proxy.mapFromSource(self.dest_model.index(folder))
+            self.dest_tree.setRootIndex(proxy_index)
+            if proxy_index.isValid():
+                self.dest_tree.setCurrentIndex(proxy_index)
+                self.dest_tree.scrollTo(proxy_index)
             self.dest_tree.blockSignals(False)
 
             if self._settings_loaded:
@@ -762,6 +1046,32 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         state = self.conf_delete_act.isChecked()
         status = "enabled" if state else "disabled"
         self.status_bar.showMessage(f"Delete confirmation {status}.", 3000)
+        if self._settings_loaded:
+            self.write_settings()
+
+    def toggle_comfyui_info(self):
+        state = self.comfyui_info_act.isChecked()
+        status = "enabled" if state else "disabled"
+        self.status_bar.showMessage(f"ComfyUI info {status}.", 3000)
+        if self._settings_loaded:
+            self.write_settings()
+
+    def toggle_preview_rating_display(self):
+        state = self.preview_rating_display_act.isChecked()
+        status = "shown" if state else "hidden"
+        self.status_bar.showMessage(f"Preview rating display {status}.", 3000)
+
+        from preview_window import ImagePreviewWindow
+
+        for widget in QApplication.topLevelWidgets():
+            if isinstance(widget, ImagePreviewWindow):
+                widget._update_rating_label(
+                    widget.image_list[widget.current_index]
+                    if widget.image_list
+                    and widget.current_index < len(widget.image_list)
+                    else None
+                )
+
         if self._settings_loaded:
             self.write_settings()
 

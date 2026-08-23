@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog.closeEvent",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog.closeEvent cleanup behavior",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog.closeEvent`  \n**Size**: 7 lines, complexity 2 (low)\n\n```python\n    def closeEvent(self, event):\n        \"\"\"Handle dialog close.\"\"\"\n        if self.caption_worker:\n            self.caption_worker.wait()\n            self.caption_worker.deleteLater()\n            self.caption_worker = None\n        event.accept()\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog_closeEvent.py\n\nTests for AutoCaptionDialog.closeEvent() method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None).\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_closeEvent_with_active_worker — Create AutoCaptionDialog with mock image paths. Set self.caption_worker to a mock object. Call closeEvent with a mock event. Assert that caption_worker.wait() and caption_worker.deleteLater() are called, and caption_worker is set to None.\n2. test_closeEvent_without_worker — Create AutoCaptionDialog with mock image paths. Ensure self.caption_worker is None. Call closeEvent with a mock event. Assert that event.accept() is called and no worker cleanup occurs.\n3. test_closeEvent_event_accept_called — Create AutoCaptionDialog with mock image paths. Call closeEvent with a mock event. Assert that event.accept() is called regardless of worker state.\n4. test_closeEvent_worker_cleanup_order — Create AutoCaptionDialog with mock image paths. Set self.caption_worker to a mock object. Call closeEvent with a mock event. Assert that wait() is called before deleteLater(), and deleteLater() is called before setting to None.\n5. test_closeEvent_multiple_calls — Create AutoCaptionDialog with mock image paths. Set self.caption_worker to a mock object. Call closeEvent twice with mock events. Assert that worker cleanup happens only once and no errors occur on second call.\n6. test_closeEvent_with_exception_in_worker — Create AutoCaptionDialog with mock image paths. Set self.caption_worker to a mock object that raises an exception in wait(). Call closeEvent with a mock event. Assert that the exception is handled and event.accept() is still called.\n7. test_closeEvent_worker_reference_cleanup — Create AutoCaptionDialog with mock image paths. Set self.caption_worker to a mock object. Call closeEvent with a mock event. Assert that after closeEvent, self.caption_worker is None.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog_closeEvent.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog_closeEvent.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T06:50:35.954Z"
+  }
+}

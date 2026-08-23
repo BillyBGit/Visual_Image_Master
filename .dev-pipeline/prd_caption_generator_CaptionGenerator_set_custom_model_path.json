@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionGenerator.set_custom_model_path",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionGenerator.set_custom_model_path functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionGenerator.set_custom_model_path`  \n**Size**: 7 lines, complexity 1 (low)\n\n```python\n    def set_custom_model_path(self, path: str):\n        \"\"\"Set a custom Florence2 model path (local directory or HuggingFace ID).\n\n        Args:\n            path: Path to local model directory or HuggingFace model ID\n        \"\"\"\n        self.custom_model_path = path if path else None\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionGenerator_set_custom_model_path.py\n\nTests for CaptionGenerator.set_custom_model_path method.\n\nIMPORTANT: CaptionGenerator constructor is CaptionGenerator(). It does NOT take any parameters.\nImport: from caption_generator import CaptionGenerator\n\n1. test_set_custom_model_path_with_valid_path — Create CaptionGenerator(). Call set_custom_model_path(\"/path/to/model\"). Assert self.custom_model_path equals \"/path/to/model\".\n2. test_set_custom_model_path_with_empty_string — Create CaptionGenerator(). Call set_custom_model_path(\"\"). Assert self.custom_model_path is None.\n3. test_set_custom_model_path_with_none — Create CaptionGenerator(). Call set_custom_model_path(None). Assert self.custom_model_path is None.\n4. test_set_custom_model_path_with_huggingface_id — Create CaptionGenerator(). Call set_custom_model_path(\"username/model-name\"). Assert self.custom_model_path equals \"username/model-name\".\n5. test_set_custom_model_path_preserves_existing_value — Create CaptionGenerator(). Call set_custom_model_path(\"/first/path\"). Call set_custom_model_path(\"/second/path\"). Assert self.custom_model_path equals \"/second/path\".\n6. test_set_custom_model_path_with_special_characters — Create CaptionGenerator(). Call set_custom_model_path(\"/path/with spaces & symbols!\"). Assert self.custom_model_path equals \"/path/with spaces & symbols!\".\n7. test_set_custom_model_path_with_relative_path — Create CaptionGenerator(). Call set_custom_model_path(\"./relative/path\"). Assert self.custom_model_path equals \"./relative/path\".\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_set_custom_model_path.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_set_custom_model_path.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-11T16:53:44.642Z"
+  }
+}

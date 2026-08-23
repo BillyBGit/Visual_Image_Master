@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - CaptionGenerator.unload_florence",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test CaptionGenerator.unload_florence functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `caption_generator.py`  \n**Function**: `CaptionGenerator.unload_florence`  \n**Size**: 19 lines, complexity 4 (low)\n\n```python\n    def unload_florence(self):\n        \"\"\"Unload the current Florence2 model to free memory.\"\"\"\n        if self._florence_loaded:\n            _debug(\"Unloading Florence2 model...\")\n            import gc\n\n            self.florence_model = None\n            self.florence_processor = None\n            self._florence_loaded = False\n            self._current_florence_model = None\n            gc.collect()\n            try:\n                import torch\n\n                if torch.cuda.is_available():\n                    torch.cuda.empty_cache()\n            except Exception:\n                pass\n            _debug(\"Florence2 model unloaded\")\n```\n\n---\n\nCreate file: tests/unit/test_caption_generator_CaptionGenerator_unload_florence.py\n\nTests for CaptionGenerator.unload_florence() method.\n\nIMPORTANT: CaptionGenerator constructor is CaptionGenerator(). It does NOT take any parameters.\nImport: from caption_generator import CaptionGenerator\n\n1. test_unload_florence_when_model_not_loaded — Create CaptionGenerator(). Call unload_florence(). Assert no changes to instance state.\n2. test_unload_florence_when_model_loaded — Create CaptionGenerator(). Set _florence_loaded=True, florence_model=mock, florence_processor=mock, _current_florence_model='test'. Call unload_florence(). Assert all model-related attributes are None and _florence_loaded is False.\n3. test_unload_florence_calls_gc_collect — Create CaptionGenerator(). Set _florence_loaded=True. Mock gc.collect(). Call unload_florence(). Assert gc.collect() was called.\n4. test_unload_florence_calls_cuda_empty_cache — Create CaptionGenerator(). Set _florence_loaded=True. Mock torch.cuda.is_available() to return True. Mock torch.cuda.empty_cache(). Call unload_florence(). Assert torch.cuda.empty_cache() was called.\n5. test_unload_florence_handles_cuda_exception — Create CaptionGenerator(). Set _florence_loaded=True. Mock torch.cuda.is_available() to return True. Mock torch.cuda.empty_cache() to raise Exception. Call unload_florence(). Assert no exception is raised.\n6. test_unload_florence_clears_current_model_tracking — Create CaptionGenerator(). Set _florence_loaded=True, _current_florence_model='test'. Call unload_florence(). Assert _current_florence_model is None.\n7. test_unload_florence_calls_debug — Create CaptionGenerator(). Set _florence_loaded=True. Mock _debug(). Call unload_florence(). Assert _debug() was called with expected messages.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_unload_florence.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_caption_generator_CaptionGenerator_unload_florence.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-11T17:49:01.741Z"
+  }
+}

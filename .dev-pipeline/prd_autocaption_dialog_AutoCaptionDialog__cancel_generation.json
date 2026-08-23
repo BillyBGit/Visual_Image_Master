@@ -1,0 +1,22 @@
+{
+  "name": "Unit Tests for img_sort - AutoCaptionDialog._cancel_generation",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Test AutoCaptionDialog._cancel_generation functionality",
+      "description": "## PROVIDED CONTEXT — do NOT explore source files\n\nThe function you need to test is provided below. Write the test file directly without reading or searching source files.\n\n**File**: `autocaption_dialog.py`  \n**Function**: `AutoCaptionDialog._cancel_generation`  \n**Size**: 8 lines, complexity 2 (low)\n\n```python\n    def _cancel_generation(self):\n        \"\"\"Cancel the current generation.\"\"\"\n        if self.caption_worker:\n            self.caption_worker.wait()\n            self.caption_worker.deleteLater()\n            self.caption_worker = None\n\n        self._finish_generation(cancelled=True)\n```\n\n---\n\nCreate file: tests/unit/test_autocaption_dialog_AutoCaptionDialog__cancel_generation.py\n\nTests for AutoCaptionDialog._cancel_generation method.\n\nIMPORTANT: AutoCaptionDialog constructor is AutoCaptionDialog(image_paths, parent=None). It does NOT take any other parameters.\nImport: from autocaption_dialog import AutoCaptionDialog\n\n1. test_cancel_generation_with_active_worker — Create AutoCaptionDialog with mock image paths. Set caption_worker to a mock object. Call _cancel_generation(). Assert caption_worker.wait() and caption_worker.deleteLater() were called, and caption_worker is set to None.\n2. test_cancel_generation_without_worker — Create AutoCaptionDialog with mock image paths. Set caption_worker to None. Call _cancel_generation(). Assert no errors occur and _finish_generation is called with cancelled=True.\n3. test_cancel_generation_updates_ui_state — Create AutoCaptionDialog with mock image paths. Set caption_worker to a mock object. Call _cancel_generation(). Assert UI buttons are re-enabled (generate_btn, cancel_btn, close_btn, backend_combo).\n4. test_cancel_generation_calls_finish_generation — Create AutoCaptionDialog with mock image paths. Set caption_worker to a mock object. Call _cancel_generation(). Assert _finish_generation is called with cancelled=True.\n5. test_cancel_generation_with_partial_results — Create AutoCaptionDialog with mock image paths. Set caption_worker to a mock object and populate results with some entries. Call _cancel_generation(). Assert results are preserved and _finish_generation is called with cancelled=True.\n6. test_cancel_generation_cleanup_worker — Create AutoCaptionDialog with mock image paths. Set caption_worker to a mock object. Call _cancel_generation(). Assert caption_worker is properly cleaned up (wait and deleteLater called).\n7. test_cancel_generation_interrupts_processing — Create AutoCaptionDialog with mock image paths. Set caption_worker to a mock object and current_index to a value > 0. Call _cancel_generation(). Assert processing stops and _finish_generation is called with cancelled=True.\n\nRun: source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__cancel_generation.py -v",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Run all tests and fix failures",
+      "description": "Run: `source ~/scripts/venv/bin/activate && python -m pytest tests/unit/test_autocaption_dialog_AutoCaptionDialog__cancel_generation.py -v`. If a test is fundamentally wrong (testing something that doesn't exist), delete that specific test function rather than leaving it failing.",
+      "passes": true,
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-08T05:21:08.269Z"
+  }
+}
