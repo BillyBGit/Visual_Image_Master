@@ -64,11 +64,13 @@ class SlideshowWindow(QMainWindow):
     # ── UI ────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        central = QWidget()
-        self.setCentralWidget(central)
-        root = QVBoxLayout(central)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        root = QVBoxLayout(self.central_widget)
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
+        self._normal_margins = (8, 8, 8, 8)
+        self._normal_spacing = 6
 
         # Wrapped in its own widget so the whole control row can be hidden as
         # a unit in fullscreen mode, for a clean, distraction-free view.
@@ -210,8 +212,10 @@ class SlideshowWindow(QMainWindow):
 
     def _toggle_fullscreen(self):
         """Toggle a true windowless fullscreen mode - no title bar/decorations,
-        with the control row and status bar hidden for a clean, distraction-
-        free view."""
+        with the control row and status bar hidden, margins removed, and the
+        window background painted black (rather than the default grey) for a
+        clean, distraction-free view with no visible surround."""
+        layout = self.central_widget.layout()
         if self.isFullScreen():
             self.showNormal()
             if self._was_maximized_before_fullscreen:
@@ -219,11 +223,17 @@ class SlideshowWindow(QMainWindow):
             self.controls_widget.setVisible(True)
             self.hint_label.setVisible(True)
             self.status_bar.setVisible(True)
+            layout.setContentsMargins(*self._normal_margins)
+            layout.setSpacing(self._normal_spacing)
+            self.central_widget.setStyleSheet("")
         else:
             self._was_maximized_before_fullscreen = self.isMaximized()
             self.controls_widget.setVisible(False)
             self.hint_label.setVisible(False)
             self.status_bar.setVisible(False)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+            self.central_widget.setStyleSheet("background: #000;")
             self.showFullScreen()
         self._update_scaled_pixmap()
 

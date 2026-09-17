@@ -635,13 +635,31 @@ class ImagePreviewWindow(QMainWindow):
             self.comfyui_dock.hide()
             return
 
-        from comfyui_metadata import extract_comfyui_info
+        info = None
+        if not os.environ.get("IMG_SORT_NO_COMFYUI"):
+            from comfyui_metadata import extract_comfyui_info
 
-        info = extract_comfyui_info(path)
+            info = extract_comfyui_info(path)
         if not info:
-            self.comfyui_info_text.setPlainText(
-                "No ComfyUI metadata found in this image."
-            )
+            from image_provenance import extract_source_info
+
+            source_info = extract_source_info(path)
+            if source_info:
+                lines = ["Downloaded image (no ComfyUI workflow data)", ""]
+                field_labels = (
+                    ("Source", "Source"),
+                    ("SourcePage", "Source Page"),
+                    ("Query", "Query"),
+                    ("Subject", "Subject"),
+                )
+                for key, label in field_labels:
+                    if source_info.get(key):
+                        lines.append(f"{label}: {source_info[key]}")
+                self.comfyui_info_text.setPlainText("\n".join(lines))
+            else:
+                self.comfyui_info_text.setPlainText(
+                    "No ComfyUI metadata found in this image."
+                )
             self.comfyui_dock.show()
             return
 
