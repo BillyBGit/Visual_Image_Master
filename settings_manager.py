@@ -301,13 +301,15 @@ class SettingsManager:
         # Restore sort settings
         self.app.sort_by = self.settings.value("sort_by", "name")
         self.app.sort_ascending = self.settings.value("sort_ascending", True, type=bool)
-        # Composition Diversity is an expensive per-image analysis (HOG
-        # descriptor + O(n^2) ordering) meant for deliberate, in-the-moment
-        # use from the Sort menu - it must never come back as a silent
-        # persisted default, since it would then run unattended on whatever
-        # folder loads at startup, potentially for minutes, before the
-        # window is usable (looks exactly like a hang/crash).
-        if self.app.sort_by == "composition_diversity":
+        # Composition Diversity, Identity grouping, and reference-image
+        # Similarity are all expensive per-image analyses (HOG descriptor +
+        # O(n^2) ordering; or face detection + embedding) meant for
+        # deliberate, in-the-moment use from the Sort menu - they must never
+        # come back as a silent persisted default, since that would run
+        # unattended on whatever folder loads at startup, potentially for
+        # minutes, before the window is usable (looks exactly like a
+        # hang/crash).
+        if self.app.sort_by in ("composition_diversity", "identity", "similarity"):
             self.app.sort_by = "name"
             self.app.sort_ascending = True
         if hasattr(self.app, "sort_actions"):

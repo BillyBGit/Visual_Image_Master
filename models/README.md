@@ -51,9 +51,22 @@ Classify images by scene type (beach, forest, office, restaurant, etc.).
 - Group images by scene type
 - CPU-optimized ResNet18 architecture
 
+### 4. Face Recognition Models (YuNet + SFace)
+Identify and compare faces across images - used for "Group by Identity" and
+"Sort by Similarity to Image" thumbnail sorting.
+
+**Files:**
+- `face_detection_yunet_2023mar.onnx` - Face detector + landmarks (~230 KB)
+- `face_recognition_sface_2021dec.onnx` - Face embedding model (~37 MB)
+
+**Features:**
+- Groups thumbnails by detected face, so the same person's photos sit together
+- Sorts a folder by facial similarity to a chosen reference image
+- Same OpenCV Zoo pairing used by `cv2.FaceDetectorYN` / `cv2.FaceRecognizerSF`
+
 ## Total Download Size
 
-Approximately **80 MB** total for all models.
+Approximately **117 MB** total for all models.
 
 ## Performance
 
@@ -70,12 +83,15 @@ If model files are missing:
 - **Object Detection**: Feature disabled until models are downloaded
 - **Scene Recognition**: Feature disabled until models are downloaded
 - **Quality Assessment**: Works without models (uses OpenCV metrics)
+- **Face Recognition**: "Group by Identity" and "Sort by Similarity to
+  Image" are unavailable until models are downloaded
 
 ## Model Sources
 
 - **Face Detection**: OpenCV official repository
 - **YOLO**: Darknet/AlexeyAB repository (YOLOv4)
 - **Places365**: MIT CSAIL Vision Group
+- **Face Recognition**: OpenCV Zoo (YuNet + SFace)
 
 ## License
 
@@ -83,6 +99,7 @@ All models are freely available for both academic and commercial use:
 - Face detection models: OpenCV license
 - YOLO models: YOLO license (freely usable)
 - Places365 models: MIT license
+- Face recognition models (YuNet/SFace): OpenCV license
 
 ## Custom YOLO Models
 
@@ -116,4 +133,7 @@ Once downloaded, these models enable:
 2. Filter images by detected objects ("Show me images with dogs")
 3. Filter images by quality metrics (sharpness, brightness, etc.)
 4. Filter images by scene type ("Show me beach photos")
-5. **NEW**: Use custom-trained YOLO models for specialized object detection
+5. Use custom-trained YOLO models for specialized object detection
+6. **NEW**: Sort thumbnails by portrait quality (sharpness + resolution + face area %)
+7. **NEW**: Group thumbnails by detected face identity
+8. **NEW**: Sort thumbnails by facial similarity to a chosen reference image

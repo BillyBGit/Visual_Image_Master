@@ -615,6 +615,14 @@ class ThumbnailList(QListWidget):
 
         menu.addSeparator()
 
+        # Sort by similarity to this image (uses the first selected thumbnail
+        # as the reference face)
+        similarity_sort_act = QAction("Sort by Similarity to This Image", self)
+        similarity_sort_act.triggered.connect(self.sort_by_similarity_to_selected)
+        menu.addAction(similarity_sort_act)
+
+        menu.addSeparator()
+
         # Delete
         delete_act = QAction("Delete", self)
         delete_act.triggered.connect(self.delete_selected_files)
@@ -976,6 +984,20 @@ class ThumbnailList(QListWidget):
             main_win = self.parent_app or find_main_window()
             if main_win and hasattr(main_win, "refresh_thumbnails"):
                 main_win.refresh_thumbnails()
+
+    def sort_by_similarity_to_selected(self):
+        """Sort the thumbnail grid by facial similarity to the first
+        selected image, closest match first."""
+        selected_items = self.selectedItems()
+        if not selected_items:
+            return
+        path = selected_items[0].data(Qt.ItemDataRole.UserRole)
+        if not path:
+            return
+
+        main_win = self.parent_app or find_main_window()
+        if main_win and hasattr(main_win, "set_similarity_sort"):
+            main_win.set_similarity_sort(path)
 
     def show_join_images_dialog(self):
         """Show the join-images dialog for 2-6 selected images."""

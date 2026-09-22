@@ -203,6 +203,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         # Sorting and filtering state
         self.sort_by = "name"
         self.sort_ascending = True
+        self.similarity_reference_path = None  # reference image for "similarity" sort
         self.filter_active = False
         self.filter_mode = None  # None, "has_face", "no_face", "advanced"
         self.advanced_filter_settings = {}  # Settings from advanced filter dialog
@@ -253,6 +254,19 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
 
         # File Menu
         file_menu = menu_bar.addMenu("&File")
+
+        refresh_act = QAction("&Refresh Directory Tree", self)
+        refresh_act.setShortcut("F5")
+        refresh_act.setToolTip(
+            "Re-scan both folder trees from disk - use this if a folder "
+            "renamed/added/removed outside the app (or via the in-app "
+            "Rename) isn't showing up correctly"
+        )
+        refresh_act.triggered.connect(self.refresh_directory_trees)
+        file_menu.addAction(refresh_act)
+
+        file_menu.addSeparator()
+
         exit_act = QAction("&Exit", self)
         exit_act.setShortcut("Ctrl+Q")
         exit_act.triggered.connect(self.close)
@@ -817,6 +831,35 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         )
         if proxy_index.isValid():
             self.dest_tree.setRootIndex(proxy_index)
+
+    def refresh_directory_trees(self):
+        """Force both folder trees to re-scan the filesystem.
+
+        QFileSystemModel is normally self-updating via its own file-system
+        watcher, but that isn't reliable for a directory that was renamed
+        outside the model's own rename path (e.g. FolderTree.rename_prompt,
+        which calls plain os.rename()) - the model's cached row for the old
+        name can be left showing indefinitely. QFileSystemModel has no
+        public "rescan" method; re-applying its current filter is the one
+        operation found (empirically - setRootPath() toggling does *not*
+        reliably do this) to force it to re-read an already-cached
+        directory. Also available from File > Refresh Directory Tree (F5)
+        as a manual escape hatch for any other external change.
+        """
+        self.src_model.setFilter(self.src_model.filter())
+        self.dest_model.setFilter(self.dest_model.filter())
+
+        if self.show_counts_act.isChecked():
+            self.src_tree.count_delegate._count_cache.clear()
+            self.dest_tree.count_delegate._count_cache.clear()
+        self.src_tree.viewport().update()
+        self.dest_tree.viewport().update()
+
+        self._reassert_src_tree_root()
+        self._reassert_dest_tree_root()
+
+        self.refresh_thumbnails()
+        self.status_bar.showMessage("Directory tree refreshed", 3000)
 
     def on_source_path_change(self):
         """Called when user manually edits the source path and presses Enter."""

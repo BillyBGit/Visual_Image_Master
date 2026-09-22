@@ -139,6 +139,47 @@ class FilteringMixin:
         size_desc_act.triggered.connect(lambda: self.set_sort("filesize", False))
         self.sort_menu.addAction(size_desc_act)
 
+        self.sort_menu.addSeparator()
+
+        # Portrait quality: a weighted composite of sharpness, resolution,
+        # and face area % - all higher is better for a portrait
+        portrait_asc_act = QAction(
+            "Portrait Quality (Worst First)", self, checkable=True
+        )
+        portrait_asc_act.triggered.connect(
+            lambda: self.set_sort("portrait_quality", True)
+        )
+        self.sort_menu.addAction(portrait_asc_act)
+
+        portrait_desc_act = QAction(
+            "Portrait Quality (Best First)", self, checkable=True
+        )
+        portrait_desc_act.triggered.connect(
+            lambda: self.set_sort("portrait_quality", False)
+        )
+        self.sort_menu.addAction(portrait_desc_act)
+
+        self.sort_menu.addSeparator()
+
+        # Identity grouping: cluster thumbnails by detected face so the same
+        # person's images sit together, via face_embedding.py
+        identity_act = QAction("Group by Identity", self, checkable=True)
+        identity_act.setToolTip(
+            "Group images together by detected face - the same person's "
+            "photos end up adjacent to each other"
+        )
+        identity_act.triggered.connect(lambda: self.set_sort("identity", True))
+        self.sort_menu.addAction(identity_act)
+
+        # Similarity to a chosen reference image: closest facial match first
+        similarity_act = QAction("Sort by Similarity to Image...", self, checkable=True)
+        similarity_act.setToolTip(
+            "Pick a reference image and sort so the closest facial matches "
+            "to it appear first"
+        )
+        similarity_act.triggered.connect(self.prompt_similarity_sort)
+        self.sort_menu.addAction(similarity_act)
+
         self.sort_actions = {
             ("name", True): name_asc_act,
             ("name", False): name_desc_act,
@@ -158,6 +199,10 @@ class FilteringMixin:
             ("composition_diversity", False): comp_div_desc_act,
             ("filesize", True): size_asc_act,
             ("filesize", False): size_desc_act,
+            ("portrait_quality", True): portrait_asc_act,
+            ("portrait_quality", False): portrait_desc_act,
+            ("identity", True): identity_act,
+            ("similarity", False): similarity_act,
         }
 
         self.sort_actions[("name", True)].setChecked(True)
@@ -670,6 +715,35 @@ class FilteringMixin:
         if self._settings_loaded:
             self.write_settings()
 
+    def prompt_similarity_sort(self):
+        """Prompt for a reference image, then sort by facial similarity to it."""
+        from PySide6.QtWidgets import QFileDialog
+
+        start_dir = self.get_current_source_path() or ""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose Reference Image",
+            start_dir,
+            "Images (*.png *.jpg *.jpeg *.gif *.webp *.avif *.tiff *.bmp)",
+        )
+        if not path:
+            # Cancelled - the action already flipped to checked on click
+            # (Qt does this before triggered fires), so restore whichever
+            # action actually matches the current sort mode.
+            for key, action in self.sort_actions.items():
+                action.setChecked(key == (self.sort_by, self.sort_ascending))
+            return
+        self.set_similarity_sort(path)
+
+    def set_similarity_sort(self, reference_path):
+        """Sort the currently displayed thumbnails by facial similarity to
+        a chosen reference image, closest match first."""
+        self.similarity_reference_path = reference_path
+        self.set_sort("similarity", False)
+        self.status_bar.showMessage(
+            f"Sorting by similarity to: {os.path.basename(reference_path)}", 4000
+        )
+
     def refresh_thumbnails(self):
         # Disabled for the duration of the reload so a double-click during a
         # slow directory load (large/high-res folders can take a while, and
@@ -1012,6 +1086,16 @@ class FilteringMixin:
                 key=lambda f: self.get_file_size(os.path.join(path, f)),
                 reverse=not self.sort_ascending,
             )
+        elif self.sort_by == "portrait_quality":
+            files = sorted(
+                files,
+                key=lambda f: self.get_portrait_quality(os.path.join(path, f)),
+                reverse=not self.sort_ascending,
+            )
+        elif self.sort_by == "identity":
+            files = self.order_by_identity(path, files)
+        elif self.sort_by == "similarity":
+            files = self.order_by_similarity(path, files)
         return files
 
     def order_by_composition_diversity(self, path, files):
@@ -1072,6 +1156,87 @@ class FilteringMixin:
         skipped = [f for f in files if f not in valid_files]
         return ordered + skipped
 
+    def order_by_identity(self, path, files):
+        """Group files by detected face identity - the same person's photos
+        end up adjacent to each other.
+
+        Computing a face embedding per image is the expensive part (same
+        progress/interruption pattern as order_by_composition_diversity);
+        clustering itself is fast once embeddings are cached.
+        """
+        from face_embedding import get_embedder
+
+        embedder = get_embedder()
+        full_paths = [os.path.join(path, f) for f in files]
+        my_gen = self._refresh_generation
+        total = len(full_paths)
+
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.set_loading_spinner_message(f"Detecting faces in {total} images...")
+
+        for i, full_path in enumerate(full_paths):
+            embedder.get_embedding(full_path)  # populates the cache
+
+            self.progress_bar.setValue(i + 1)
+            if i % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        self.progress_bar.setVisible(False)
+        self.stop_loading_spinner()
+
+        clusters = embedder.cluster_by_identity(full_paths)
+        return sorted(files, key=lambda f: (clusters[os.path.join(path, f)], f))
+
+    def order_by_similarity(self, path, files):
+        """Order files by facial similarity to self.similarity_reference_path,
+        closest match first. Images with no comparable face sort last."""
+        from face_embedding import get_embedder
+
+        reference = getattr(self, "similarity_reference_path", None)
+        if not reference:
+            return files
+
+        embedder = get_embedder()
+        full_paths = [os.path.join(path, f) for f in files]
+        my_gen = self._refresh_generation
+        total = len(full_paths)
+
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.set_loading_spinner_message(f"Comparing faces in {total} images...")
+
+        similarities = {}
+        for i, full_path in enumerate(full_paths):
+            similarities[full_path] = embedder.compute_similarity(reference, full_path)
+
+            self.progress_bar.setValue(i + 1)
+            if i % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        self.progress_bar.setVisible(False)
+        self.stop_loading_spinner()
+
+        return sorted(
+            files,
+            key=lambda f: (
+                similarities[os.path.join(path, f)]
+                if similarities[os.path.join(path, f)] is not None
+                else -1.0
+            ),
+            reverse=True,
+        )
+
     def get_image_resolution(self, file_path):
         """Get total pixel count (width * height) of an image."""
         try:
@@ -1103,6 +1268,22 @@ class FilteringMixin:
     def get_face_area_ratio(self, file_path):
         """Get the ratio of image area occupied by the largest detected face."""
         return self.face_detector.get_face_area_ratio(file_path)
+
+    def get_portrait_quality(self, file_path):
+        """Composite portrait-quality score (0-100ish, higher is better):
+        sharpness (40%) + resolution (30%) + face area % (30%), each
+        normalized to roughly 0-100 first so no single signal dominates
+        purely due to scale."""
+        quality = get_quality_assessor().assess_quality(file_path)
+        sharpness = min(100.0, quality["sharpness"]) if quality else 0.0
+
+        resolution = self.get_image_resolution(file_path)
+        # 100 points at 1 megapixel and up; scales down linearly below that
+        resolution_score = min(100.0, (resolution / (1024 * 1024)) * 100.0)
+
+        face_score = min(100.0, self.get_face_area_ratio(file_path) * 100.0)
+
+        return sharpness * 0.4 + resolution_score * 0.3 + face_score * 0.3
 
     def get_file_size(self, file_path):
         """Get file size in bytes."""

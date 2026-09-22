@@ -448,6 +448,14 @@ class FolderTree(QTreeView):
                 os.rename(old_path, new_path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not rename: {e}")
+                return
+
+            # This renames on disk directly rather than through the model's
+            # own rename path, so QFileSystemModel's cached row for the old
+            # name doesn't reliably pick up the change on its own - force
+            # both trees to re-scan so the new name actually shows up.
+            if self.parent_app and hasattr(self.parent_app, "refresh_directory_trees"):
+                self.parent_app.refresh_directory_trees()
 
     def delete_folder_prompt(self):
         selected_indexes = [i for i in self.selectedIndexes() if i.column() == 0]

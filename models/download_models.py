@@ -19,6 +19,10 @@ MODEL_FILES = {
     # Note: Using PyTorch model since ONNX no longer available
     "resnet18_places365.pth.tar": "http://places2.csail.mit.edu/models_places365/resnet18_places365.pth.tar",
     "IO_places365.txt": "https://raw.githubusercontent.com/CSAILVision/places365/master/IO_places365.txt",
+    # Face recognition (YuNet detector + SFace embedder, OpenCV Zoo) - used
+    # for identity grouping and reference-image similarity sorting
+    "face_detection_yunet_2023mar.onnx": "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+    "face_recognition_sface_2021dec.onnx": "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
 }
 
 
