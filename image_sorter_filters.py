@@ -180,6 +180,21 @@ class FilteringMixin:
         similarity_act.triggered.connect(self.prompt_similarity_sort)
         self.sort_menu.addAction(similarity_act)
 
+        # Stronger, multi-reference version: nearest-neighbor match against
+        # a whole folder of reference images instead of just one
+        similarity_folder_act = QAction(
+            "Sort by Similarity to Reference Folder...", self, checkable=True
+        )
+        similarity_folder_act.setToolTip(
+            "Pick a folder of reference images and sort so the closest "
+            "facial match to ANY of them appears first - more robust than "
+            "a single reference image (no one reference photo's angle/"
+            "lighting/expression can throw it off), at the cost of a "
+            "slower initial scan"
+        )
+        similarity_folder_act.triggered.connect(self.prompt_similarity_folder_sort)
+        self.sort_menu.addAction(similarity_folder_act)
+
         self.sort_actions = {
             ("name", True): name_asc_act,
             ("name", False): name_desc_act,
@@ -203,6 +218,7 @@ class FilteringMixin:
             ("portrait_quality", False): portrait_desc_act,
             ("identity", True): identity_act,
             ("similarity", False): similarity_act,
+            ("similarity_multi", False): similarity_folder_act,
         }
 
         self.sort_actions[("name", True)].setChecked(True)
@@ -744,6 +760,53 @@ class FilteringMixin:
             f"Sorting by similarity to: {os.path.basename(reference_path)}", 4000
         )
 
+    def prompt_similarity_folder_sort(self):
+        """Prompt for a folder of reference images, then sort by
+        nearest-neighbor facial similarity to the whole set - stronger than
+        a single reference image since no one reference photo's particular
+        angle, lighting, or expression can throw off the match."""
+        from PySide6.QtWidgets import QFileDialog
+
+        start_dir = self.get_current_source_path() or ""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose Reference Image Folder", start_dir
+        )
+        if not folder:
+            for key, action in self.sort_actions.items():
+                action.setChecked(key == (self.sort_by, self.sort_ascending))
+            return
+
+        try:
+            reference_paths = [
+                os.path.join(folder, f)
+                for f in os.listdir(folder)
+                if f.lower().endswith(VALID_IMAGE_EXTS)
+            ]
+        except OSError as e:
+            QMessageBox.warning(self, "Error", f"Could not read folder: {e}")
+            for key, action in self.sort_actions.items():
+                action.setChecked(key == (self.sort_by, self.sort_ascending))
+            return
+
+        if not reference_paths:
+            QMessageBox.warning(self, "No Images", "That folder has no images in it.")
+            for key, action in self.sort_actions.items():
+                action.setChecked(key == (self.sort_by, self.sort_ascending))
+            return
+
+        self.set_similarity_sort_multi(reference_paths)
+
+    def set_similarity_sort_multi(self, reference_paths):
+        """Sort the currently displayed thumbnails by nearest-neighbor
+        facial similarity to a SET of reference images, closest match
+        first."""
+        self.similarity_reference_paths = list(reference_paths)
+        self.set_sort("similarity_multi", False)
+        self.status_bar.showMessage(
+            f"Sorting by similarity to {len(reference_paths)} reference image(s)",
+            4000,
+        )
+
     def refresh_thumbnails(self):
         # Disabled for the duration of the reload so a double-click during a
         # slow directory load (large/high-res folders can take a while, and
@@ -988,8 +1051,10 @@ class FilteringMixin:
 
         Returns True if the thumbnail was added.
         """
+        target = os.path.realpath(full_path)
         for i in range(self.thumb_list.count()):
-            if self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole) == full_path:
+            item_path = self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
+            if item_path and os.path.realpath(item_path) == target:
                 return False  # already added by a refresh that ran meanwhile
 
         if self.filter_active and self.filter_mode:
@@ -1096,6 +1161,8 @@ class FilteringMixin:
             files = self.order_by_identity(path, files)
         elif self.sort_by == "similarity":
             files = self.order_by_similarity(path, files)
+        elif self.sort_by == "similarity_multi":
+            files = self.order_by_similarity_multi(path, files)
         return files
 
     def order_by_composition_diversity(self, path, files):
@@ -1218,6 +1285,87 @@ class FilteringMixin:
 
             self.progress_bar.setValue(i + 1)
             if i % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        self.progress_bar.setVisible(False)
+        self.stop_loading_spinner()
+
+        return sorted(
+            files,
+            key=lambda f: (
+                similarities[os.path.join(path, f)]
+                if similarities[os.path.join(path, f)] is not None
+                else -1.0
+            ),
+            reverse=True,
+        )
+
+    def order_by_similarity_multi(self, path, files):
+        """Order files by nearest-neighbor facial similarity to a SET of
+        reference images (self.similarity_reference_paths) - closest match
+        to any one of them first. Images with no comparable face sort last.
+
+        Slower than order_by_similarity since every reference image also
+        needs a face embedding computed, but more robust: it isn't thrown
+        off by any single reference photo's particular angle, lighting, or
+        expression the way comparing against just one image can be.
+        """
+        from face_embedding import get_embedder
+
+        reference_paths = getattr(self, "similarity_reference_paths", None)
+        if not reference_paths:
+            return files
+
+        embedder = get_embedder()
+        full_paths = [os.path.join(path, f) for f in files]
+        my_gen = self._refresh_generation
+        total = len(reference_paths) + len(full_paths)
+        done = 0
+
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.set_loading_spinner_message(
+            f"Analyzing {len(reference_paths)} reference image(s)..."
+        )
+
+        reference_embeddings = []
+        for ref_path in reference_paths:
+            reference_embeddings.append(embedder.get_embedding(ref_path))
+            done += 1
+            self.progress_bar.setValue(done)
+            if done % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        reference_embeddings = [e for e in reference_embeddings if e is not None]
+        if not reference_embeddings:
+            self.progress_bar.setVisible(False)
+            self.stop_loading_spinner()
+            self.status_bar.showMessage(
+                "No detectable faces found in the reference images.", 4000
+            )
+            return files
+
+        self.set_loading_spinner_message(
+            f"Comparing faces in {len(full_paths)} images..."
+        )
+
+        similarities = {}
+        for full_path in full_paths:
+            similarities[full_path] = embedder.compute_similarity_to_set(
+                full_path, reference_embeddings
+            )
+            done += 1
+            self.progress_bar.setValue(done)
+            if done % 10 == 0:
                 QApplication.processEvents()
                 if self._refresh_generation != my_gen:
                     self.progress_bar.setVisible(False)

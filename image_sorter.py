@@ -204,6 +204,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self.sort_by = "name"
         self.sort_ascending = True
         self.similarity_reference_path = None  # reference image for "similarity" sort
+        self.similarity_reference_paths = []  # reference images for "similarity_multi" sort
         self.filter_active = False
         self.filter_mode = None  # None, "has_face", "no_face", "advanced"
         self.advanced_filter_settings = {}  # Settings from advanced filter dialog

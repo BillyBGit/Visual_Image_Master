@@ -92,6 +92,36 @@ class FaceEmbedder:
             self.recognizer.match(emb_a, emb_b, cv2.FaceRecognizerSF_FR_COSINE)
         )
 
+    def compute_similarity_to_set(self, path, reference_embeddings):
+        """Nearest-neighbor cosine similarity between path's face and a SET
+        of reference embeddings - the best (highest) match against any one
+        of them, rather than a single reference.
+
+        A multi-reference gallery is more robust than one reference photo:
+        matching against whichever reference is closest means one unusual
+        angle, lighting, or expression among the references can't drag an
+        otherwise-good match down the way averaging embeddings together
+        would, and it still works sensibly if the references are actually
+        several different people, where no single "average face" is
+        meaningful at all. Returns None if path has no detectable face or
+        no reference embedding is available.
+        """
+        if not self.is_available():
+            return None
+        emb = self.get_embedding(path)
+        if emb is None:
+            return None
+        best = None
+        for ref_emb in reference_embeddings:
+            if ref_emb is None:
+                continue
+            score = float(
+                self.recognizer.match(emb, ref_emb, cv2.FaceRecognizerSF_FR_COSINE)
+            )
+            if best is None or score > best:
+                best = score
+        return best
+
     def cluster_by_identity(self, paths, threshold=None):
         """Group paths into identity clusters by union-find over pairwise
         cosine similarity. Returns {path: cluster_id}. Images with no

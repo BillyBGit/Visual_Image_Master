@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QFrame,
 )
-from PySide6.QtCore import Qt, QSize, QUrl, QMimeData
+from PySide6.QtCore import Qt, QSize, QUrl, QMimeData, QItemSelectionModel
 from PySide6.QtGui import QIcon, QDrag, QAction
 from PIL import Image
 
@@ -187,6 +187,12 @@ class ThumbnailList(QListWidget):
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.itemDoubleClicked.connect(self.open_preview)
 
+        # Tracks a pending Ctrl+click-on-item (see mousePressEvent) so a
+        # following mouseMoveEvent/mouseReleaseEvent knows whether to
+        # suppress Qt's native handling or hand off to it as a real drag.
+        self._ctrl_click_item = None
+        self._ctrl_click_start_pos = None
+
         # Store original stylesheet
         self._original_stylesheet = self.styleSheet()
 
@@ -207,6 +213,66 @@ class ThumbnailList(QListWidget):
         else:
             # Restore original stylesheet
             self.setStyleSheet(self._original_stylesheet)
+
+    def mousePressEvent(self, event):
+        """Handle Ctrl+click as an explicit single-item toggle.
+
+        IconMode's default press handling can misinterpret a Ctrl+click with
+        a pixel or two of mouse jitter between press and release as the
+        start of a rubber-band drag-select, and IconMode's row-based
+        hit-testing for that rubber band can end up matching the whole
+        originating row instead of just the point under the cursor -
+        spontaneously selecting everything to the left of the clicked
+        thumbnail in that row, or (if several Ctrl+clicks are made in a
+        row) an unpredictable-looking jumble across rows.
+
+        super().mousePressEvent() is still called - skipping it entirely
+        left Qt's own press/drag-start bookkeeping uninitialized, causing
+        knock-on corruption on the *next* mouse interaction - so instead the
+        exact toggle we want is simply re-applied immediately afterward,
+        overriding whatever native selection decision Qt just made. See
+        mouseMoveEvent for why a follow-up native move also has to be
+        suppressed until it's unambiguously a real drag.
+        """
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+        ):
+            item = self.itemAt(event.position().toPoint())
+            if item is not None:
+                was_selected = item.isSelected()
+                super().mousePressEvent(event)
+                item.setSelected(not was_selected)
+                self.setCurrentItem(item, QItemSelectionModel.SelectionFlag.NoUpdate)
+                self._ctrl_click_item = item
+                self._ctrl_click_start_pos = event.position().toPoint()
+                event.accept()
+                return
+        self._ctrl_click_item = None
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Suppress native move-driven selection churn following a
+        Ctrl+click, until the mouse has moved far enough to count as an
+        actual drag (at which point it's handed back to Qt so dragging the
+        Ctrl-built selection back out of the grid still works)."""
+        if self._ctrl_click_item is not None:
+            moved = event.position().toPoint() - self._ctrl_click_start_pos
+            if moved.manhattanLength() < QApplication.startDragDistance():
+                event.accept()
+                return
+            self._ctrl_click_item = None
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """Swallow the release that pairs with a suppressed Ctrl+click (no
+        drag occurred) - everything it would do was already handled in
+        mousePressEvent."""
+        if self._ctrl_click_item is not None:
+            self._ctrl_click_item = None
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):
         """Intercepts keyboard shortcuts."""
@@ -621,6 +687,17 @@ class ThumbnailList(QListWidget):
         similarity_sort_act.triggered.connect(self.sort_by_similarity_to_selected)
         menu.addAction(similarity_sort_act)
 
+        # Stronger, multi-reference version: use every selected thumbnail as
+        # the reference gallery instead of just one
+        similarity_multi_act = QAction("Sort by Similarity to Selected Images", self)
+        similarity_multi_act.triggered.connect(self.sort_by_similarity_to_selection)
+        similarity_multi_act.setEnabled(len(selected_items) >= 2)
+        if not similarity_multi_act.isEnabled():
+            similarity_multi_act.setToolTip(
+                "Select 2 or more images to use as the reference set."
+            )
+        menu.addAction(similarity_multi_act)
+
         menu.addSeparator()
 
         # Delete
@@ -998,6 +1075,25 @@ class ThumbnailList(QListWidget):
         main_win = self.parent_app or find_main_window()
         if main_win and hasattr(main_win, "set_similarity_sort"):
             main_win.set_similarity_sort(path)
+
+    def sort_by_similarity_to_selection(self):
+        """Sort the thumbnail grid by nearest-neighbor facial similarity to
+        ALL currently selected images - a stronger, multi-reference version
+        of Sort by Similarity to This Image."""
+        selected_items = self.selectedItems()
+        if len(selected_items) < 2:
+            return
+        paths = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in selected_items
+            if item.data(Qt.ItemDataRole.UserRole)
+        ]
+        if len(paths) < 2:
+            return
+
+        main_win = self.parent_app or find_main_window()
+        if main_win and hasattr(main_win, "set_similarity_sort_multi"):
+            main_win.set_similarity_sort_multi(paths)
 
     def show_join_images_dialog(self):
         """Show the join-images dialog for 2-6 selected images."""

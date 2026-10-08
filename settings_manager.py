@@ -309,7 +309,12 @@ class SettingsManager:
         # unattended on whatever folder loads at startup, potentially for
         # minutes, before the window is usable (looks exactly like a
         # hang/crash).
-        if self.app.sort_by in ("composition_diversity", "identity", "similarity"):
+        if self.app.sort_by in (
+            "composition_diversity",
+            "identity",
+            "similarity",
+            "similarity_multi",
+        ):
             self.app.sort_by = "name"
             self.app.sort_ascending = True
         if hasattr(self.app, "sort_actions"):
