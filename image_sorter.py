@@ -731,6 +731,10 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
             and event.modifiers() == Qt.KeyboardModifier.ControlModifier
         ):
             self.undo_last_operation()
+        elif event.key() == Qt.Key.Key_Escape and getattr(
+            self, "_refresh_in_progress", False
+        ):
+            self.cancel_sort_calculation()
         else:
             super().keyPressEvent(event)
 
@@ -833,7 +837,7 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         if proxy_index.isValid():
             self.dest_tree.setRootIndex(proxy_index)
 
-    def refresh_directory_trees(self):
+    def refresh_directory_trees(self, refresh_thumbnails_too=True):
         """Force both folder trees to re-scan the filesystem.
 
         QFileSystemModel is normally self-updating via its own file-system
@@ -846,6 +850,12 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         reliably do this) to force it to re-read an already-cached
         directory. Also available from File > Refresh Directory Tree (F5)
         as a manual escape hatch for any other external change.
+
+        refresh_thumbnails_too is skipped by FolderTree.create_folder_prompt:
+        a brand new (empty) subdirectory can never change which image files
+        are showing in the currently browsed folder, so there's no reason
+        to pay for a full re-sort/reload of the thumbnail grid just because
+        a sibling or child folder appeared in the tree.
         """
         self.src_model.setFilter(self.src_model.filter())
         self.dest_model.setFilter(self.dest_model.filter())
@@ -859,7 +869,8 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         self._reassert_src_tree_root()
         self._reassert_dest_tree_root()
 
-        self.refresh_thumbnails()
+        if refresh_thumbnails_too:
+            self.refresh_thumbnails()
         self.status_bar.showMessage("Directory tree refreshed", 3000)
 
     def on_source_path_change(self):

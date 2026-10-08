@@ -4,7 +4,7 @@ FilteringMixin - Sort, filter, and dedup menu logic for ImageSorter.
 
 import os
 from PySide6.QtWidgets import QMessageBox, QApplication, QListWidgetItem, QMenu
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PIL import Image
 
@@ -731,6 +731,36 @@ class FilteringMixin:
         if self._settings_loaded:
             self.write_settings()
 
+    def cancel_sort_calculation(self):
+        """Abort whatever sort/filter calculation is currently running
+        (Escape key, see ImageSorter.keyPressEvent) and fall back to the
+        cheap Name sort.
+
+        Bumping _refresh_generation is enough to make the running
+        calculation's own periodic checkpoints bail out on their own - but
+        this is called from within one of those very checkpoints (that's
+        the only place events get pumped during a slow calculation, so
+        that's where the Escape keypress is actually delivered), so the
+        interrupted call is still paused on the Python stack underneath
+        this one. Calling set_sort() straight away would start a second,
+        nested thumbnail reload while the first is still unwinding,
+        producing two overlapping population passes over the same
+        QListWidget. Deferring the actual re-sort with
+        QTimer.singleShot(0, ...) lets the interrupted call finish
+        unwinding first.
+        """
+        self._refresh_generation = getattr(self, "_refresh_generation", 0) + 1
+        self.sort_by = "name"
+        self.sort_ascending = True
+        for key, action in self.sort_actions.items():
+            action.setChecked(key == (self.sort_by, self.sort_ascending))
+        if self._settings_loaded:
+            self.write_settings()
+        self.status_bar.showMessage(
+            "Sort calculation cancelled - reverted to Name sort", 4000
+        )
+        QTimer.singleShot(0, self.refresh_thumbnails)
+
     def prompt_similarity_sort(self):
         """Prompt for a reference image, then sort by facial similarity to it."""
         from PySide6.QtWidgets import QFileDialog
@@ -816,10 +846,12 @@ class FilteringMixin:
         # the preview's navigation at whatever count had loaded so far,
         # making it look like it "only had the first N images" and wrapped
         # around early.
+        self._refresh_in_progress = True
         try:
             self._refresh_thumbnails_impl()
         finally:
             self.thumb_list.setEnabled(True)
+            self._refresh_in_progress = False
 
     def _refresh_thumbnails_impl(self):
         self.thumb_list.setEnabled(False)
@@ -884,6 +916,16 @@ class FilteringMixin:
             self.progress_bar.setVisible(False)
 
         files = self.sort_files(path, files)
+        if self._refresh_generation != my_gen:
+            # A slow sort_files() (similarity/identity/composition-diversity)
+            # can be cancelled mid-calculation (see cancel_sort_calculation)
+            # without this frame ever checking in again - without this check,
+            # it would go on to populate thumb_list from a now-abandoned
+            # sort order right on top of whatever the cancellation's own
+            # fresh refresh_thumbnails() call puts there.
+            self.progress_bar.setVisible(False)
+            self.stop_loading_spinner()
+            return
         total_files = len(files)
 
         if total_files == 0:

@@ -433,11 +433,16 @@ class FolderTree(QTreeView):
             if not os.path.exists(new_p):
                 os.makedirs(new_p)
                 # Same QFileSystemModel staleness as rename_prompt below - a
-                # newly created row isn't reliably picked up on its own.
+                # newly created row isn't reliably picked up on its own. No
+                # need to also re-sort/reload the thumbnail grid though - a
+                # brand new empty folder can't change which images are
+                # showing in whatever folder is currently browsed.
                 if self.parent_app and hasattr(
                     self.parent_app, "refresh_directory_trees"
                 ):
-                    self.parent_app.refresh_directory_trees()
+                    self.parent_app.refresh_directory_trees(
+                        refresh_thumbnails_too=False
+                    )
 
     def rename_prompt(self, index):
         old_path = self._file_path(index)
