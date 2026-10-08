@@ -432,6 +432,12 @@ class FolderTree(QTreeView):
             new_p = os.path.join(parent_p, name)
             if not os.path.exists(new_p):
                 os.makedirs(new_p)
+                # Same QFileSystemModel staleness as rename_prompt below - a
+                # newly created row isn't reliably picked up on its own.
+                if self.parent_app and hasattr(
+                    self.parent_app, "refresh_directory_trees"
+                ):
+                    self.parent_app.refresh_directory_trees()
 
     def rename_prompt(self, index):
         old_path = self._file_path(index)
@@ -468,9 +474,24 @@ class FolderTree(QTreeView):
             f"Delete {len(paths)} folder(s)?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.StandardButton.Yes:
-            for path in paths:
-                try:
-                    shutil.rmtree(path)
-                except Exception as e:
-                    QMessageBox.warning(self, "Error", f"Could not delete {path}: {e}")
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        any_deleted = False
+        for path in paths:
+            try:
+                shutil.rmtree(path)
+                any_deleted = True
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Could not delete {path}: {e}")
+
+        # An entire folder's worth of files just vanished at once, so there's
+        # no single path to hand to remove_thumbnails_by_path - if any of
+        # them were showing in the main thumbnail grid (or the tree itself
+        # needs to drop the now-gone row), a full refresh is needed instead.
+        if (
+            any_deleted
+            and self.parent_app
+            and hasattr(self.parent_app, "refresh_directory_trees")
+        ):
+            self.parent_app.refresh_directory_trees()

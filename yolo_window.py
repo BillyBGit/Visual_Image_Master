@@ -1302,6 +1302,14 @@ class YoloWindow(QMainWindow):
             if self.overlay:
                 self.overlay.clear_annotations()
 
+            # The extraction's output folder can coincide with whatever the
+            # main window is currently browsing - if so, its thumbnail would
+            # otherwise be left pointing at a now-deleted file.
+            if self.parent_app and hasattr(
+                self.parent_app, "remove_thumbnails_by_path"
+            ):
+                self.parent_app.remove_thumbnails_by_path([image_path])
+
         except OSError as e:
             self.status_bar.showMessage(f"Delete failed: {e}", 5000)
 

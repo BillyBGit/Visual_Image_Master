@@ -26,14 +26,21 @@ class FileOperationsMixin:
     """Mixin providing file operations, dedup execution, undo, tool windows, and help."""
 
     def remove_thumbnails_by_path(self, paths_to_remove):
-        """Removes specific items from the thumb_list without a full reload."""
-        paths_to_remove = {os.path.normpath(p) for p in paths_to_remove}
+        """Removes specific items from the thumb_list without a full reload.
+
+        Compares paths via realpath (not just normpath) so this still
+        matches when the caller's path string reaches the same file through
+        a different symlink than however it was originally added to the
+        grid - e.g. a tool window with its own independently browsed/typed
+        folder path, rather than the main window's own tree selection.
+        """
+        paths_to_remove = {os.path.realpath(p) for p in paths_to_remove}
 
         # Find the lowest index of items being removed to select next item
         first_removed_index = None
         for i in range(self.thumb_list.count() - 1, -1, -1):
             item = self.thumb_list.item(i)
-            item_path = os.path.normpath(item.data(Qt.ItemDataRole.UserRole))
+            item_path = os.path.realpath(item.data(Qt.ItemDataRole.UserRole))
 
             if item_path in paths_to_remove:
                 if first_removed_index is None or i < first_removed_index:

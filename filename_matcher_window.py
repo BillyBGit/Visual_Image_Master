@@ -199,6 +199,14 @@ class MatcherPane(QWidget):
                 self.thumb_list.setCurrentItem(item)
                 break
 
+        # A rename is effectively a move: the old path is gone. If it was
+        # showing in the main window's thumbnail grid, clear it there too -
+        # the grid's own folder-watcher will pick up the new name on its
+        # own if this same folder happens to be the one it's browsing.
+        main_win = find_main_window()
+        if main_win and hasattr(main_win, "remove_thumbnails_by_path"):
+            main_win.remove_thumbnails_by_path([old_path])
+
         if self.status_callback:
             self.status_callback(
                 f"Renamed {os.path.basename(old_path)} -> {os.path.basename(new_path)}"
