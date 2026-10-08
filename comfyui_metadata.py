@@ -133,13 +133,22 @@ def extract_comfyui_info(image_path):
     loras = _extract_loras(nodes, ref_consumers, filename_prefix_hint)
     positive, negative, others = _extract_prompts(nodes, ref_consumers, sampler_node)
     model_name = _extract_model(nodes, ref_consumers, sampler_node)
+    sampler = _extract_sampler_config(nodes, ref_consumers, filename_prefix_hint)
 
-    if not loras and not positive and not negative and not others and not model_name:
+    if (
+        not loras
+        and not positive
+        and not negative
+        and not others
+        and not model_name
+        and not sampler
+    ):
         return None
 
     return {
         "loras": loras,
         "model_name": model_name,
+        "sampler": sampler,
         "positive_prompt": positive,
         "negative_prompt": negative,
         "other_prompts": others,
@@ -508,11 +517,13 @@ def _extract_loras(nodes, ref_consumers, filename_prefix_hint=None):
 
 
 def _find_sampler_node(nodes):
-    """Find the first node whose inputs include both "positive" and
-    "negative" as list-references - the sampler/guider that determines
-    what the model actually saw, regardless of its class_type (KSampler,
-    KSamplerAdvanced, CFGGuider, custom variants, ...) or node title
-    (titles can be stale/misleading after a workflow gets rewired)."""
+    """Find the node that drives sampling: one with "positive" and "negative"
+    list-references, preferring one that also has a "model" reference.
+
+    The model check matters: conditioning helpers (e.g. ControlNetApplySD3)
+    also carry positive/negative inputs but no model, and would otherwise be
+    picked up first, hiding the real KSampler and its model entirely."""
+    fallback = None
     for node in nodes.values():
         if not isinstance(node, dict):
             continue
@@ -525,8 +536,46 @@ def _find_sampler_node(nodes):
             and isinstance(neg_ref, list)
             and neg_ref
         ):
-            return node
-    return None
+            if isinstance(inputs.get("model"), list):
+                return node
+            if fallback is None:
+                fallback = node
+    return fallback
+
+
+# Conditioning nodes that only re-emit their input(s) - the text they carry is
+# whatever feeds them; config fields on these (e.g. ConditioningSetMask's
+# set_cond_area="default") are not prompt text and must not be read as such.
+_CONDITIONING_PASSTHROUGH = {"ConditioningCombine": "conditioning_1"}
+
+
+def _unwrap_conditioning(nodes, ref, depth=0):
+    """Step through conditioning pass-through nodes (e.g. ControlNetApply,
+    which carries positive/negative inputs and re-emits them unchanged) to the
+    node that actually produced the text. Slot 0 is positive, slot 1 negative.
+    """
+    if not isinstance(ref, list) or not ref or depth > MAX_RESOLVE_DEPTH:
+        return ref
+    node = nodes.get(str(ref[0]))
+    if not isinstance(node, dict):
+        return ref
+    node_inputs = node.get("inputs", {}) or {}
+    class_type = str(node.get("class_type", ""))
+
+    if "positive" in node_inputs and "negative" in node_inputs:
+        slot = ref[1] if len(ref) > 1 else 0
+        key = "negative" if slot == 1 else "positive"
+    elif class_type in _CONDITIONING_PASSTHROUGH:
+        key = _CONDITIONING_PASSTHROUGH[class_type]
+    elif "conditioning" in node_inputs and class_type.startswith("Conditioning"):
+        key = "conditioning"
+    else:
+        return ref
+
+    nxt = node_inputs.get(key)
+    if not isinstance(nxt, list) or not nxt:
+        return ref
+    return _unwrap_conditioning(nodes, nxt, depth + 1)
 
 
 def _extract_prompts(nodes, ref_consumers, sampler_node):
@@ -538,8 +587,8 @@ def _extract_prompts(nodes, ref_consumers, sampler_node):
     found at all.
     """
     inputs = (sampler_node or {}).get("inputs", {}) or {}
-    positive_ref = inputs.get("positive")
-    negative_ref = inputs.get("negative")
+    positive_ref = _unwrap_conditioning(nodes, inputs.get("positive"))
+    negative_ref = _unwrap_conditioning(nodes, inputs.get("negative"))
 
     positive = (
         _resolve_text(nodes, ref_consumers, positive_ref) if positive_ref else None
@@ -563,6 +612,75 @@ def _extract_prompts(nodes, ref_consumers, sampler_node):
                 others.append(text)
 
     return positive, negative, others
+
+
+_SAMPLER_CONFIG_FIELDS = ("sampler_name", "scheduler", "steps", "cfg", "denoise")
+_SAMPLER_SEED_FIELDS = ("seed", "noise_seed")
+_SAMPLER_LINK_FIELDS = ("noise", "guider", "sampler", "sigmas")
+
+
+def _extract_sampler_config(nodes, ref_consumers, filename_prefix_hint=None):
+    """Sampler settings (sampler, scheduler, steps, cfg, denoise, seed).
+
+    KSampler-style nodes carry these directly. Custom-sampler graphs
+    (SamplerCustomAdvanced) instead link to separate RandomNoise, CFGGuider,
+    KSamplerSelect and BasicScheduler nodes, so those are followed too.
+    Any value that is a link to something unresolvable (e.g. a runtime
+    "Random Number" pick) is reported as None rather than guessed.
+    """
+    primary_id, best = None, 0
+    for node_id, node in nodes.items():
+        if not isinstance(node, dict):
+            continue
+        inputs = node.get("inputs", {}) or {}
+        score = sum(
+            1
+            for k in _SAMPLER_CONFIG_FIELDS
+            + _SAMPLER_SEED_FIELDS
+            + _SAMPLER_LINK_FIELDS
+            if k in inputs
+        )
+        if score > best:
+            primary_id, best = node_id, score
+    if primary_id is None:
+        return None
+
+    primary_inputs = nodes[primary_id].get("inputs", {}) or {}
+    sources = [primary_id]
+    for key in _SAMPLER_LINK_FIELDS:
+        ref = primary_inputs.get(key)
+        if isinstance(ref, list) and ref and str(ref[0]) in nodes:
+            sources.append(str(ref[0]))
+
+    numeric_fields = {"steps", "cfg", "denoise", "seed", "noise_seed"}
+
+    def lookup(field_names):
+        for src_id in sources:
+            inputs = (nodes.get(src_id) or {}).get("inputs", {}) or {}
+            for name in field_names:
+                if name not in inputs:
+                    continue
+                value = inputs[name]
+                if isinstance(value, list):
+                    if name in numeric_fields:
+                        return _resolve_numeric(
+                            nodes, ref_consumers, value, filename_prefix_hint
+                        )
+                    return _resolve_text(nodes, ref_consumers, value)
+                return value
+        return None
+
+    config = {
+        "sampler_name": lookup(("sampler_name",)),
+        "scheduler": lookup(("scheduler",)),
+        "steps": lookup(("steps",)),
+        "cfg": lookup(("cfg",)),
+        "denoise": lookup(("denoise",)),
+        "seed": lookup(_SAMPLER_SEED_FIELDS),
+    }
+    if all(v is None for v in config.values()):
+        return None
+    return config
 
 
 def _resolve_model_name(nodes, ref_consumers, value, visited=None, depth=0):

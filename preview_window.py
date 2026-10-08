@@ -665,6 +665,18 @@ class ImagePreviewWindow(QMainWindow):
 
         lines = []
         lines.append(f"Model: {info.get('model_name') or '(not detected)'}")
+        sampler = info.get("sampler") or {}
+        sampler_fields = (
+            ("Sampler", "sampler_name"),
+            ("Scheduler", "scheduler"),
+            ("Steps", "steps"),
+            ("CFG", "cfg"),
+            ("Denoise", "denoise"),
+            ("Seed", "seed"),
+        )
+        for label, key in sampler_fields:
+            if sampler.get(key) is not None:
+                lines.append(f"{label}: {sampler[key]}")
         lines.append("")
         if info["loras"]:
             lines.append("LoRAs:")
