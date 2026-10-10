@@ -135,83 +135,38 @@ class FaceEmbedder:
                 best = score
         return best
 
-    def compute_similarity_to_set(self, path, reference_embeddings):
-        """Nearest-neighbor cosine similarity between ANY detected face in
-        path and a SET of reference embeddings - the best (highest) match
-        across every (path face, reference face) pair, rather than a
-        single reference or a single largest-bounding-box face on either
-        side.
+    def best_match_per_reference(self, candidate_embeddings, reference_embeddings):
+        """For one candidate image's face embeddings (there may be more
+        than one face in the photo) against EACH reference embedding
+        individually, return a list of scores - one per reference
+        embedding - of the candidate's own best-matching face against
+        that one specific reference. The caller's overall similarity
+        score is max() of this list - one call covers both "match every
+        candidate face against every reference face" and "keep the score
+        broken down per reference" for callers that want to inspect it
+        (e.g. order_by_similarity_multi/_discriminative only need the
+        max, but this is also how the per-reference breakdown got used
+        for a rank-based combination scheme that was tried and reverted -
+        see order_by_similarity_multi's docstring for why).
 
-        A multi-reference gallery is more robust than one reference photo:
-        matching against whichever reference is closest means one unusual
-        angle, lighting, or expression among the references can't drag an
-        otherwise-good match down the way averaging embeddings together
-        would, and it still works sensibly if the references are actually
-        several different people, where no single "average face" is
-        meaningful at all. Matching every face detected in path (not just
-        the largest) means a photo where the subject isn't the most
-        prominent face in frame still gets compared correctly. Returns
-        None if path has no detectable face or no reference embedding is
-        available.
+        Returns [] if candidate_embeddings or reference_embeddings is
+        empty.
         """
-        if not self.is_available():
-            return None
-        candidate_embeddings = self.get_face_embeddings(path)
-        if not candidate_embeddings:
-            return None
-        best = None
-        for emb in candidate_embeddings:
-            score = self._best_match(emb, reference_embeddings)
-            if score is not None and (best is None or score > best):
-                best = score
-        return best
-
-    def compute_discriminative_similarity(
-        self, path, positive_embeddings, negative_embeddings
-    ):
-        """Nearest-neighbor similarity to a positive reference set, minus
-        nearest-neighbor similarity to a negative set - rewards matching
-        the positives AND being unlike the negatives, rather than scoring
-        purely on how well path matches the positives in isolation.
-
-        This catches a lookalike that compute_similarity_to_set alone
-        would rank highly: if they also score high against the negative
-        set (e.g. because the negatives happen to share lighting, studio,
-        or age bracket with the positives rather than being a clean
-        contrast set), that drags their score back down instead of
-        leaving them sitting near the top.
-
-        Each face detected in path is scored independently (its own best
-        match against the positives minus its own best match against the
-        negatives), and the highest-scoring face wins - so in a multi-face
-        photo, one face resembling a negative doesn't drag down a
-        DIFFERENT face in the same photo that's a genuine positive match.
-
-        Returns None if path has no detectable face or none of the
-        positive embeddings are usable. An empty/all-None negative set
-        just means no penalty is applied - equivalent to
-        compute_similarity_to_set.
-        """
-        if not self.is_available():
-            return None
-        candidate_embeddings = self.get_face_embeddings(path)
-        if not candidate_embeddings:
-            return None
-
-        best_score = None
-        for emb in candidate_embeddings:
-            best_positive = self._best_match(emb, positive_embeddings)
-            if best_positive is None:
-                continue
-            best_negative = self._best_match(emb, negative_embeddings)
-            score = (
-                best_positive
-                if best_negative is None
-                else best_positive - best_negative
-            )
-            if best_score is None or score > best_score:
-                best_score = score
-        return best_score
+        if not candidate_embeddings or not reference_embeddings:
+            return []
+        scores = []
+        for ref_emb in reference_embeddings:
+            best = None
+            for cand_emb in candidate_embeddings:
+                score = float(
+                    self.recognizer.match(
+                        cand_emb, ref_emb, cv2.FaceRecognizerSF_FR_COSINE
+                    )
+                )
+                if best is None or score > best:
+                    best = score
+            scores.append(best)
+        return scores
 
     def cluster_by_identity(self, paths, threshold=None):
         """Group paths into identity clusters by union-find over pairwise

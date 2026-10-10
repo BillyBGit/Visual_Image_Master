@@ -1419,6 +1419,18 @@ class FilteringMixin:
         needs a face embedding computed, but more robust: it isn't thrown
         off by any single reference photo's particular angle, lighting, or
         expression the way comparing against just one image can be.
+
+        A per-reference RANK-based version (rank every candidate against
+        each reference photo separately, then take each candidate's best
+        rank across all of them) was tried and rejected: on a real 3300-
+        image test, it let a single poorly-matching reference photo's
+        column promote a wrong-identity candidate to the very top purely
+        for being the "least bad" of a weak field, even though its raw
+        score against every reference was far below genuine matches
+        elsewhere in the pool. Raw max score doesn't have that failure
+        mode - a wrong identity's best score still has to beat every
+        genuine match's best score somewhere, not just win one weak
+        column outright.
         """
         from face_embedding import get_embedder
 
@@ -1468,9 +1480,13 @@ class FilteringMixin:
 
         similarities = {}
         for full_path in full_paths:
-            similarities[full_path] = embedder.compute_similarity_to_set(
-                full_path, reference_embeddings
+            cand_embs = embedder.get_face_embeddings(full_path)
+            per_ref = (
+                embedder.best_match_per_reference(cand_embs, reference_embeddings)
+                if cand_embs
+                else None
             )
+            similarities[full_path] = max(per_ref) if per_ref else None
             done += 1
             self.progress_bar.setValue(done)
             if done % 10 == 0:
@@ -1504,7 +1520,8 @@ class FilteringMixin:
         also needs embedding, but better at telling apart a genuine match
         from a lookalike: a candidate that scores well against the
         positives but ALSO resembles the negatives gets pulled back down
-        instead of still ranking near the top.
+        instead of still ranking near the top. Uses raw max-score, not
+        rank - see order_by_similarity_multi for why.
         """
         from face_embedding import get_embedder
 
@@ -1570,9 +1587,23 @@ class FilteringMixin:
 
         scores = {}
         for full_path in full_paths:
-            scores[full_path] = embedder.compute_discriminative_similarity(
-                full_path, positive_embeddings, negative_embeddings
-            )
+            cand_embs = embedder.get_face_embeddings(full_path)
+            if not cand_embs:
+                scores[full_path] = None
+            else:
+                best_positive = max(
+                    embedder.best_match_per_reference(cand_embs, positive_embeddings)
+                )
+                negative_per_ref = (
+                    embedder.best_match_per_reference(cand_embs, negative_embeddings)
+                    if negative_embeddings
+                    else None
+                )
+                scores[full_path] = (
+                    best_positive
+                    if not negative_per_ref
+                    else best_positive - max(negative_per_ref)
+                )
             done += 1
             self.progress_bar.setValue(done)
             if done % 10 == 0:
