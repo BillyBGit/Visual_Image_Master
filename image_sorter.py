@@ -332,6 +332,19 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         slideshow_act.triggered.connect(self.open_slideshow)
         tools_menu.addAction(slideshow_act)
 
+        reference_consistency_act = QAction(
+            "&Reference Folder Consistency Check...", self
+        )
+        reference_consistency_act.setToolTip(
+            "Audit a reference-image folder for photos that don't facially "
+            "match the rest of it (e.g. mislabeled/wrong-identity) before "
+            "using it with the reference-folder similarity sorts"
+        )
+        reference_consistency_act.triggered.connect(
+            self.open_reference_consistency_window
+        )
+        tools_menu.addAction(reference_consistency_act)
+
         auto_caption_act = QAction("&Auto Caption...", self)
         auto_caption_act.triggered.connect(self.open_caption_window)
         tools_menu.addAction(auto_caption_act)

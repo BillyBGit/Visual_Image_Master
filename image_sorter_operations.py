@@ -663,6 +663,26 @@ class FileOperationsMixin:
         self.yolo_window = YoloWindow(image_list, current_index, self)
         self.yolo_window.showMaximized()
 
+    def open_reference_consistency_window(self):
+        """Prompt for a reference-image folder, then open a one-shot audit
+        showing every image's leave-one-out best facial match against the
+        rest of that same folder - a photo that's mislabeled, wrong-
+        identity, or just a poor/ambiguous crop stands out with a lower
+        score (and a red border once below the adjustable threshold),
+        making it easy to spot what to remove or replace before using that
+        folder with the reference-folder similarity sorts."""
+        from reference_consistency_window import ReferenceConsistencyWindow
+
+        start_dir = self.get_current_source_path() or ""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose Reference Folder to Check", start_dir
+        )
+        if not folder:
+            return
+
+        self.reference_consistency_window = ReferenceConsistencyWindow(folder, self)
+        self.reference_consistency_window.show()
+
     def open_slideshow(self):
         """Open a slideshow of the currently displayed thumbnails."""
         from slideshow_window import SlideshowWindow
