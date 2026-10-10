@@ -70,7 +70,26 @@ class FileOperationsMixin:
         self.last_operation = {"type": operation_type, "files": []}
 
     def smart_transfer(self, src, dst_folder, is_copy):
-        """Handles file transfer with automatic renaming to avoid conflicts."""
+        """Handles file transfer with automatic renaming to avoid conflicts.
+
+        If src has already vanished by the time this runs - a stale
+        thumbnail whose file was moved/deleted by something other than
+        this app's own tracked operations (another app, a script, or just
+        weaker external-drive change notification) - this reports it
+        quietly on the status bar instead of popping up an alarming error
+        dialog. The caller still cleans up that thumbnail the same way as
+        a normal successful move either way (FolderTree.dropEvent and
+        ThumbnailList.transfer_files both add every attempted source to
+        their remove-from-grid list regardless of outcome), so nothing is
+        actually left in a broken state - just no reason to interrupt the
+        user over it.
+        """
+        if not os.path.exists(src):
+            self.status_bar.showMessage(
+                f"Skipped {os.path.basename(src)} - no longer exists", 4000
+            )
+            return
+
         dest = os.path.join(dst_folder, os.path.basename(src))
         name, ext = os.path.splitext(dest)
         counter = 1

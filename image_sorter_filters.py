@@ -1095,11 +1095,17 @@ class FilteringMixin:
         self._new_file_check_timer.start(400)
 
     def _check_for_new_thumbnails(self):
-        """Add any newly-appeared image file(s) to the grid without a full reload.
+        """Add any newly-appeared image file(s) to the grid, and remove any
+        shown thumbnail whose file has disappeared, without a full reload.
 
         A file is only added once its size has been stable across two checks,
         so a partially-written file (an external app still saving) doesn't
-        get picked up and thumbnailed mid-write.
+        get picked up and thumbnailed mid-write. Removal has no such
+        ambiguity - once a shown file is simply absent from the directory
+        listing, its thumbnail is stale (moved/deleted by something other
+        than this app's own tracked operations - another app, a script, or
+        an external drive with weaker change notification) and shouldn't
+        keep sitting in the grid pretending to still be there.
         """
         path = self.get_current_source_path()
         if not os.path.isdir(path):
@@ -1113,11 +1119,12 @@ class FilteringMixin:
         except OSError:
             return
 
-        shown_paths = set()
+        shown_map = {}
         for i in range(self.thumb_list.count()):
             item_path = self.thumb_list.item(i).data(Qt.ItemDataRole.UserRole)
             if item_path:
-                shown_paths.add(os.path.normpath(item_path))
+                shown_map[os.path.normpath(item_path)] = item_path
+        shown_paths = set(shown_map)
 
         still_pending = {}
         needs_recheck = False
@@ -1144,6 +1151,13 @@ class FilteringMixin:
         self._pending_new_files = still_pending
         if needs_recheck:
             self._new_file_check_timer.start(400)
+
+        current_full_paths = {
+            os.path.normpath(os.path.join(path, f)) for f in current_files
+        }
+        vanished = [shown_map[p] for p in shown_paths if p not in current_full_paths]
+        if vanished:
+            self.remove_thumbnails_by_path(vanished)
 
         if added_any and self.show_counts_act.isChecked():
             self.src_tree.count_delegate._count_cache.clear()
