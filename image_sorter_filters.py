@@ -1441,7 +1441,10 @@ class FilteringMixin:
 
         reference_embeddings = []
         for ref_path in reference_paths:
-            reference_embeddings.append(embedder.get_embedding(ref_path))
+            # Every face in the reference photo, not just the largest - a
+            # reference image with an incidental second face in frame
+            # shouldn't have a coin-flip chance of embedding the wrong one.
+            reference_embeddings.extend(embedder.get_face_embeddings(ref_path))
             done += 1
             self.progress_bar.setValue(done)
             if done % 10 == 0:
@@ -1451,7 +1454,6 @@ class FilteringMixin:
                     self.stop_loading_spinner()
                     return files
 
-        reference_embeddings = [e for e in reference_embeddings if e is not None]
         if not reference_embeddings:
             self.progress_bar.setVisible(False)
             self.stop_loading_spinner()
@@ -1526,7 +1528,9 @@ class FilteringMixin:
 
         positive_embeddings = []
         for ref_path in positive_paths:
-            positive_embeddings.append(embedder.get_embedding(ref_path))
+            # Every face in the reference photo, not just the largest - see
+            # order_by_similarity_multi.
+            positive_embeddings.extend(embedder.get_face_embeddings(ref_path))
             done += 1
             self.progress_bar.setValue(done)
             if done % 10 == 0:
@@ -1536,7 +1540,6 @@ class FilteringMixin:
                     self.stop_loading_spinner()
                     return files
 
-        positive_embeddings = [e for e in positive_embeddings if e is not None]
         if not positive_embeddings:
             self.progress_bar.setVisible(False)
             self.stop_loading_spinner()
@@ -1551,7 +1554,7 @@ class FilteringMixin:
 
         negative_embeddings = []
         for neg_path in negative_paths:
-            negative_embeddings.append(embedder.get_embedding(neg_path))
+            negative_embeddings.extend(embedder.get_face_embeddings(neg_path))
             done += 1
             self.progress_bar.setValue(done)
             if done % 10 == 0:
@@ -1560,8 +1563,6 @@ class FilteringMixin:
                     self.progress_bar.setVisible(False)
                     self.stop_loading_spinner()
                     return files
-
-        negative_embeddings = [e for e in negative_embeddings if e is not None]
 
         self.set_loading_spinner_message(
             f"Comparing faces in {len(full_paths)} images..."
