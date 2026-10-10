@@ -698,6 +698,22 @@ class ThumbnailList(QListWidget):
             )
         menu.addAction(similarity_multi_act)
 
+        # Discriminative version: selected thumbnails as the positive
+        # reference gallery, plus a prompted folder of negative images
+        # (other people/subjects to actively rank down)
+        similarity_exclude_act = QAction(
+            "Sort by Similarity to Selected Images (+ Negative Folder)...", self
+        )
+        similarity_exclude_act.triggered.connect(
+            self.sort_by_similarity_to_selection_with_negatives
+        )
+        similarity_exclude_act.setEnabled(len(selected_items) >= 2)
+        if not similarity_exclude_act.isEnabled():
+            similarity_exclude_act.setToolTip(
+                "Select 2 or more images to use as the reference set."
+            )
+        menu.addAction(similarity_exclude_act)
+
         menu.addSeparator()
 
         # Delete
@@ -1094,6 +1110,34 @@ class ThumbnailList(QListWidget):
         main_win = self.parent_app or find_main_window()
         if main_win and hasattr(main_win, "set_similarity_sort_multi"):
             main_win.set_similarity_sort_multi(paths)
+
+    def sort_by_similarity_to_selection_with_negatives(self):
+        """Like sort_by_similarity_to_selection, but also prompts for a
+        folder of negative images - other people/subjects to actively rank
+        down, not just not-matched. See
+        ImageSorter.set_similarity_sort_discriminative."""
+        selected_items = self.selectedItems()
+        if len(selected_items) < 2:
+            return
+        paths = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in selected_items
+            if item.data(Qt.ItemDataRole.UserRole)
+        ]
+        if len(paths) < 2:
+            return
+
+        main_win = self.parent_app or find_main_window()
+        if not main_win or not hasattr(main_win, "set_similarity_sort_discriminative"):
+            return
+
+        negative_paths = main_win._prompt_for_image_folder(
+            "Choose Negative Image Folder (other people/images to rank down)"
+        )
+        if negative_paths is None:
+            return
+
+        main_win.set_similarity_sort_discriminative(paths, negative_paths)
 
     def show_join_images_dialog(self):
         """Show the join-images dialog for 2-6 selected images."""

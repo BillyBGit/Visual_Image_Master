@@ -314,6 +314,7 @@ class SettingsManager:
             "identity",
             "similarity",
             "similarity_multi",
+            "similarity_discriminative",
         ):
             self.app.sort_by = "name"
             self.app.sort_ascending = True

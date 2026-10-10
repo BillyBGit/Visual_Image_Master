@@ -195,6 +195,25 @@ class FilteringMixin:
         similarity_folder_act.triggered.connect(self.prompt_similarity_folder_sort)
         self.sort_menu.addAction(similarity_folder_act)
 
+        # Discriminative version: a positive reference folder AND a
+        # negative folder (other people/subjects to actively rank down)
+        similarity_discriminative_act = QAction(
+            "Sort by Similarity to Reference Folders (+ Negatives)...",
+            self,
+            checkable=True,
+        )
+        similarity_discriminative_act.setToolTip(
+            "Pick a folder of reference images AND a folder of negative "
+            "images (other people/subjects) - sorts closest facial match "
+            "to the references first, penalized by any similarity to the "
+            "negatives. Stronger than a positives-only reference folder "
+            "at telling apart genuine matches from lookalikes."
+        )
+        similarity_discriminative_act.triggered.connect(
+            self.prompt_similarity_folder_discriminative_sort
+        )
+        self.sort_menu.addAction(similarity_discriminative_act)
+
         self.sort_actions = {
             ("name", True): name_asc_act,
             ("name", False): name_desc_act,
@@ -219,6 +238,7 @@ class FilteringMixin:
             ("identity", True): identity_act,
             ("similarity", False): similarity_act,
             ("similarity_multi", False): similarity_folder_act,
+            ("similarity_discriminative", False): similarity_discriminative_act,
         }
 
         self.sort_actions[("name", True)].setChecked(True)
@@ -790,24 +810,25 @@ class FilteringMixin:
             f"Sorting by similarity to: {os.path.basename(reference_path)}", 4000
         )
 
-    def prompt_similarity_folder_sort(self):
-        """Prompt for a folder of reference images, then sort by
-        nearest-neighbor facial similarity to the whole set - stronger than
-        a single reference image since no one reference photo's particular
-        angle, lighting, or expression can throw off the match."""
+    def _prompt_for_image_folder(self, title):
+        """Prompt for a folder, return the list of valid image paths it
+        contains, or None if the user cancelled or it was unusable.
+
+        On a None return, the sort-menu checkbox has already been restored
+        to match the current sort mode (any warning dialog shown) - every
+        caller can just bail out on None without any cleanup of its own.
+        """
         from PySide6.QtWidgets import QFileDialog
 
         start_dir = self.get_current_source_path() or ""
-        folder = QFileDialog.getExistingDirectory(
-            self, "Choose Reference Image Folder", start_dir
-        )
+        folder = QFileDialog.getExistingDirectory(self, title, start_dir)
         if not folder:
             for key, action in self.sort_actions.items():
                 action.setChecked(key == (self.sort_by, self.sort_ascending))
-            return
+            return None
 
         try:
-            reference_paths = [
+            paths = [
                 os.path.join(folder, f)
                 for f in os.listdir(folder)
                 if f.lower().endswith(VALID_IMAGE_EXTS)
@@ -816,14 +837,24 @@ class FilteringMixin:
             QMessageBox.warning(self, "Error", f"Could not read folder: {e}")
             for key, action in self.sort_actions.items():
                 action.setChecked(key == (self.sort_by, self.sort_ascending))
-            return
+            return None
 
-        if not reference_paths:
+        if not paths:
             QMessageBox.warning(self, "No Images", "That folder has no images in it.")
             for key, action in self.sort_actions.items():
                 action.setChecked(key == (self.sort_by, self.sort_ascending))
-            return
+            return None
 
+        return paths
+
+    def prompt_similarity_folder_sort(self):
+        """Prompt for a folder of reference images, then sort by
+        nearest-neighbor facial similarity to the whole set - stronger than
+        a single reference image since no one reference photo's particular
+        angle, lighting, or expression can throw off the match."""
+        reference_paths = self._prompt_for_image_folder("Choose Reference Image Folder")
+        if reference_paths is None:
+            return
         self.set_similarity_sort_multi(reference_paths)
 
     def set_similarity_sort_multi(self, reference_paths):
@@ -834,6 +865,37 @@ class FilteringMixin:
         self.set_sort("similarity_multi", False)
         self.status_bar.showMessage(
             f"Sorting by similarity to {len(reference_paths)} reference image(s)",
+            4000,
+        )
+
+    def prompt_similarity_folder_discriminative_sort(self):
+        """Prompt for a folder of positive reference images AND a folder of
+        negative images (other people/subjects to actively rank down), then
+        sort by facial similarity to the positives penalized by similarity
+        to the negatives - see FaceEmbedder.compute_discriminative_similarity."""
+        positive_paths = self._prompt_for_image_folder(
+            "Choose Reference Image Folder (the person to match)"
+        )
+        if positive_paths is None:
+            return
+        negative_paths = self._prompt_for_image_folder(
+            "Choose Negative Image Folder (other people/images to rank down)"
+        )
+        if negative_paths is None:
+            return
+        self.set_similarity_sort_discriminative(positive_paths, negative_paths)
+
+    def set_similarity_sort_discriminative(self, positive_paths, negative_paths):
+        """Sort the currently displayed thumbnails by facial similarity to
+        a positive reference set, penalized by similarity to a negative
+        set - closest match to the positives, least like the negatives,
+        first."""
+        self.similarity_reference_paths = list(positive_paths)
+        self.similarity_negative_paths = list(negative_paths)
+        self.set_sort("similarity_discriminative", False)
+        self.status_bar.showMessage(
+            f"Sorting by similarity to {len(positive_paths)} reference image(s), "
+            f"penalized by similarity to {len(negative_paths)} negative image(s)",
             4000,
         )
 
@@ -1205,6 +1267,8 @@ class FilteringMixin:
             files = self.order_by_similarity(path, files)
         elif self.sort_by == "similarity_multi":
             files = self.order_by_similarity_multi(path, files)
+        elif self.sort_by == "similarity_discriminative":
+            files = self.order_by_similarity_discriminative(path, files)
         return files
 
     def order_by_composition_diversity(self, path, files):
@@ -1423,6 +1487,109 @@ class FilteringMixin:
                 similarities[os.path.join(path, f)]
                 if similarities[os.path.join(path, f)] is not None
                 else -1.0
+            ),
+            reverse=True,
+        )
+
+    def order_by_similarity_discriminative(self, path, files):
+        """Order files by facial similarity to a positive reference set
+        (self.similarity_reference_paths), penalized by similarity to a
+        negative set (self.similarity_negative_paths) - see
+        FaceEmbedder.compute_discriminative_similarity. Images with no
+        comparable face, or no usable positive reference, sort last.
+
+        Slower than order_by_similarity_multi since the negative gallery
+        also needs embedding, but better at telling apart a genuine match
+        from a lookalike: a candidate that scores well against the
+        positives but ALSO resembles the negatives gets pulled back down
+        instead of still ranking near the top.
+        """
+        from face_embedding import get_embedder
+
+        positive_paths = getattr(self, "similarity_reference_paths", None)
+        negative_paths = getattr(self, "similarity_negative_paths", None) or []
+        if not positive_paths:
+            return files
+
+        embedder = get_embedder()
+        full_paths = [os.path.join(path, f) for f in files]
+        my_gen = self._refresh_generation
+        total = len(positive_paths) + len(negative_paths) + len(full_paths)
+        done = 0
+
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.set_loading_spinner_message(
+            f"Analyzing {len(positive_paths)} reference image(s)..."
+        )
+
+        positive_embeddings = []
+        for ref_path in positive_paths:
+            positive_embeddings.append(embedder.get_embedding(ref_path))
+            done += 1
+            self.progress_bar.setValue(done)
+            if done % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        positive_embeddings = [e for e in positive_embeddings if e is not None]
+        if not positive_embeddings:
+            self.progress_bar.setVisible(False)
+            self.stop_loading_spinner()
+            self.status_bar.showMessage(
+                "No detectable faces found in the reference images.", 4000
+            )
+            return files
+
+        self.set_loading_spinner_message(
+            f"Analyzing {len(negative_paths)} negative image(s)..."
+        )
+
+        negative_embeddings = []
+        for neg_path in negative_paths:
+            negative_embeddings.append(embedder.get_embedding(neg_path))
+            done += 1
+            self.progress_bar.setValue(done)
+            if done % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        negative_embeddings = [e for e in negative_embeddings if e is not None]
+
+        self.set_loading_spinner_message(
+            f"Comparing faces in {len(full_paths)} images..."
+        )
+
+        scores = {}
+        for full_path in full_paths:
+            scores[full_path] = embedder.compute_discriminative_similarity(
+                full_path, positive_embeddings, negative_embeddings
+            )
+            done += 1
+            self.progress_bar.setValue(done)
+            if done % 10 == 0:
+                QApplication.processEvents()
+                if self._refresh_generation != my_gen:
+                    self.progress_bar.setVisible(False)
+                    self.stop_loading_spinner()
+                    return files
+
+        self.progress_bar.setVisible(False)
+        self.stop_loading_spinner()
+
+        return sorted(
+            files,
+            key=lambda f: (
+                scores[os.path.join(path, f)]
+                if scores[os.path.join(path, f)] is not None
+                else float("-inf")
             ),
             reverse=True,
         )
