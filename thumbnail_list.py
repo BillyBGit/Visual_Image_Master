@@ -674,6 +674,12 @@ class ThumbnailList(QListWidget):
             join_act.setToolTip("Select between 2 and 6 images to join.")
         menu.addAction(join_act)
 
+        # Rotate 90 degrees clockwise
+        rotate_act = QAction("Rotate 90° Clockwise", self)
+        rotate_act.setShortcut("Ctrl+R")
+        rotate_act.triggered.connect(self.rotate_selected_images)
+        menu.addAction(rotate_act)
+
         # Resize to padded square
         resize_act = QAction("Resize to 1024×1024 (padded)", self)
         resize_act.triggered.connect(lambda: self.resize_to_padded_square())

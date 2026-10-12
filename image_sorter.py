@@ -353,6 +353,11 @@ class ImageSorter(QMainWindow, FilteringMixin, FileOperationsMixin):
         enhance_act.triggered.connect(self.open_enhance_dialog)
         tools_menu.addAction(enhance_act)
 
+        rotate_act = QAction("&Rotate Selected 90° Clockwise", self)
+        rotate_act.setShortcut("Ctrl+R")
+        rotate_act.triggered.connect(lambda: self.thumb_list.rotate_selected_images())
+        tools_menu.addAction(rotate_act)
+
         pair_act = QAction("&Pair Selector...", self)
         pair_act.triggered.connect(self.open_pair_selector)
         tools_menu.addAction(pair_act)
