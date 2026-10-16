@@ -703,26 +703,39 @@ class FileOperationsMixin:
         self.reference_consistency_window.show()
 
     def open_slideshow(self):
-        """Open a slideshow of the currently displayed thumbnails."""
+        """Open a slideshow of the currently displayed thumbnails.
+
+        If 2 or more thumbnails are selected, the slideshow is restricted to
+        just that selection; otherwise (0 or 1 selected) it falls back to
+        every thumbnail currently shown.
+        """
         from slideshow_window import SlideshowWindow
 
+        selected_rows = sorted(
+            self.thumb_list.row(item) for item in self.thumb_list.selectedItems()
+        )
+
         image_list = []
-        for i in range(self.thumb_list.count()):
-            item = self.thumb_list.item(i)
-            path = item.data(Qt.ItemDataRole.UserRole)
-            if path:
-                image_list.append(path)
+        current_index = 0
+        if len(selected_rows) >= 2:
+            for row in selected_rows:
+                path = self.thumb_list.item(row).data(Qt.ItemDataRole.UserRole)
+                if path:
+                    image_list.append(path)
+        else:
+            for i in range(self.thumb_list.count()):
+                item = self.thumb_list.item(i)
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path:
+                    image_list.append(path)
+            if selected_rows:
+                current_index = selected_rows[0]
 
         if not image_list:
             QMessageBox.information(
                 self, "No Images", "Please select a source folder with images first."
             )
             return
-
-        current_index = 0
-        selected_items = self.thumb_list.selectedItems()
-        if selected_items:
-            current_index = self.thumb_list.row(selected_items[0])
 
         self.slideshow_window = SlideshowWindow(image_list, current_index, self)
         self.slideshow_window.showMaximized()
