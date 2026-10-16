@@ -6,7 +6,7 @@ a configurable number of seconds, scaled to fit the window while preserving
 aspect ratio.
 
 Keys:
-  P       — pause / resume
+  P / Space — pause / resume
   ← / →  — previous / next (resets the per-image timer)
   Escape  — close
 """
@@ -131,7 +131,7 @@ class SlideshowWindow(QMainWindow):
         root.addWidget(self.image_label, stretch=1)
 
         self.hint_label = QLabel(
-            "F11 = fullscreen  ·  P = pause/resume  ·  ← / → = previous/next  ·  "
+            "F11 = fullscreen  ·  P/Space = pause/resume  ·  ← / → = previous/next  ·  "
             "Esc = exit fullscreen / close"
         )
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -274,7 +274,7 @@ class SlideshowWindow(QMainWindow):
 
     def keyPressEvent(self, event):
         key = event.key()
-        if key == Qt.Key.Key_P:
+        if key in (Qt.Key.Key_P, Qt.Key.Key_Space):
             self._toggle_pause()
         elif key == Qt.Key.Key_Left:
             self._go_previous()
