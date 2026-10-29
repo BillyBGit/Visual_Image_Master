@@ -1277,6 +1277,10 @@ class ImagePreviewWindow(QMainWindow):
 
         menu.addSeparator()
 
+        copy_path_act = QAction("Copy Path", self)
+        copy_path_act.triggered.connect(self.copy_current_path)
+        menu.addAction(copy_path_act)
+
         start_link_act = QAction("Start Link List", self)
         start_link_act.triggered.connect(self.start_link_list)
         menu.addAction(start_link_act)
@@ -1286,6 +1290,13 @@ class ImagePreviewWindow(QMainWindow):
         menu.addAction(add_link_act)
 
         menu.exec(self.image_label.mapToGlobal(position))
+
+    def copy_current_path(self):
+        """Copy the full file path of the currently displayed image to the clipboard."""
+        if not self.image_list or self.current_index >= len(self.image_list):
+            return
+        path = self.image_list[self.current_index]
+        QApplication.clipboard().setText(path)
 
     def _get_selected_dest_folder(self):
         """Get the currently selected destination folder from the main window."""
