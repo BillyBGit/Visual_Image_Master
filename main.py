@@ -3,10 +3,16 @@ Image Sorter Application - Main Entry Point
 """
 
 import argparse
+import faulthandler
 import os
 import sys
 
 if __name__ == "__main__":
+    # Dump a Python-level stack trace to stderr on a fatal native crash
+    # (segfault/abort/etc.) - these otherwise leave no trace since they
+    # bypass Python's normal exception handling entirely.
+    faulthandler.enable()
+
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Visual Image Master 2026")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")

@@ -19,7 +19,10 @@ fi
 source "$VENV/bin/activate"
 
 cd "$SCRIPT_DIR"
-python main.py </dev/null &
+mkdir -p logs
+LOGFILE="logs/img_sort.log"
+echo "=== $(date -Iseconds) ===" >> "$LOGFILE"
+python main.py </dev/null >>"$LOGFILE" 2>&1 &
 APP_PID=$!
 echo "$APP_PID" > "$PIDFILE"
 
