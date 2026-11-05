@@ -908,6 +908,23 @@ class FilteringMixin:
         # the preview's navigation at whatever count had loaded so far,
         # making it look like it "only had the first N images" and wrapped
         # around early.
+        if getattr(self, "_refresh_in_progress", False):
+            # Reentrant call - e.g. the source folder tree's
+            # selection-changed signal firing again because the
+            # QApplication.processEvents() calls below pumped a queued
+            # folder click while a previous refresh is still mid-loop.
+            # Running _refresh_thumbnails_impl() straight away from here
+            # would call back into the folder tree/model machinery from
+            # inside its own signal-emission call stack, which is how a
+            # folder switched mid-load previously crashed the app (a
+            # segfault inside Qt's own internals, with the reentrant
+            # processEvents() loop as the only plausible trigger - see
+            # git history around 2026-11-05). Defer to a fresh queued
+            # event instead, same as cancel_sort_calculation() does, so it
+            # only runs once the current call stack has unwound back out
+            # to the event loop.
+            QTimer.singleShot(0, self.refresh_thumbnails)
+            return
         self._refresh_in_progress = True
         try:
             self._refresh_thumbnails_impl()
